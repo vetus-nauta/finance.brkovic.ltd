@@ -312,10 +312,10 @@ function ql_group_invite_create(array $input): array
             'expires_in_days' => 7
         ],
         'share_links' => [
-            'whatsapp' => 'https://wa.me/?text=' . rawurlencode('Join my Captain Fin group: ' . $url),
-            'telegram' => 'https://t.me/share/url?url=' . rawurlencode($url) . '&text=' . rawurlencode('Join my Captain Fin group'),
-            'viber' => 'viber://forward?text=' . rawurlencode('Join my Captain Fin group: ' . $url),
-            'email' => 'mailto:?subject=' . rawurlencode('Captain Fin group invite') . '&body=' . rawurlencode('Join my Captain Fin group: ' . $url),
+            'whatsapp' => 'https://wa.me/?text=' . rawurlencode('Join my FinDesk group: ' . $url),
+            'telegram' => 'https://t.me/share/url?url=' . rawurlencode($url) . '&text=' . rawurlencode('Join my FinDesk group'),
+            'viber' => 'viber://forward?text=' . rawurlencode('Join my FinDesk group: ' . $url),
+            'email' => 'mailto:?subject=' . rawurlencode('FinDesk group invite') . '&body=' . rawurlencode('Join my FinDesk group: ' . $url),
         ]
     ];
 }

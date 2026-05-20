@@ -74,7 +74,7 @@ function ql_smtp_send(string $to, string $subject, string $body): bool
     $user = (string)($cfg['username'] ?? '');
     $pass = (string)($cfg['password'] ?? '');
     $fromEmail = (string)($cfg['from_email'] ?? $user);
-    $fromName = (string)($cfg['from_name'] ?? 'Captain Fin');
+    $fromName = (string)($cfg['from_name'] ?? 'FinDesk');
 
     if ($host === '' || $user === '' || $pass === '' || $fromEmail === '') {
         return false;
@@ -134,8 +134,8 @@ function ql_send_auth_email(string $email, string $code): array
         return ['ok' => true, 'method' => 'log'];
     }
 
-    $subject = 'Captain Fin code: ' . $code;
-    $message = "Your Captain Fin sign-in code is: {$code}\n\n" .
+    $subject = 'FinDesk code: ' . $code;
+    $message = "Your FinDesk sign-in code is: {$code}\n\n" .
         "Enter this 6-digit code in the authorization window.\n" .
         "The code expires in 10 minutes.\n\n" .
         "If you did not request this code, you can ignore this email.\n";
@@ -149,7 +149,7 @@ function ql_send_auth_email(string $email, string $code): array
     }
 
     $headers = [
-        'From: Captain Fin <no-reply@brkovic.ltd>',
+        'From: FinDesk <no-reply@brkovic.ltd>',
         'Reply-To: no-reply@brkovic.ltd',
         'Content-Type: text/plain; charset=UTF-8',
         'X-Mailer: PHP/' . phpversion(),

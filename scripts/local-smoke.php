@@ -133,7 +133,7 @@ foreach (['advance_create', 'advance_submit', 'advance_accept', 'qlLoadAdvances'
         smoke_fail('Step 4/5 UI marker missing in app.js', ['marker' => $marker]);
     }
 }
-smoke_pass('Step 4/5/6/7 Captain Fin, advanced money and premium UI assets are served');
+smoke_pass('Step 4/5/6/7 FinDesk, advanced money and premium UI assets are served');
 
 $admin = smoke_login($baseUrl, $adminEmail, $adminCookie, $logPath);
 smoke_pass('admin login by 6-digit code');

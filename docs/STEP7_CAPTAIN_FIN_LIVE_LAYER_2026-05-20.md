@@ -1,17 +1,17 @@
-# Step 7 - Captain Fin Live Middle Layer - 2026-05-20
+# Step 7 - FinDesk Live Middle Layer - 2026-05-20
 
 ## Goal
 
-Turn the Captain Fin middle layer from a static placeholder into a working bridge between On the Go and Advanced.
+Turn the FinDesk middle layer from a static placeholder into a working bridge between On the Go and Advanced.
 
 ## Implemented
 
-- Captain Fin now loads the current On the Go report summary:
+- FinDesk now loads the current On the Go report summary:
   - given
   - spent
   - left
   - records count
-- Captain Fin now loads active group accountable-money records:
+- FinDesk now loads active group accountable-money records:
   - submitted
   - discrepancy
   - returned
@@ -23,13 +23,13 @@ Turn the Captain Fin middle layer from a static placeholder into a working bridg
   - `advance_list`
 - No database changes were needed.
 - The module refreshes when opened and when the app language changes.
-- Cache versions were bumped to `20260520-08`.
+- Cache versions were bumped to `20260520-09`.
 
 ## Product Meaning
 
 On the Go remains the minimal field input.
 
-Captain Fin is now the manager layer:
+FinDesk is now the manager layer:
 
 - see what is currently being prepared;
 - see submitted or pending accountable records;

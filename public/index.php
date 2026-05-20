@@ -4,35 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
-  <title>Captain Fin — Personal & Group Finance Web App</title>
-  <meta name="description" content="Captain Fin is a multilingual web app for personal finance, group expense tracking, on-the-go reports, moderation and advanced finance tools.">
-  <meta name="keywords" content="captain fin, finance web app, group expense tracker, finance tracker, budget tracker, proforma invoice, yacht expenses tracker, crew finance tracking">
+  <title>FinDesk — Personal & Group Finance Web App</title>
+  <meta name="description" content="FinDesk is a multilingual web app for personal finance, group expense tracking, on-the-go reports, moderation and advanced finance tools.">
+  <meta name="keywords" content="findesk, finance web app, group expense tracker, finance tracker, budget tracker, proforma invoice, yacht expenses tracker, crew finance tracking">
 
   <link rel="canonical" href="https://finance.brkovic.ltd/">
   <link rel="manifest" href="/manifest.webmanifest">
 
   <meta name="theme-color" content="#f6f8fb">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Captain Fin">
+  <meta name="apple-mobile-web-app-title" content="FinDesk">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
     <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<meta property="og:title" content="Captain Fin — Personal & Group Finance Web App">
+<meta property="og:title" content="FinDesk — Personal & Group Finance Web App">
   <meta property="og:description" content="Multilingual personal, group and premium finance web app by brkovic.ltd.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://finance.brkovic.ltd/">
 
-  <link rel="stylesheet" href="/assets/app.css?v=20260520-08">
+  <link rel="stylesheet" href="/assets/app.css?v=20260520-09">
 </head>
 <body>
   <main class="ql-shell">
     <section class="hero-card glass">
       <div class="brand-pill">brkovic.ltd · web app</div>
-      <h1>Captain Fin</h1>
-      <p class="lead">Personal, group and premium finance work in three clear layers: On the Go, Captain Fin and Advanced.</p>
+      <h1>FinDesk</h1>
+      <p class="lead">Personal, group and premium finance work in three clear layers: On the Go, FinDesk and Advanced.</p>
 
       <div class="hero-actions">
         <a class="primary-btn" href="/app.php">Open App</a>
@@ -51,14 +51,14 @@
     <section class="seo-card glass">
       <h2>Three layers for real finance work</h2>
       <p>
-        Capture money on the move, prepare clean Captain Fin reports, then moderate groups,
+        Capture money on the move, prepare clean FinDesk reports, then moderate groups,
         issued money, documents and advanced tools from one interface.
       </p>
     </section>
 
     <footer class="ql-footer">
       <button type="button" class="footer-link" data-open-donate>Donate</button>
-      <span>Captain Fin by brkovic.ltd</span>
+      <span>FinDesk by brkovic.ltd</span>
     </footer>
   </main>
 
@@ -78,9 +78,9 @@
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260520-08"></script>
+  <script src="/assets/i18n.js?v=20260520-09"></script>
   <script src="/assets/donate.js?v=20260503-01"></script>
   <script src="/assets/notifications.js?v=20260503-01"></script>
-  <script src="/assets/app.js?v=20260520-08"></script>
+  <script src="/assets/app.js?v=20260520-09"></script>
 </body>
 </html>

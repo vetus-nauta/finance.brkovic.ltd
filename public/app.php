@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Captain Fin App</title>
+  <title>FinDesk App</title>
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#f6f8fb">
   <link rel="manifest" href="/manifest.webmanifest">
     <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Captain Fin">
+  <meta name="apple-mobile-web-app-title" content="FinDesk">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260520-08">
+<link rel="stylesheet" href="/assets/app.css?v=20260520-09">
 </head>
 <body>
   <main class="ql-shell app-shell">
     <section class="hero-card glass">
-      <div class="brand-pill"><span data-i18n="app.brand">Captain Fin · brkovic.ltd</span><span class="brand-dot"></span><span data-i18n="app.secure">secure finance web app</span></div>
+      <div class="brand-pill"><span data-i18n="app.brand">FinDesk · brkovic.ltd</span><span class="brand-dot"></span><span data-i18n="app.secure">secure finance web app</span></div>
 
       <div class="language-strip glass-soft">
         <div class="language-strip-copy">
@@ -42,7 +42,7 @@
       </div>
 
       <div id="authStateLoading">
-        <h1 data-i18n="auth.loadingTitle">Captain Fin</h1>
+        <h1 data-i18n="auth.loadingTitle">FinDesk</h1>
         <p class="lead" data-i18n="auth.loadingLead">Checking your session…</p>
       </div>
 
@@ -69,15 +69,15 @@
         <p class="lead" data-i18n="auth.welcomeLead">You are signed in. This session should stay after reload.</p>
 
         <div class="user-card">
-          <div class="user-avatar">CF</div>
+          <div class="user-avatar">FD</div>
           <div>
             <div id="userName" class="user-name">User</div>
             <div id="userEmail" class="user-email"></div>
           </div>
         </div>
-          <nav class="module-nav glass-soft" aria-label="Captain Fin modules">
+          <nav class="module-nav glass-soft" aria-label="FinDesk modules">
             <button class="module-tab" type="button" data-module-tab="ontherun" data-i18n="nav.ontherun">На бегу</button>
-            <button class="module-tab" type="button" data-module-tab="captain" data-i18n="nav.captain">Captain Fin</button>
+            <button class="module-tab" type="button" data-module-tab="captain" data-i18n="nav.captain">FinDesk</button>
             <button class="module-tab" type="button" data-module-tab="money" data-i18n="nav.advanced">Advanced</button>
             <button class="module-tab active" type="button" data-module-tab="ledger" data-i18n="nav.ledger">Учет</button>
             <button class="module-tab" type="button" data-module-tab="premium" data-i18n="nav.premium">Premium</button>
@@ -99,7 +99,7 @@
               </button>
               <button class="mode-card captain" type="button" data-mode-open="captain">
                 <span>02</span>
-                <b data-i18n="modes.captainTitle">Captain Fin</b>
+                <b data-i18n="modes.captainTitle">FinDesk</b>
                 <small data-i18n="modes.captainText">Средний слой для менеджеров: чистые отчеты, сданные записи и контекст модерации.</small>
               </button>
               <button class="mode-card advanced" type="button" data-mode-open="money">
@@ -354,7 +354,7 @@
               <div class="captain-hero">
                 <div>
                   <span class="captain-kicker" data-i18n="captain.kicker">Средний слой</span>
-                  <h2 data-i18n="captain.title">Отчеты Captain Fin</h2>
+                  <h2 data-i18n="captain.title">Отчеты FinDesk</h2>
                   <p class="soft-note tight-note" data-i18n="captain.lead">Этот слой связывает быстрые записи с проверкой менеджера до попадания данных в отчет группы.</p>
                 </div>
               </div>
@@ -365,7 +365,7 @@
                   <h3 data-i18n="captain.currentTitle">Текущий отчет</h3>
                   <p data-i18n="captain.currentText">Продолжить активный отчет “на бегу” и подготовить его к сдаче.</p>
                   <div id="captainCurrentSummary" class="captain-live-panel">
-                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные Captain Fin…</p>
+                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
                   </div>
                   <button class="ghost-btn wide-btn" type="button" data-mode-open="ontherun" data-i18n="captain.currentAction">Открыть “На бегу”</button>
                 </article>
@@ -375,7 +375,7 @@
                   <h3 data-i18n="captain.reviewTitle">Сданные записи</h3>
                   <p data-i18n="captain.reviewText">Рабочий вид менеджера для проверки отчетов перед включением в общие итоги.</p>
                   <div id="captainSubmittedList" class="captain-live-panel captain-review-list">
-                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные Captain Fin…</p>
+                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
                   </div>
                   <button class="ghost-btn wide-btn" type="button" data-mode-open="groups" data-i18n="captain.reviewAction">Открыть группы</button>
                 </article>
@@ -727,7 +727,7 @@
                 <span data-i18n="settings.tools">Инструменты приложения</span>
               </div>
 
-              <p class="soft-note" data-i18n="settings.lead">Установить Captain Fin как web app, поддержать проект и управлять аккаунтом.</p>
+              <p class="soft-note" data-i18n="settings.lead">Установить FinDesk как web app, поддержать проект и управлять аккаунтом.</p>
 
               <div class="settings-actions">
                 <button type="button" class="ghost-btn wide-btn" data-open-install="auto" data-i18n="settings.install">Установить web app</button>
@@ -921,9 +921,9 @@
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260520-08"></script>
+  <script src="/assets/i18n.js?v=20260520-09"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260520-08"></script>
+  <script src="/assets/app.js?v=20260520-09"></script>
 </body>
 </html>

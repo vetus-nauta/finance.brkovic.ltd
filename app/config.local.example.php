@@ -17,6 +17,6 @@ return [
         'username' => 'no-reply@example.com',
         'password' => 'change-me',
         'from_email' => 'no-reply@example.com',
-        'from_name' => 'Captain Fin',
+        'from_name' => 'FinDesk',
     ],
 ];

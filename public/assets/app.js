@@ -28,7 +28,7 @@ function qlInstallText(type) {
   const d = qlDeviceInfo();
 
   if (isStandaloneMode()) {
-    return '<h3>Already installed</h3><p>Captain Fin is already running as a web app.</p>';
+    return '<h3>Already installed</h3><p>FinDesk is already running as a web app.</p>';
   }
 
   if (!type || type === 'auto') {
@@ -84,7 +84,7 @@ function qlInstallText(type) {
     if (deferredPrompt) {
       return `
         <h3>Install on Android</h3>
-        <p>Chrome can install Captain Fin as a web app on your Home screen.</p>
+        <p>Chrome can install FinDesk as a web app on your Home screen.</p>
         <button id="nativeInstallBtn" class="primary-btn wide-btn" type="button">Install now</button>
         <p class="soft-note">Your records are saved in your account after login, not only on this device.</p>
       `;
@@ -105,7 +105,7 @@ function qlInstallText(type) {
     if (deferredPrompt) {
       return `
         <h3>Install on computer</h3>
-        <p>Chrome or Edge can install Captain Fin as a web app.</p>
+        <p>Chrome or Edge can install FinDesk as a web app.</p>
         <button id="nativeInstallBtn" class="primary-btn wide-btn" type="button">Install now</button>
         <p class="soft-note">You can also use the install icon in the browser address bar or browser menu.</p>
       `;
@@ -116,9 +116,9 @@ function qlInstallText(type) {
       <ol>
         <li>Open this page in <b>Chrome</b> or <b>Edge</b>.</li>
         <li>Look for the install icon in the address bar, or open the browser menu.</li>
-        <li>Choose <b>Install Captain Fin</b> or <b>Install app</b>.</li>
+        <li>Choose <b>Install FinDesk</b> or <b>Install app</b>.</li>
       </ol>
-      <p class="soft-note">If the browser does not show install yet, keep using Captain Fin in the browser and try again after reload.</p>
+      <p class="soft-note">If the browser does not show install yet, keep using FinDesk in the browser and try again after reload.</p>
     `;
   }
 
@@ -177,7 +177,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-/* === Captain Fin Auth UI 20260503-02 === */
+/* === FinDesk Auth UI 20260503-02 === */
 let qlCurrentUser = null;
 
 async function qlApi(action, payload) {
@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-/* === Captain Fin Personal Ledger UI 20260503-03 === */
+/* === FinDesk Personal Ledger UI 20260503-03 === */
 let qlLedgerType = 'income';
 let qlMoneyType = 'cash';
 
@@ -577,7 +577,7 @@ document.addEventListener('change', function(event) {
 
 
 
-/* === Captain Fin Personal Report UI 20260503-06 === */
+/* === FinDesk Personal Report UI 20260503-06 === */
 let qlReportPeriod = 'today';
 
 function qlToggleReportPanel() {
@@ -724,7 +724,7 @@ document.addEventListener('click', function(event) {
 });
 
 
-/* === Captain Fin Group UI 20260503-07 === */
+/* === FinDesk Group UI 20260503-07 === */
 let qlGroups = [];
 let qlActiveGroup = null;
 let qlLastInvite = null;
@@ -1018,7 +1018,7 @@ qlRenderUser = function(user) {
   }, 80);
 };
 
-/* === Captain Fin Group Ledger Scope UI 20260503-08 === */
+/* === FinDesk Group Ledger Scope UI 20260503-08 === */
 let qlLedgerScopeMode = 'personal';
 let qlLedgerGroupId = null;
 
@@ -1195,7 +1195,7 @@ qlLoadGroups = async function() {
 
 
 
-/* === Captain Fin Section UI 20260503-09 === */
+/* === FinDesk Section UI 20260503-09 === */
 let qlCategories = [];
 
 function qlSelectedSectionId() {
@@ -1313,7 +1313,7 @@ async function qlCreateSection() {
 }
 
 
-/* === Captain Fin Group Messages UI 20260503-14 === */
+/* === FinDesk Group Messages UI 20260503-14 === */
 function qlMessageStatus(message) {
   const el = document.getElementById('messageStatus');
   if (el) el.textContent = message || '';
@@ -1421,7 +1421,7 @@ document.addEventListener('keydown', function(event) {
   qlSendMessage();
 });
 
-/* === Captain Fin Unread Message Modal 20260503-17 === */
+/* === FinDesk Unread Message Modal 20260503-17 === */
 let qlPendingUnreadMessage = null;
 let qlUnreadCheckDone = false;
 
@@ -1538,7 +1538,7 @@ qlRenderUser = function(user) {
   setTimeout(qlCheckUnreadMessages, 500);
 };
 
-/* === Captain Fin Business Desk UI 20260503-18 === */
+/* === FinDesk Business Desk UI 20260503-18 === */
 let qlBdCompanyProfile = null;
 let qlBdClients = [];
 let qlBdProformas = [];
@@ -1804,7 +1804,7 @@ qlRenderUser = function(user) {
   }, 900);
 };
 
-/* === Captain Fin Proforma View / Print 20260503-20 === */
+/* === FinDesk Proforma View / Print 20260503-20 === */
 function qlBdMoney(value, currency) {
   return (currency || 'EUR') + ' ' + Number(value || 0).toFixed(2);
 }
@@ -1967,7 +1967,7 @@ document.addEventListener('click', function(event) {
   if (print) qlBdPrintProforma();
 });
 
-/* === Captain Fin Module Navigation NAV-1 20260503-24 === */
+/* === FinDesk Module Navigation NAV-1 20260503-24 === */
 function qlSetModule(moduleName) {
   const requested = moduleName || 'ledger';
   const visible = requested === 'reports' ? 'ledger' : requested;
@@ -2013,7 +2013,7 @@ document.addEventListener('click', function(event) {
 
 window.qlSetModule = qlSetModule;
 
-/* === Captain Fin Accountable Money UI STEP-4 20260520 === */
+/* === FinDesk Accountable Money UI STEP-4 20260520 === */
 let qlAdvanceGroupId = null;
 let qlAdvances = [];
 let qlAdvanceMembers = [];
@@ -2425,7 +2425,7 @@ try {
   qlSetModule = window.qlSetModule;
 } catch (error) {}
 
-/* === Captain Fin On The Go OTR-1 20260503-25 === */
+/* === FinDesk On The Go OTR-1 20260503-25 === */
 let qlOtrItems = [];
 function qlOtrCurrency(value) {
   const n = Number(value || 0);
@@ -2837,7 +2837,7 @@ qlSetModule = function(moduleName) {
 };
 window.qlSetModule = qlSetModule;
 
-/* === Captain Fin On The Go Convert To Ledger OTR-2C 20260503-29 === */
+/* === FinDesk On The Go Convert To Ledger OTR-2C 20260503-29 === */
 let qlOtrConvertScope = 'personal';
 
 function qlOtrDefaultEntryType(captureType) {
@@ -3001,7 +3001,7 @@ qlOpenOtrReview = function(id) {
   }
 };
 
-/* === Captain Fin Entry Details Viewer LEDGER-2A 20260503-31 === */
+/* === FinDesk Entry Details Viewer LEDGER-2A 20260503-31 === */
 function qlLedgerFormatEntryType(entry) {
   const type = entry.entry_type === 'income' ? 'Income' : 'Expense';
   const money = entry.money_type === 'cash' ? 'Cash' : 'Non-cash';
@@ -3135,7 +3135,7 @@ document.addEventListener('click', function(event) {
   }
 });
 
-/* === Captain Fin On The Go Tape Controller OTR-3B-CLEAN 20260503-35 === */
+/* === FinDesk On The Go Tape Controller OTR-3B-CLEAN 20260503-35 === */
 let qlOtrActiveTapeId = null;
 let qlOtrTapes = [];
 
@@ -3480,7 +3480,7 @@ window.qlCreateOtrTape = qlCreateOtrTape;
 window.qlSelectOtrTape = qlSelectOtrTape;
 
 
-/* === Captain Fin On the Go Operational Body Mode OTR-3F 20260503-40 === */
+/* === FinDesk On the Go Operational Body Mode OTR-3F 20260503-40 === */
 (function() {
   function qlSyncOtrBodyMode() {
     const module = document.getElementById('moduleOnTheGo');
@@ -3525,7 +3525,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlSyncOtrBodyMode = qlSyncOtrBodyMode;
 })();
 
-/* === Captain Fin On the Go Mobile Cash/Card Action Flow OTR-3G 20260503-41 === */
+/* === FinDesk On the Go Mobile Cash/Card Action Flow OTR-3G 20260503-41 === */
 (function() {
   let qlOtrMobileType = 'cash_out';
 
@@ -3691,7 +3691,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlSaveOtrMobileInput = qlSaveOtrMobileInput;
 })();
 
-/* === Captain Fin On the Go Close Session UI OTR-4C 20260503-48 === */
+/* === FinDesk On the Go Close Session UI OTR-4C 20260503-48 === */
 (function() {
   function qlOtrMobileCurrentSessionType() {
     try {
@@ -3774,7 +3774,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlCloseCurrentOtrSession = qlCloseCurrentOtrSession;
 })();
 
-/* === Captain Fin On the Go Save Guard OTR-4C-2 20260503-49 === */
+/* === FinDesk On the Go Save Guard OTR-4C-2 20260503-49 === */
 (function() {
   if (window.__qlOtrSaveGuardInstalled) return;
   window.__qlOtrSaveGuardInstalled = true;
@@ -3814,7 +3814,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   }
 })();
 
-/* === Captain Fin On the Go Session Cards OTR-4D 20260503-50 === */
+/* === FinDesk On the Go Session Cards OTR-4D 20260503-50 === */
 (function() {
   if (window.__qlOtrSessionCardsInstalled) return;
   window.__qlOtrSessionCardsInstalled = true;
@@ -3925,7 +3925,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlOtrRenderSessionCards = qlOtrRenderSessionCards;
 })();
 
-/* === Captain Fin On the Go Session Reset OTR-4E-1 20260503-60 === */
+/* === FinDesk On the Go Session Reset OTR-4E-1 20260503-60 === */
 (function() {
   if (window.__qlOtr4eResetInstalled) return;
   window.__qlOtr4eResetInstalled = true;
@@ -4154,7 +4154,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlOtr4eSetZone = qlOtr4eSetZone;
 })();
 
-/* === Captain Fin On the Go Real Two-Zone Session UI OTR-4F 20260503-61 === */
+/* === FinDesk On the Go Real Two-Zone Session UI OTR-4F 20260503-61 === */
 (function() {
   if (window.__qlOtr4fInstalled) return;
   window.__qlOtr4fInstalled = true;
@@ -4415,7 +4415,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlOtr4fOpenSessionDetail = openSessionDetail;
 })();
 
-/* === Captain Fin On the Go Final Active Journal Override OTR-4F-2 20260503-62 === */
+/* === FinDesk On the Go Final Active Journal Override OTR-4F-2 20260503-62 === */
 (function() {
   function otrMoney(value) {
     if (typeof qlOtrCurrency === 'function') return qlOtrCurrency(value || 0);
@@ -4552,7 +4552,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlOtrFinalLoadOnTheGo = otrFinalLoadOnTheGo;
 })();
 
-/* === Captain Fin Premium Feature Shell STEP-5 20260520 === */
+/* === FinDesk Premium Feature Shell STEP-5 20260520 === */
 (function() {
   function premiumStatus(message) {
     const el = document.getElementById('premiumStatus');
@@ -4586,7 +4586,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   window.qlPremiumOpen = qlPremiumOpen;
 })();
 
-/* === Captain Fin Middle Layer Live Summary STEP-7 20260520 === */
+/* === FinDesk Middle Layer Live Summary STEP-7 20260520 === */
 (function() {
   let captainLoading = false;
 
@@ -4663,7 +4663,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
       return `
         <article class="captain-review-row status-${escapeHtml(advance.status || '')}">
-          <b>${escapeHtml(advance.title || 'Captain Fin')}</b>
+          <b>${escapeHtml(advance.title || 'FinDesk')}</b>
           <small>${escapeHtml(group)} · ${escapeHtml(employee)}</small>
           <small>${escapeHtml(statusLabel(advance.status))} · ${qlCurrency(advance.amount || 0)} · ${records} ${escapeHtml(t('captain.records'))}</small>
         </article>
@@ -4734,12 +4734,15 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     qlSetModule = window.qlSetModule;
   } catch (error) {}
 
-  window.addEventListener('captainfin:languagechange', function() {
+  function refreshFinDeskOnLanguageChange() {
     const module = document.getElementById('moduleCaptain');
     if (module && !module.classList.contains('hidden')) {
       qlLoadCaptainFin();
     }
-  });
+  }
+
+  window.addEventListener('findesk:languagechange', refreshFinDeskOnLanguageChange);
+  window.addEventListener('captainfin:languagechange', refreshFinDeskOnLanguageChange);
 
   window.qlLoadCaptainFin = qlLoadCaptainFin;
 })();

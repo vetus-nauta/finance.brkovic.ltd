@@ -1,18 +1,18 @@
-# Step 6 - Captain Fin Brand, Modes and i18n Foundation - 2026-05-20
+# Step 6 - FinDesk Brand, Modes and i18n Foundation - 2026-05-20
 
 ## Goal
 
-Replace the temporary Quick Ledger product surface with Captain Fin and make the three product layers explicit:
+Replace the earlier experimental product surface with FinDesk and make the three product layers explicit:
 
 - On the Go: minimal field/pocket mode.
-- Captain Fin: middle manager/report layer.
+- FinDesk: middle manager/report layer.
 - Advanced: organizer/admin layer.
 
 ## Implemented
 
-- Product name changed to Captain Fin in app metadata, manifest, install copy, auth email copy and share-invite copy.
-- Added the Captain Fin middle module between On the Go and Advanced.
-- Added a three-card mode ladder for On the Go / Captain Fin / Advanced.
+- Product name changed to FinDesk in app metadata, manifest, install copy, auth email copy and share-invite copy.
+- Added the FinDesk middle module between On the Go and Advanced.
+- Added a three-card mode ladder for On the Go / FinDesk / Advanced.
 - Added a multilingual UI foundation in `public/assets/i18n.js`.
 - Supported language groups:
   - Russian
@@ -29,7 +29,7 @@ Replace the temporary Quick Ledger product surface with Captain Fin and make the
 
 ## Scope Boundary
 
-This step localizes the shell, auth surface, primary navigation, mode structure, Captain Fin module, Advanced/Premium headings and Settings.
+This step localizes the shell, auth surface, primary navigation, mode structure, FinDesk module, Advanced/Premium headings and Settings.
 
 The old dynamic forms still contain mixed legacy English/Russian strings in places. They should be migrated gradually to the new i18n dictionary as each module is polished.
 

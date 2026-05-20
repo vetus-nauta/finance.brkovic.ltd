@@ -2,7 +2,7 @@
 
 Finance web app / PWA for `finance.brkovic.ltd`.
 
-Current product name in the live codebase: **Captain Fin**.
+Current product name in the live codebase: **FinDesk**.
 
 ## Current Scope
 
@@ -19,7 +19,7 @@ Current product name in the live codebase: **Captain Fin**.
 - PWA install flow for iOS / Android / desktop
 - On the Go fast capture mode
 - Accountable money / advances moderation bridge
-- Captain Fin middle layer between On the Go and Advanced
+- FinDesk middle layer between On the Go and Advanced
 - Advanced UI for issue / submit / accept / return
 - Premium Features shell with placeholders
 - Multilingual shell foundation: RU / EN / DE / IT / ES / SR-MNE-HR / Mandarin
@@ -75,7 +75,7 @@ The smoke test checks:
 - accountable money issue -> On the Go submit -> admin accept/return -> group ledger conversion;
 - personal ledger update/delete;
 - On the Go tape/capture/list.
-- Step 4/6 Captain Fin, Advanced and Premium UI assets served by `app.php` and `app.js`.
+- Step 4/6 FinDesk, Advanced and Premium UI assets served by `app.php` and `app.js`.
 
 ## Product Layers
 
@@ -83,7 +83,7 @@ The product is organized as three primary work layers:
 
 ```text
 On the Go     = minimal employee/pocket mode: received, spent, left
-Captain Fin   = middle manager/report layer
+FinDesk   = middle manager/report layer
 Advanced      = organizer/admin mode
 ```
 
@@ -93,7 +93,7 @@ Access is scoped to a group membership, not to the global user account.
 
 ```text
 base      = On the Go / limited work group mode
-manager   = Captain Fin middle layer / moderation
+manager   = FinDesk middle layer / moderation
 advanced  = organizer/admin mode
 ```
 

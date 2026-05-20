@@ -1,7 +1,7 @@
 {
     "id": "/app.php",
-    "name": "Captain Fin by brkovic.ltd",
-    "short_name": "Captain Fin",
+    "name": "FinDesk by brkovic.ltd",
+    "short_name": "FinDesk",
     "description": "Multilingual personal, group and premium finance tools by brkovic.ltd.",
     "start_url": "/app.php",
     "scope": "/",

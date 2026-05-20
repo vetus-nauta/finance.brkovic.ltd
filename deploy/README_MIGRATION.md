@@ -1,4 +1,4 @@
-# Captain Fin Migration Foundation
+# FinDesk Migration Foundation
 
 This app is prepared for future portable migration.
 
