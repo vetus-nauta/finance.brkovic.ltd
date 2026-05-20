@@ -641,9 +641,9 @@ function ql_ledger_update(array $input): array
             purpose = ?,
             note = ?,
             edited_at = NOW()
-        WHERE le.id = ?
-          AND le.user_id = ?
-          AND le.deleted_at IS NULL
+        WHERE id = ?
+          AND user_id = ?
+          AND deleted_at IS NULL
     ");
 
     $stmt->execute([
@@ -683,9 +683,9 @@ function ql_ledger_delete(array $input): array
     $stmt = ql_db()->prepare("
         UPDATE ledger_entries
         SET deleted_at = NOW(), edited_at = NOW()
-        WHERE le.id = ?
-          AND le.user_id = ?
-          AND le.deleted_at IS NULL
+        WHERE id = ?
+          AND user_id = ?
+          AND deleted_at IS NULL
     ");
 
     $stmt->execute([$entryId, (int)$user['id']]);
@@ -1061,4 +1061,3 @@ function ql_ledger_report(array $input): array
         'adjustment' => $adjustment,
     ];
 }
-

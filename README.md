@@ -35,6 +35,38 @@ cp app/config.local.example.php app/config.local.php
 
 Then fill DB and SMTP credentials locally/on server.
 
+For localhost, use mail mode `log` so the 6-digit auth code is written to:
+
+```text
+storage/logs/auth_codes.log
+```
+
+## Local Smoke Test
+
+After creating a local database and running migrations, start the app:
+
+```bash
+php -S 127.0.0.1:18888 -t public
+```
+
+Then run:
+
+```bash
+php scripts/local-smoke.php http://127.0.0.1:18888
+```
+
+The smoke test checks:
+
+- public `current_user`;
+- login by 6-digit email code in local log mode;
+- group creation;
+- invite and member join;
+- group members;
+- group messages and unread state;
+- group ledger write plus admin visibility;
+- personal ledger update/delete;
+- On the Go tape/capture/list.
+
 ## Deployment Notes
 
 The repository intentionally does not include:
@@ -48,4 +80,3 @@ The repository intentionally does not include:
 The current live FTP tree had many `.bak.*` files. This repository starts from the current active files only.
 
 Before feature integration, dump and commit a sanitized database schema from the live database. The current `deploy/` SQL files are useful history, but `On the Go` runtime tables evolved beyond the original foundation file.
-

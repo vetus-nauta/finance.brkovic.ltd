@@ -128,6 +128,12 @@ function ql_smtp_send(string $to, string $subject, string $body): bool
 
 function ql_send_auth_email(string $email, string $code): array
 {
+    $mailConfig = ql_mail_config();
+
+    if (($mailConfig['mode'] ?? '') === 'log') {
+        return ['ok' => true, 'method' => 'log'];
+    }
+
     $subject = 'Quick Ledger code: ' . $code;
     $message = "Your Quick Ledger sign-in code is: {$code}\n\n" .
         "Enter this 6-digit code in the authorization window.\n" .

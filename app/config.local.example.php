@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'app_url' => 'https://finance.brkovic.ltd',
     'db_host' => 'localhost',
     'db_name' => 'finance_database',
     'db_user' => 'finance_user',
@@ -8,6 +9,7 @@ return [
     'session_cookie_name' => 'ql_session',
 
     'mail' => [
+        // Use "log" for localhost/dev, "smtp" for production.
         'mode' => 'smtp',
         'host' => 'mail.example.com',
         'port' => 465,
@@ -18,4 +20,3 @@ return [
         'from_name' => 'Quick Ledger',
     ],
 ];
-
