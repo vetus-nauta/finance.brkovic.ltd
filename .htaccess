@@ -1,0 +1,15 @@
+Options -Indexes
+
+AddType application/manifest+json .webmanifest
+AddType image/png .png
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+RewriteRule ^manifest.webmanifest$ public/manifest.webmanifest [L]
+RewriteRule ^service-worker.js$ public/service-worker.js [L]
+RewriteRule ^robots.txt$ public/robots.txt [L]
+RewriteRule ^sitemap.xml$ public/sitemap.xml [L]
+</IfModule>
+
+RedirectMatch 403 ^/(app|storage|deploy|cron)(/|$)

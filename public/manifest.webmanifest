@@ -1,0 +1,31 @@
+{
+    "id": "/app.php",
+    "name": "Quick Ledger by brkovic.ltd",
+    "short_name": "Quick Ledger",
+    "description": "Fast personal and group finance tracking web app.",
+    "start_url": "/app.php",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#f4f4f6",
+    "theme_color": "#f4f4f6",
+    "categories": [
+        "finance",
+        "productivity",
+        "business"
+    ],
+    "icons": [
+        {
+            "src": "/assets/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/assets/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}

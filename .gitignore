@@ -1,0 +1,14 @@
+app/config.local.php
+app/config.local.php.*
+storage/
+backups/
+zip-archives/
+cgi-bin/
+.well-known/
+error_log
+*.log
+*.bak
+*.bak.*
+.DS_Store
+Thumbs.db
+
