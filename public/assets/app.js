@@ -178,6 +178,8 @@ if ('serviceWorker' in navigator) {
 }
 
 /* === Quick Ledger Auth UI 20260503-02 === */
+let qlCurrentUser = null;
+
 async function qlApi(action, payload) {
   const response = await fetch('/api.php?action=' + encodeURIComponent(action), {
     method: 'POST',
@@ -218,6 +220,8 @@ function qlShowPanel(name) {
 }
 
 function qlRenderUser(user) {
+  qlCurrentUser = user || null;
+
   const name = document.getElementById('userName');
   const email = document.getElementById('userEmail');
 
@@ -275,6 +279,7 @@ async function qlVerifyCode() {
 
 async function qlLogout() {
   await qlApi('logout', {});
+  qlCurrentUser = null;
   qlShowPanel('login');
   qlShowAuthMessage('Logged out.');
 }
@@ -2000,6 +2005,418 @@ document.addEventListener('click', function(event) {
 });
 
 window.qlSetModule = qlSetModule;
+
+/* === Quick Ledger Accountable Money UI STEP-4 20260520 === */
+let qlAdvanceGroupId = null;
+let qlAdvances = [];
+let qlAdvanceMembers = [];
+let qlAdvanceScope = {};
+
+function qlAdvanceStatus(message) {
+  const el = document.getElementById('advanceStatus');
+  if (el) el.textContent = message || '';
+}
+
+function qlAdvanceStatusLabel(status) {
+  if (status === 'issued') return 'Issued';
+  if (status === 'submitted') return 'To review';
+  if (status === 'accepted') return 'Accepted';
+  if (status === 'returned') return 'Returned';
+  if (status === 'discrepancy') return 'Mismatch';
+  if (status === 'closed') return 'Closed';
+  return status || 'Advance';
+}
+
+function qlAdvanceIsWaiting(status) {
+  return ['issued', 'submitted', 'returned', 'discrepancy'].includes(status);
+}
+
+function qlAdvanceRefreshGroupSelect() {
+  const select = document.getElementById('advanceGroupSelect');
+  if (!select) return;
+
+  const groups = Array.isArray(qlGroups) ? qlGroups : [];
+
+  if (qlAdvanceGroupId && !groups.some(function(group) { return String(group.id) === String(qlAdvanceGroupId); })) {
+    qlAdvanceGroupId = null;
+  }
+
+  if (!qlAdvanceGroupId && groups.length) {
+    qlAdvanceGroupId = groups[0].id;
+  }
+
+  select.innerHTML = '<option value="">Choose group</option>' + groups.map(function(group) {
+    const level = group.access_level || group.role || 'base';
+    return '<option value="' + escapeHtml(group.id) + '">' + escapeHtml(group.name) + ' · ' + escapeHtml(level) + '</option>';
+  }).join('');
+
+  select.value = qlAdvanceGroupId ? String(qlAdvanceGroupId) : '';
+}
+
+function qlAdvanceRenderMembers() {
+  const select = document.getElementById('advanceMemberSelect');
+  if (!select) return;
+
+  const members = qlAdvanceMembers || [];
+  select.innerHTML = '<option value="">Choose employee</option>' + members.map(function(member) {
+    const label = (member.display_name || member.email || 'Member') + ' · ' + (member.access_level || member.role || 'base');
+    return '<option value="' + escapeHtml(member.user_id) + '">' + escapeHtml(label) + '</option>';
+  }).join('');
+}
+
+async function qlAdvanceLoadMembers() {
+  qlAdvanceMembers = [];
+  qlAdvanceRenderMembers();
+
+  if (!qlAdvanceGroupId || !qlAdvanceScope.can_manage_money) return;
+
+  const data = await qlApi('group_members', { group_id: Number(qlAdvanceGroupId) });
+  if (!data.ok) {
+    qlAdvanceStatus('Members error: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvanceMembers = data.members || [];
+  qlAdvanceRenderMembers();
+}
+
+function qlAdvanceRenderIssuePanel() {
+  const panel = document.getElementById('advanceIssuePanel');
+  if (!panel) return;
+
+  const canIssue = !!(qlAdvanceGroupId && qlAdvanceScope && qlAdvanceScope.can_manage_money);
+  panel.classList.toggle('hidden', !canIssue);
+}
+
+function qlAdvanceRenderSummary() {
+  const summary = document.getElementById('advanceSummary');
+  if (!summary) return;
+
+  let issued = 0;
+  let spent = 0;
+  let expectedLeft = 0;
+  let waiting = 0;
+
+  qlAdvances.forEach(function(advance) {
+    const s = advance.summary || {};
+    const status = advance.status || '';
+    if (status !== 'accepted' && status !== 'closed') {
+      issued += Number(advance.amount || 0);
+      spent += Number(s.cash_out || 0) + Number(s.card_out || 0);
+      expectedLeft += Number(s.cash_left || 0);
+    }
+    if (qlAdvanceIsWaiting(status)) waiting += 1;
+  });
+
+  summary.innerHTML = `
+    <div><span>Issued</span><b>${qlCurrency(issued)}</b></div>
+    <div><span>Spent</span><b>${qlCurrency(spent)}</b></div>
+    <div><span>Expected left</span><b>${qlCurrency(expectedLeft)}</b></div>
+    <div><span>Waiting</span><b>${waiting}</b></div>
+  `;
+}
+
+function qlAdvanceActionHtml(advance) {
+  const status = advance.status || '';
+  const isAssigned = qlCurrentUser && String(advance.assigned_to_user_id) === String(qlCurrentUser.id);
+  const canSubmit = isAssigned && ['issued', 'returned', 'discrepancy'].includes(status);
+  const canModerate = !!(qlAdvanceScope && qlAdvanceScope.can_moderate && ['submitted', 'discrepancy'].includes(status));
+  let html = '';
+
+  if (canSubmit) {
+    html += `
+      <div class="advance-submit-row">
+        <input class="ql-input" type="text" inputmode="decimal" placeholder="Real cash left" data-advance-actual="${escapeHtml(advance.id)}">
+        <input class="ql-input" type="text" placeholder="Note" data-advance-note="${escapeHtml(advance.id)}">
+        <button class="primary-btn" type="button" data-advance-submit="${escapeHtml(advance.id)}">Submit</button>
+        <button class="ghost-btn" type="button" data-advance-open-tape="${escapeHtml(advance.on_the_go_tape_id || '')}">Open tape</button>
+      </div>
+    `;
+  }
+
+  if (canModerate) {
+    html += `
+      <div class="advance-moderate-row">
+        <button class="primary-btn" type="button" data-advance-accept="${escapeHtml(advance.id)}">Accept</button>
+        <button class="ghost-btn danger-soft-btn" type="button" data-advance-return="${escapeHtml(advance.id)}">Return</button>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+function qlAdvanceField(attr, id) {
+  return Array.from(document.querySelectorAll('[' + attr + ']')).find(function(el) {
+    return String(el.getAttribute(attr)) === String(id);
+  }) || null;
+}
+
+function qlAdvanceRenderList() {
+  const list = document.getElementById('advanceList');
+  const count = document.getElementById('advanceCount');
+
+  if (count) count.textContent = qlAdvances.length + (qlAdvances.length === 1 ? ' advance' : ' advances');
+  qlAdvanceRenderSummary();
+  qlAdvanceRenderIssuePanel();
+
+  if (!list) return;
+
+  if (!qlAdvanceGroupId) {
+    list.innerHTML = '<p class="soft-note">Choose a group to see accountable money.</p>';
+    return;
+  }
+
+  if (!qlAdvances.length) {
+    list.innerHTML = '<p class="soft-note">No accountable money in this group yet.</p>';
+    return;
+  }
+
+  list.innerHTML = qlAdvances.map(function(advance) {
+    const s = advance.summary || {};
+    const status = advance.status || 'issued';
+    const employee = advance.assigned_to_display_name || advance.assigned_to_email || 'Employee';
+    const diff = Number(advance.difference_amount || 0);
+    const differenceHtml = advance.actual_remaining !== null && advance.actual_remaining !== undefined
+      ? `<div><span>Actual</span><b>${qlCurrency(advance.actual_remaining)}</b></div><div class="${Math.abs(diff) > 0.009 ? 'metric-alert' : ''}"><span>Difference</span><b>${qlCurrency(diff)}</b></div>`
+      : '';
+
+    return `
+      <article class="advance-row status-${escapeHtml(status)}">
+        <div class="advance-row-top">
+          <div>
+            <div class="advance-status-line">
+              <span>${escapeHtml(qlAdvanceStatusLabel(status))}</span>
+              <small>${escapeHtml(advance.created_at || '')}</small>
+            </div>
+            <h3>${escapeHtml(advance.title || 'Pocket advance')}</h3>
+            <p>${escapeHtml(employee)} · ${escapeHtml(advance.assigned_to_email || '')}</p>
+          </div>
+          <strong>${qlCurrency(advance.amount || 0)}</strong>
+        </div>
+
+        <div class="advance-metrics">
+          <div><span>Cash spent</span><b>${qlCurrency(s.cash_out || 0)}</b></div>
+          <div><span>Card spent</span><b>${qlCurrency(s.card_out || 0)}</b></div>
+          <div><span>Expected left</span><b>${qlCurrency(s.cash_left || 0)}</b></div>
+          <div><span>Records</span><b>${Number(s.records_count || 0)}</b></div>
+          ${differenceHtml}
+        </div>
+
+        ${advance.submitted_note ? '<p class="advance-note">' + escapeHtml(advance.submitted_note) + '</p>' : ''}
+        ${advance.moderation_note ? '<p class="advance-note moderator">' + escapeHtml(advance.moderation_note) + '</p>' : ''}
+        ${qlAdvanceActionHtml(advance)}
+      </article>
+    `;
+  }).join('');
+}
+
+async function qlLoadAdvances() {
+  const module = document.getElementById('moduleMoney');
+  if (!module) return;
+
+  qlAdvanceRefreshGroupSelect();
+
+  if (!qlAdvanceGroupId) {
+    qlAdvances = [];
+    qlAdvanceScope = {};
+    qlAdvanceRenderList();
+    qlAdvanceStatus((qlGroups || []).length ? 'Choose a group.' : 'Create or join a group first.');
+    return;
+  }
+
+  qlAdvanceStatus('Loading accountable money…');
+
+  const data = await qlApi('advance_list', {
+    group_id: Number(qlAdvanceGroupId),
+    limit: 150
+  });
+
+  if (!data.ok) {
+    qlAdvances = [];
+    qlAdvanceScope = {};
+    qlAdvanceRenderList();
+    qlAdvanceStatus('Advance error: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvances = data.advances || [];
+  qlAdvanceScope = data.scope || {};
+  qlAdvanceStatus(qlAdvanceScope.can_manage_money ? 'Advanced money control.' : (qlAdvanceScope.can_moderate ? 'Moderation mode.' : 'Own assigned money.'));
+
+  qlAdvanceRenderList();
+  await qlAdvanceLoadMembers();
+  qlAdvanceRenderIssuePanel();
+}
+
+async function qlAdvanceCreate() {
+  const memberId = document.getElementById('advanceMemberSelect')?.value || '';
+  const title = (document.getElementById('advanceTitle')?.value || '').trim();
+  const amount = (document.getElementById('advanceAmount')?.value || '').trim();
+
+  if (!qlAdvanceGroupId) {
+    qlAdvanceStatus('Choose a group first.');
+    return;
+  }
+  if (!memberId || !amount) {
+    qlAdvanceStatus('Choose employee and amount.');
+    return;
+  }
+
+  qlAdvanceStatus('Issuing accountable cash…');
+
+  const data = await qlApi('advance_create', {
+    group_id: Number(qlAdvanceGroupId),
+    assigned_to_user_id: Number(memberId),
+    title: title || 'Pocket advance',
+    amount: amount,
+    currency: 'EUR'
+  });
+
+  if (!data.ok) {
+    qlAdvanceStatus('Issue error: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  const titleEl = document.getElementById('advanceTitle');
+  const amountEl = document.getElementById('advanceAmount');
+  if (titleEl) titleEl.value = '';
+  if (amountEl) amountEl.value = '';
+
+  qlAdvanceStatus('Money issued.');
+  await qlLoadAdvances();
+}
+
+async function qlAdvanceSubmit(id) {
+  const actual = (qlAdvanceField('data-advance-actual', id)?.value || '').trim();
+  const note = (qlAdvanceField('data-advance-note', id)?.value || '').trim();
+
+  if (!actual) {
+    qlAdvanceStatus('Enter real cash left.');
+    return;
+  }
+
+  qlAdvanceStatus('Submitting report…');
+
+  const data = await qlApi('advance_submit', {
+    id: Number(id),
+    actual_remaining: actual,
+    note: note
+  });
+
+  if (!data.ok) {
+    qlAdvanceStatus('Submit error: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvanceStatus(data.advance && data.advance.status === 'discrepancy' ? 'Submitted with mismatch.' : 'Submitted for moderation.');
+  await qlLoadAdvances();
+  if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
+}
+
+async function qlAdvanceAccept(id) {
+  const note = prompt('Moderation note', '') || '';
+  qlAdvanceStatus('Accepting report…');
+
+  const data = await qlApi('advance_accept', {
+    id: Number(id),
+    note: note
+  });
+
+  if (!data.ok) {
+    qlAdvanceStatus('Accept error: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvanceStatus('Accepted. Expenses are now in the group ledger.');
+  await qlLoadAdvances();
+
+  if (qlLedgerScopeMode === 'group' && String(qlLedgerGroupId || '') === String(qlAdvanceGroupId || '')) {
+    qlLoadLedger();
+  }
+}
+
+async function qlAdvanceReturn(id) {
+  const note = prompt('Return note', '') || '';
+  qlAdvanceStatus('Returning report…');
+
+  const data = await qlApi('advance_return', {
+    id: Number(id),
+    note: note
+  });
+
+  if (!data.ok) {
+    qlAdvanceStatus('Return error: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvanceStatus('Returned for correction.');
+  await qlLoadAdvances();
+}
+
+function qlAdvanceOpenTape(tapeId) {
+  if (!tapeId) return;
+
+  qlOtrActiveTapeId = Number(tapeId);
+  window.qlOtrActiveTapeId = Number(tapeId);
+  qlSetModule('ontherun');
+
+  setTimeout(function() {
+    if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
+    if (typeof qlLoadOnTheGo === 'function') qlLoadOnTheGo();
+  }, 100);
+}
+
+document.addEventListener('change', function(event) {
+  const group = event.target.closest('#advanceGroupSelect');
+  if (!group) return;
+
+  qlAdvanceGroupId = group.value ? Number(group.value) : null;
+  qlLoadAdvances();
+});
+
+document.addEventListener('click', function(event) {
+  const create = event.target.closest('#advanceCreateBtn');
+  const submit = event.target.closest('[data-advance-submit]');
+  const accept = event.target.closest('[data-advance-accept]');
+  const ret = event.target.closest('[data-advance-return]');
+  const tape = event.target.closest('[data-advance-open-tape]');
+
+  if (create) qlAdvanceCreate();
+  if (submit) qlAdvanceSubmit(submit.getAttribute('data-advance-submit'));
+  if (accept) qlAdvanceAccept(accept.getAttribute('data-advance-accept'));
+  if (ret) qlAdvanceReturn(ret.getAttribute('data-advance-return'));
+  if (tape) qlAdvanceOpenTape(tape.getAttribute('data-advance-open-tape'));
+});
+
+const qlAdvancePreviousLoadGroups = qlLoadGroups;
+qlLoadGroups = async function() {
+  await qlAdvancePreviousLoadGroups();
+  qlAdvanceRefreshGroupSelect();
+
+  const module = document.getElementById('moduleMoney');
+  if (module && !module.classList.contains('hidden')) {
+    qlLoadAdvances();
+  }
+};
+
+const qlAdvancePreviousSetModule = window.qlSetModule || (typeof qlSetModule === 'function' ? qlSetModule : null);
+window.qlSetModule = function(moduleName) {
+  if (typeof qlAdvancePreviousSetModule === 'function') {
+    qlAdvancePreviousSetModule(moduleName);
+  }
+
+  if (moduleName === 'money') {
+    setTimeout(function() {
+      qlAdvanceRefreshGroupSelect();
+      qlLoadAdvances();
+    }, 80);
+  }
+};
+
+try {
+  qlSetModule = window.qlSetModule;
+} catch (error) {}
 
 /* === Quick Ledger On The Go OTR-1 20260503-25 === */
 let qlOtrItems = [];

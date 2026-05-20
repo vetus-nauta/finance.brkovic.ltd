@@ -19,6 +19,7 @@ Current product name in the live codebase: **Quick Ledger**.
 - PWA install flow for iOS / Android / desktop
 - On the Go fast capture mode
 - Accountable money / advances moderation bridge
+- Money UI for issue / submit / accept / return
 
 ## Live Paths
 
@@ -71,6 +72,7 @@ The smoke test checks:
 - accountable money issue -> On the Go submit -> admin accept/return -> group ledger conversion;
 - personal ledger update/delete;
 - On the Go tape/capture/list.
+- Step 4 Money UI assets served by `app.php` and `app.js`.
 
 ## Group Access Model
 

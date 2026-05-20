@@ -53,6 +53,27 @@ function smoke_api(string $baseUrl, string $action, array $payload = [], string 
     return $json;
 }
 
+function smoke_http_get(string $url): string
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => false,
+        CURLOPT_TIMEOUT => 15,
+    ]);
+
+    $body = curl_exec($ch);
+    $error = curl_error($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($body === false || $body === '' || $status < 200 || $status >= 300) {
+        smoke_fail('HTTP GET failed', ['url' => $url, 'status' => $status, 'curl_error' => $error]);
+    }
+
+    return (string)$body;
+}
+
 function smoke_latest_code(string $logPath, string $email): string
 {
     if (!is_file($logPath)) {
@@ -99,6 +120,20 @@ if (($current['ok'] ?? false) !== true || array_key_exists('user', $current) ===
     smoke_fail('current_user public shape failed', $current);
 }
 smoke_pass('current_user endpoint responds');
+
+$appHtml = smoke_http_get($baseUrl . '/app.php');
+foreach (['moduleMoney', 'advanceGroupSelect', 'advanceIssuePanel', 'advanceList'] as $marker) {
+    if (strpos($appHtml, $marker) === false) {
+        smoke_fail('Step 4 money UI marker missing in app.php', ['marker' => $marker]);
+    }
+}
+$appJs = smoke_http_get($baseUrl . '/assets/app.js');
+foreach (['advance_create', 'advance_submit', 'advance_accept', 'qlLoadAdvances'] as $marker) {
+    if (strpos($appJs, $marker) === false) {
+        smoke_fail('Step 4 money UI marker missing in app.js', ['marker' => $marker]);
+    }
+}
+smoke_pass('Step 4 accountable money UI assets are served');
 
 $admin = smoke_login($baseUrl, $adminEmail, $adminCookie, $logPath);
 smoke_pass('admin login by 6-digit code');

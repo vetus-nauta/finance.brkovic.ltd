@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Quick Ledger">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/assets/icon-180.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260503-62">
+<link rel="stylesheet" href="/assets/app.css?v=20260520-04">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -55,6 +55,7 @@
           <nav class="module-nav glass-soft" aria-label="Quick Ledger modules">
             <button class="module-tab active" type="button" data-module-tab="ledger">Ledger</button>
             <button class="module-tab" type="button" data-module-tab="ontherun">On the Go</button>
+            <button class="module-tab" type="button" data-module-tab="money">Money</button>
             <button class="module-tab" type="button" data-module-tab="reports">Reports</button>
             <button class="module-tab" type="button" data-module-tab="groups">Groups</button>
             <button class="module-tab" type="button" data-module-tab="business">Business</button>
@@ -296,6 +297,50 @@
               </div>
               <div id="otrJournal" class="otr-journal">
                 <p class="soft-note">No records to review yet.</p>
+              </div>
+            </section>
+          </div>
+
+          <div id="moduleMoney" class="ql-module hidden" data-module="money">
+            <section class="advance-card glass-soft">
+              <div class="feed-head">
+                <div>
+                  <h2>Money</h2>
+                  <p class="soft-note tight-note">Accountable cash: issue, submit, moderate, then include in the group ledger.</p>
+                </div>
+                <span id="advanceCount">0 advances</span>
+              </div>
+
+              <div class="advance-toolbar">
+                <label class="form-label" for="advanceGroupSelect">Group</label>
+                <select id="advanceGroupSelect" class="ql-input">
+                  <option value="">Choose group</option>
+                </select>
+                <p id="advanceStatus" class="soft-note"></p>
+              </div>
+
+              <div id="advanceIssuePanel" class="advance-issue-panel hidden">
+                <div class="advance-panel-head">
+                  <h3>Issue money</h3>
+                  <span>Advanced access</span>
+                </div>
+                <select id="advanceMemberSelect" class="ql-input">
+                  <option value="">Choose employee</option>
+                </select>
+                <input id="advanceTitle" class="ql-input" type="text" placeholder="Purpose / trip / report name">
+                <input id="advanceAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
+                <button id="advanceCreateBtn" class="primary-btn wide-btn" type="button">Issue accountable cash</button>
+              </div>
+
+              <div id="advanceSummary" class="advance-summary">
+                <div><span>Issued</span><b>€0.00</b></div>
+                <div><span>Spent</span><b>€0.00</b></div>
+                <div><span>Expected left</span><b>€0.00</b></div>
+                <div><span>Waiting</span><b>0</b></div>
+              </div>
+
+              <div id="advanceList" class="advance-list">
+                <p class="soft-note">Choose a group to see accountable money.</p>
               </div>
             </section>
           </div>

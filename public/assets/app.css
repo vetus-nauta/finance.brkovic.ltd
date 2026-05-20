@@ -680,6 +680,256 @@ h2 {
   }
 }
 
+/* === Quick Ledger Accountable Money UI STEP-4 20260520 === */
+.advance-card {
+  margin-top: 14px;
+}
+
+.tight-note {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.advance-toolbar {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.52);
+  border: 1px solid var(--line);
+}
+
+.advance-issue-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.76);
+  border: 1px solid rgba(10,132,255,.18);
+}
+
+.advance-issue-panel.hidden {
+  display: none;
+}
+
+.advance-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.advance-panel-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.advance-panel-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.advance-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.advance-summary div,
+.advance-metrics div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.64);
+  border: 1px solid rgba(255,255,255,.72);
+}
+
+.advance-summary span,
+.advance-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.advance-summary b,
+.advance-metrics b {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.advance-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.advance-row {
+  position: relative;
+  overflow: hidden;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid var(--line);
+}
+
+.advance-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: #ff3b30;
+}
+
+.advance-row.status-accepted::before,
+.advance-row.status-closed::before {
+  background: #34c759;
+}
+
+.advance-row.status-returned::before,
+.advance-row.status-discrepancy::before {
+  background: #ff9500;
+}
+
+.advance-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-left: 3px;
+}
+
+.advance-row-top h3 {
+  margin: 7px 0 4px;
+  font-size: 18px;
+}
+
+.advance-row-top p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.advance-row-top > strong {
+  flex: 0 0 auto;
+  font-size: 20px;
+}
+
+.advance-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.advance-status-line span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 13px;
+  padding: 0 10px;
+  background: rgba(255,59,48,.10);
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.status-accepted .advance-status-line span,
+.status-closed .advance-status-line span {
+  background: rgba(52,199,89,.12);
+  color: #16743b;
+}
+
+.status-returned .advance-status-line span,
+.status-discrepancy .advance-status-line span {
+  background: rgba(255,149,0,.14);
+  color: #9a5700;
+}
+
+.advance-status-line small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.advance-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.advance-metrics .metric-alert {
+  border-color: rgba(255,59,48,.26);
+  background: rgba(255,59,48,.08);
+}
+
+.advance-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(255,255,255,.58);
+  border: 1px solid var(--line);
+}
+
+.advance-note.moderator {
+  background: rgba(10,132,255,.08);
+}
+
+.advance-submit-row,
+.advance-moderate-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.advance-moderate-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.advance-submit-row .primary-btn,
+.advance-submit-row .ghost-btn,
+.advance-moderate-row .primary-btn,
+.advance-moderate-row .ghost-btn {
+  min-height: 54px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.danger-soft-btn {
+  color: #b42318;
+  background: rgba(255,59,48,.08);
+  border-color: rgba(255,59,48,.22);
+}
+
+@media (max-width: 760px) {
+  .advance-summary,
+  .advance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .advance-submit-row,
+  .advance-moderate-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .advance-row-top {
+    display: block;
+  }
+
+  .advance-row-top > strong {
+    display: block;
+    margin-top: 10px;
+  }
+}
+
 /* === Quick Ledger Scope UI 20260503-08 === */
 .scope-box {
   margin-top: 12px;
@@ -1236,7 +1486,7 @@ h2 {
 /* === Quick Ledger Module Navigation NAV-1 20260503-24 === */
 .module-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 8px;
   margin: 18px 0;
   padding: 8px;
