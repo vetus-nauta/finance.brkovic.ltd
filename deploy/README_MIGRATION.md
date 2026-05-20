@@ -1,4 +1,4 @@
-# Quick Ledger Migration Foundation
+# Captain Fin Migration Foundation
 
 This app is prepared for future portable migration.
 

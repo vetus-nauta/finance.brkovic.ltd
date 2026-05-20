@@ -1,28 +1,49 @@
 :root {
-  --bg: #f5f7fb;
-  --card: rgba(255,255,255,.86);
+  --bg: #f6f8fb;
+  --card: rgba(255,255,255,.88);
   --text: #111318;
-  --muted: #68707d;
-  --accent: #007aff;
-  --accent-soft: rgba(0,122,255,.10);
-  --green: #34c759;
-  --orange: #ff9500;
-  --red: #ff3b30;
+  --muted: #667085;
+  --accent: #0a84ff;
+  --accent-soft: rgba(10,132,255,.11);
+  --teal: #0f8f7f;
+  --teal-soft: rgba(15,143,127,.12);
+  --gold: #c98210;
+  --gold-soft: rgba(201,130,16,.13);
+  --coral: #d94841;
+  --coral-soft: rgba(217,72,65,.12);
+  --green: #2fbf71;
+  --orange: #f59f00;
+  --red: #e5484d;
   --line: rgba(17,19,24,.10);
   --income: #e8f7ee;
   --expense: #fff4d8;
-  --shadow: 0 24px 70px rgba(40,52,75,.12);
-  --shadow-soft: 0 10px 28px rgba(40,52,75,.08);
+  --shadow: 0 24px 70px rgba(32,42,58,.13);
+  --shadow-soft: 0 10px 28px rgba(32,42,58,.08);
 }
 
 * { box-sizing: border-box; }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #fcfdff 0%, #f5f7fb 46%, #edf2f7 100%);
+  background:
+    linear-gradient(135deg, rgba(15,143,127,.09) 0%, rgba(15,143,127,0) 26%),
+    linear-gradient(225deg, rgba(201,130,16,.10) 0%, rgba(201,130,16,0) 30%),
+    linear-gradient(180deg, #fcfdff 0%, #f6f8fb 48%, #eef4f3 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(10,132,255,.07), transparent 30%, rgba(217,72,65,.055) 68%, transparent),
+    linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,0) 42%);
 }
 
 .ql-shell {
@@ -40,13 +61,26 @@ body {
 }
 
 .hero-card, .seo-card {
+  position: relative;
+  overflow: hidden;
   border-radius: 34px;
   padding: 28px;
   margin: 18px 0;
 }
 
+.hero-card::before,
+.seo-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--teal), var(--accent), var(--gold), var(--coral));
+}
+
 .brand-pill {
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(255,255,255,.72);
@@ -54,6 +88,13 @@ body {
   color: var(--muted);
   font-size: 13px;
   font-weight: 650;
+}
+
+.brand-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
 }
 
 h1 {
@@ -179,7 +220,7 @@ h2 {
   .placeholder-grid { grid-template-columns: 1fr; }
 }
 
-/* === Quick Ledger Auth UI 20260503-02 === */
+/* === Captain Fin Auth UI 20260503-02 === */
 .auth-panel {
   margin-top: 10px;
 }
@@ -259,7 +300,137 @@ h2 {
   margin-top: 2px;
 }
 
-/* === Quick Ledger Personal Ledger UI 20260503-03 === */
+.language-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 22px;
+}
+
+.language-strip-copy span,
+.language-picker span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.language-strip-copy b {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.language-strip-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.language-picker {
+  display: grid;
+  gap: 6px;
+}
+
+.language-select {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.mode-ladder {
+  margin: 0 0 18px;
+  padding: 14px;
+}
+
+.mode-ladder-head h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.mode-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mode-card {
+  appearance: none;
+  display: grid;
+  gap: 8px;
+  min-height: 142px;
+  border: 1px solid rgba(255,255,255,.76);
+  border-radius: 22px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  background: rgba(255,255,255,.72);
+  box-shadow: var(--shadow-soft);
+}
+
+.mode-card span {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 28px;
+  border-radius: 14px;
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mode-card b {
+  font-size: 18px;
+}
+
+.mode-card small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.mode-card.ontherun {
+  background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(232,247,240,.72));
+}
+
+.mode-card.ontherun span {
+  background: var(--teal);
+}
+
+.mode-card.captain {
+  background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(238,246,255,.74));
+}
+
+.mode-card.captain span {
+  background: var(--accent);
+}
+
+.mode-card.advanced {
+  background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,246,230,.74));
+}
+
+.mode-card.advanced span {
+  background: var(--gold);
+}
+
+.mode-card:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 760px) {
+  .language-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === Captain Fin Personal Ledger UI 20260503-03 === */
 .ledger-stack {
   display: grid;
   gap: 14px;
@@ -426,7 +597,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Entry Actions 20260503-04 === */
+/* === Captain Fin Entry Actions 20260503-04 === */
 .entry-actions {
   display: flex;
   flex-wrap: wrap;
@@ -443,7 +614,7 @@ h2 {
   cursor: pointer;
 }
 
-/* === Quick Ledger File Picker 20260503-05 === */
+/* === Captain Fin File Picker 20260503-05 === */
 .file-picker {
   display: grid;
   gap: 4px;
@@ -471,7 +642,7 @@ h2 {
   white-space: nowrap;
 }
 
-/* === Quick Ledger Report UI 20260503-06 === */
+/* === Captain Fin Report UI 20260503-06 === */
 .report-panel {
   margin-top: 14px;
   padding-top: 14px;
@@ -576,7 +747,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Group UI 20260503-07 === */
+/* === Captain Fin Group UI 20260503-07 === */
 .group-card {
   margin-top: 14px;
 }
@@ -687,7 +858,103 @@ h2 {
   }
 }
 
-/* === Quick Ledger Accountable Money UI STEP-4 20260520 === */
+/* === Captain Fin Middle Layer STEP-6 20260520 === */
+.captain-card {
+  margin-top: 14px;
+}
+
+.captain-hero {
+  padding: 18px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.92), rgba(238,246,255,.80)),
+    linear-gradient(90deg, rgba(10,132,255,.12), rgba(15,143,127,.08));
+  border: 1px solid rgba(255,255,255,.78);
+  box-shadow: var(--shadow-soft);
+}
+
+.captain-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 13px;
+  padding: 0 10px;
+  color: #055b90;
+  background: rgba(10,132,255,.12);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.captain-hero h2 {
+  margin: 10px 0 0;
+  font-size: 30px;
+}
+
+.captain-workflow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.captain-work-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 230px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(255,255,255,.78);
+  box-shadow: var(--shadow-soft);
+}
+
+.captain-work-card span {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 32px;
+  border-radius: 16px;
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+  background: var(--accent);
+}
+
+.captain-work-card.active span {
+  background: var(--teal);
+}
+
+.captain-work-card.review span {
+  background: var(--accent);
+}
+
+.captain-work-card.export span {
+  background: var(--gold);
+}
+
+.captain-work-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.captain-work-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.captain-work-card .wide-btn {
+  align-self: end;
+}
+
+@media (max-width: 860px) {
+  .captain-workflow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === Captain Fin Accountable Money UI STEP-4 20260520 === */
 .advance-card {
   margin-top: 14px;
 }
@@ -712,7 +979,7 @@ h2 {
   padding: 14px;
   border-radius: 20px;
   background: rgba(255,255,255,.76);
-  border: 1px solid rgba(10,132,255,.18);
+  border: 1px solid rgba(201,130,16,.20);
 }
 
 .advance-issue-panel.hidden {
@@ -937,7 +1204,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Premium Features Shell STEP-5 20260520 === */
+/* === Captain Fin Premium Features Shell STEP-5 20260520 === */
 .premium-card {
   margin-top: 14px;
 }
@@ -950,8 +1217,8 @@ h2 {
   padding: 16px;
   border-radius: 24px;
   background:
-    linear-gradient(135deg, rgba(255,255,255,.92), rgba(244,248,255,.78)),
-    linear-gradient(90deg, rgba(0,122,255,.10), rgba(52,199,89,.08));
+    linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,248,235,.78)),
+    linear-gradient(90deg, rgba(201,130,16,.12), rgba(217,72,65,.08));
   border: 1px solid rgba(255,255,255,.78);
   box-shadow: var(--shadow-soft);
 }
@@ -962,8 +1229,8 @@ h2 {
   min-height: 26px;
   border-radius: 13px;
   padding: 0 10px;
-  background: var(--accent-soft);
-  color: #005ecb;
+  background: var(--gold-soft);
+  color: #8a5400;
   font-size: 12px;
   font-weight: 850;
 }
@@ -1007,8 +1274,8 @@ h2 {
 
 .premium-feature-card.available {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.92), rgba(239,247,255,.78));
-  border-color: rgba(0,122,255,.18);
+    linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,247,230,.78));
+  border-color: rgba(201,130,16,.22);
 }
 
 .premium-feature-card.planned {
@@ -1046,8 +1313,8 @@ h2 {
 }
 
 .premium-feature-card.available .premium-feature-state {
-  color: #005ecb;
-  background: var(--accent-soft);
+  color: #8a5400;
+  background: var(--gold-soft);
 }
 
 .premium-feature-card h3 {
@@ -1081,7 +1348,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Scope UI 20260503-08 === */
+/* === Captain Fin Scope UI 20260503-08 === */
 .scope-box {
   margin-top: 12px;
   padding: 12px;
@@ -1094,13 +1361,13 @@ h2 {
   margin-top: 10px;
 }
 
-/* === Quick Ledger Category UI 20260503-09 === */
+/* === Captain Fin Category UI 20260503-09 === */
 #ledgerSection {
   margin-bottom: 2px;
 }
 
 
-/* === Quick Ledger Sections UI 20260503-10 === */
+/* === Captain Fin Sections UI 20260503-10 === */
 .section-create-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1126,7 +1393,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Report By Sections 20260503-12 === */
+/* === Captain Fin Report By Sections 20260503-12 === */
 .section-report {
   margin-top: 14px;
   padding-top: 12px;
@@ -1174,7 +1441,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Group Report UI 20260503-13 === */
+/* === Captain Fin Group Report UI 20260503-13 === */
 .report-title {
   font-weight: 900;
   font-size: 15px;
@@ -1185,7 +1452,7 @@ h2 {
   margin-top: 4px;
 }
 
-/* === Quick Ledger Group Messages UI 20260503-14 === */
+/* === Captain Fin Group Messages UI 20260503-14 === */
 .messages-box {
   margin-top: 14px;
   padding-top: 14px;
@@ -1251,7 +1518,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Unread Message Modal 20260503-17 === */
+/* === Captain Fin Unread Message Modal 20260503-17 === */
 .message-modal-card {
   max-width: 460px;
   text-align: left;
@@ -1287,7 +1554,7 @@ h2 {
   margin-top: 18px;
 }
 
-/* === Quick Ledger Business Desk UI 20260503-18 === */
+/* === Captain Fin Business Desk UI 20260503-18 === */
 .business-card {
   margin-top: 14px;
 }
@@ -1382,7 +1649,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Business Desk Clarity 20260503-19 === */
+/* === Captain Fin Business Desk Clarity 20260503-19 === */
 .business-panel-note {
   margin: -4px 0 2px;
   color: var(--muted);
@@ -1401,7 +1668,7 @@ h2 {
   color: var(--muted);
 }
 
-/* === Quick Ledger Proforma View / Print 20260503-20 === */
+/* === Captain Fin Proforma View / Print 20260503-20 === */
 .business-row-actions {
   display: grid;
   gap: 8px;
@@ -1589,7 +1856,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Proforma Print / Logo Slot 20260503-21 === */
+/* === Captain Fin Proforma Print / Logo Slot 20260503-21 === */
 .print-hint {
   margin: -4px 0 12px;
   color: var(--muted);
@@ -1634,7 +1901,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Module Navigation NAV-1 20260503-24 === */
+/* === Captain Fin Module Navigation NAV-1 20260503-24 === */
 .module-nav {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
@@ -1657,7 +1924,7 @@ h2 {
 }
 
 .module-tab.active {
-  background: rgba(28,30,36,.92);
+  background: linear-gradient(135deg, #143836, #123c69 48%, #6a4609);
   color: #fff;
   box-shadow: 0 10px 24px rgba(28,30,36,.16);
 }
@@ -1727,7 +1994,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger On The Go OTR-1 20260503-25 === */
+/* === Captain Fin On The Go OTR-1 20260503-25 === */
 .on-the-go-card {
   margin-top: 12px;
 }
@@ -1850,7 +2117,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger On The Go English/Review Polish OTR-1E 20260503-26 === */
+/* === Captain Fin On The Go English/Review Polish OTR-1E 20260503-26 === */
 .otr-row-actions {
   display: grid;
   gap: 8px;
@@ -1875,7 +2142,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger On The Go Review Modal OTR-2A 20260503-27 === */
+/* === Captain Fin On The Go Review Modal OTR-2A 20260503-27 === */
 .otr-review-modal-card {
   max-width: 560px;
 }
@@ -1886,7 +2153,7 @@ h2 {
   margin-top: 14px;
 }
 
-/* === Quick Ledger On The Go Attachment Review OTR-2B 20260503-28 === */
+/* === Captain Fin On The Go Attachment Review OTR-2B 20260503-28 === */
 .otr-attachment-panel {
   margin-top: 14px;
   padding: 14px;
@@ -1966,7 +2233,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger On The Go Convert To Ledger OTR-2C 20260503-29 === */
+/* === Captain Fin On The Go Convert To Ledger OTR-2C 20260503-29 === */
 .otr-convert-panel {
   margin-top: 14px;
   padding: 14px;
@@ -1983,7 +2250,7 @@ h2 {
   margin: 12px 0;
 }
 
-/* === Quick Ledger OTR Compact Review Modal OTR-2D 20260503-30 === */
+/* === Captain Fin OTR Compact Review Modal OTR-2D 20260503-30 === */
 .otr-review-modal-card {
   width: min(92vw, 520px);
   max-height: min(88vh, 820px);
@@ -2138,7 +2405,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger Entry Details Viewer LEDGER-2A 20260503-31 === */
+/* === Captain Fin Entry Details Viewer LEDGER-2A 20260503-31 === */
 .entry-details {
   border: 0;
   border-radius: 999px;
@@ -2315,7 +2582,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger On The Go Tape UI OTR-3B 20260503-33 === */
+/* === Captain Fin On The Go Tape UI OTR-3B 20260503-33 === */
 .otr-tape-desk {
   margin: 0 0 14px;
   padding: 14px;
@@ -2506,7 +2773,7 @@ h2 {
   }
 }
 
-/* === Quick Ledger On the Go Operational Layout OTR-3F 20260503-40 === */
+/* === Captain Fin On the Go Operational Layout OTR-3F 20260503-40 === */
 
 /* Calm app shell while On the Go is active */
 body.ql-otr-mode .ql-shell {
@@ -2872,7 +3139,7 @@ body.ql-otr-mode .otr-review-btn {
   }
 }
 
-/* === Quick Ledger On the Go Mobile Cash/Card Action Flow OTR-3G 20260503-41 === */
+/* === Captain Fin On the Go Mobile Cash/Card Action Flow OTR-3G 20260503-41 === */
 
 .otr-mobile-actions,
 .otr-mobile-input-panel {
@@ -3025,7 +3292,7 @@ body.ql-otr-mode .otr-review-btn {
   }
 }
 
-/* === Quick Ledger On the Go Cash Overrun Warning OTR-3I 20260503-45 === */
+/* === Captain Fin On the Go Cash Overrun Warning OTR-3I 20260503-45 === */
 body.ql-otr-mode .otr-cash-summary-group div.cash-overrun {
   background: rgba(255, 226, 194, .94);
   box-shadow: inset 0 0 0 1px rgba(190, 92, 25, .20);
@@ -3039,7 +3306,7 @@ body.ql-otr-mode .otr-cash-summary-group div.cash-overrun b {
   color: #9a3f10;
 }
 
-/* === Quick Ledger On the Go Close Session UI OTR-4C 20260503-48 === */
+/* === Captain Fin On the Go Close Session UI OTR-4C 20260503-48 === */
 body.ql-otr-mode .otr-close-session-btn {
   margin-top: 8px;
   min-height: 46px;
@@ -3052,7 +3319,7 @@ body.ql-otr-mode .otr-close-session-btn:hover {
   background: rgba(255,246,225,.82);
 }
 
-/* === Quick Ledger On the Go Busy Guard OTR-4C-2 20260503-49 === */
+/* === Captain Fin On the Go Busy Guard OTR-4C-2 20260503-49 === */
 body.ql-otr-mode button.is-busy,
 body.ql-otr-mode button:disabled {
   opacity: .62;
@@ -3060,7 +3327,7 @@ body.ql-otr-mode button:disabled {
   filter: saturate(.85);
 }
 
-/* === Quick Ledger On the Go Session Cards OTR-4D 20260503-50 === */
+/* === Captain Fin On the Go Session Cards OTR-4D 20260503-50 === */
 body.ql-otr-mode .otr-session-stack {
   margin-top: 12px;
   padding: 10px;
@@ -3173,7 +3440,7 @@ body.ql-otr-mode .otr-session-card small {
   }
 }
 
-/* === Quick Ledger On the Go Active Journal + Compact Tapes OTR-4D-3 20260503-53 === */
+/* === Captain Fin On the Go Active Journal + Compact Tapes OTR-4D-3 20260503-53 === */
 body.ql-otr-mode .otr-tape-card {
   overflow: hidden;
 }
@@ -3227,7 +3494,7 @@ body.ql-otr-mode .otr-journal::-webkit-scrollbar {
   }
 }
 
-/* === Quick Ledger On the Go Session Reset OTR-4E-1 20260503-60 === */
+/* === Captain Fin On the Go Session Reset OTR-4E-1 20260503-60 === */
 body.ql-otr-mode .otr-mobile-action-btn.active {
   box-shadow: inset 0 0 0 2px rgba(17, 24, 39, .12), 0 14px 34px rgba(27,39,51,.10);
   transform: translateY(-1px);
@@ -3305,7 +3572,7 @@ body.ql-otr-mode .otr-row.active-session-row.card {
   }
 }
 
-/* === Quick Ledger On the Go Real Two-Zone Session UI OTR-4F 20260503-61 === */
+/* === Captain Fin On the Go Real Two-Zone Session UI OTR-4F 20260503-61 === */
 body.ql-otr-mode .otr-session-stack {
   margin-top: 18px;
   overflow: visible;

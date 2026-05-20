@@ -8,14 +8,14 @@ if (!$to) {
 }
 
 $code = (string)random_int(100000, 999999);
-$subject = 'Quick Ledger direct mail test: ' . $code;
+$subject = 'Captain Fin direct mail test: ' . $code;
 
 $message = "This is a direct PHP mail() test from finance.brkovic.ltd\n\n";
 $message .= "Test code: {$code}\n";
 $message .= "Time: " . date('c') . "\n";
 
 $headers = [
-    'From: Quick Ledger <no-reply@finance.brkovic.ltd>',
+    'From: Captain Fin <no-reply@finance.brkovic.ltd>',
     'Reply-To: no-reply@finance.brkovic.ltd',
     'Content-Type: text/plain; charset=UTF-8',
     'X-Mailer: PHP/' . phpversion(),

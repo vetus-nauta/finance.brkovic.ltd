@@ -3,68 +3,112 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Quick Ledger App</title>
+  <title>Captain Fin App</title>
   <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#f5f7fb">
+  <meta name="theme-color" content="#f6f8fb">
   <link rel="manifest" href="/manifest.webmanifest">
     <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Quick Ledger">
+  <meta name="apple-mobile-web-app-title" content="Captain Fin">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260520-06">
+<link rel="stylesheet" href="/assets/app.css?v=20260520-07">
 </head>
 <body>
   <main class="ql-shell app-shell">
     <section class="hero-card glass">
-      <div class="brand-pill">Quick Ledger · secure web app</div>
+      <div class="brand-pill"><span data-i18n="app.brand">Captain Fin · brkovic.ltd</span><span class="brand-dot"></span><span data-i18n="app.secure">secure finance web app</span></div>
+
+      <div class="language-strip glass-soft">
+        <div class="language-strip-copy">
+          <span data-i18n="language.detected">Language</span>
+          <b data-detected-language>English</b>
+          <p data-i18n="language.notice">If the app language does not match your system language, choose the right option here.</p>
+        </div>
+        <label class="language-picker">
+          <span data-i18n="language.choose">Choose language</span>
+          <select class="ql-input language-select" data-language-select aria-label="Language">
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+            <option value="es">Español</option>
+            <option value="sr">Srpski / MNE / HR</option>
+            <option value="zh">中文（普通话）</option>
+          </select>
+        </label>
+      </div>
 
       <div id="authStateLoading">
-        <h1>Quick Ledger</h1>
-        <p class="lead">Checking your session…</p>
+        <h1 data-i18n="auth.loadingTitle">Captain Fin</h1>
+        <p class="lead" data-i18n="auth.loadingLead">Checking your session…</p>
       </div>
 
       <div id="loginPanel" class="auth-panel hidden">
-        <h1>Sign in</h1>
-        <p class="lead">Enter your email. We will send a 6-digit code.</p>
+        <h1 data-i18n="auth.signInTitle">Sign in</h1>
+        <p class="lead" data-i18n="auth.signInLead">Enter your email. We will send a 6-digit code.</p>
 
-        <label class="form-label" for="loginEmail">Email</label>
+        <label class="form-label" for="loginEmail" data-i18n="auth.email">Email</label>
         <input id="loginEmail" class="ql-input" type="email" placeholder="you@example.com" autocomplete="email">
 
-        <button id="sendCodeBtn" class="primary-btn wide-btn" type="button">Send code</button>
+        <button id="sendCodeBtn" class="primary-btn wide-btn" type="button" data-i18n="auth.sendCode">Send code</button>
 
         <div id="codeBlock" class="code-block hidden">
-          <label class="form-label" for="loginCode">Code</label>
+          <label class="form-label" for="loginCode" data-i18n="auth.code">Code</label>
           <input id="loginCode" class="ql-input code-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="000000">
-          <button id="verifyCodeBtn" class="primary-btn wide-btn" type="button">Verify and enter</button>
+          <button id="verifyCodeBtn" class="primary-btn wide-btn" type="button" data-i18n="auth.verify">Verify and enter</button>
         </div>
 
         <p id="authMessage" class="soft-note"></p>
       </div>
 
       <div id="userPanel" class="auth-panel hidden">
-        <h1>Welcome</h1>
-        <p class="lead">You are signed in. This session should stay after reload.</p>
+        <h1 data-i18n="auth.welcomeTitle">Welcome</h1>
+        <p class="lead" data-i18n="auth.welcomeLead">You are signed in. This session should stay after reload.</p>
 
         <div class="user-card">
-          <div class="user-avatar">QL</div>
+          <div class="user-avatar">CF</div>
           <div>
             <div id="userName" class="user-name">User</div>
             <div id="userEmail" class="user-email"></div>
           </div>
         </div>
-          <nav class="module-nav glass-soft" aria-label="Quick Ledger modules">
-            <button class="module-tab active" type="button" data-module-tab="ledger">Учет</button>
-            <button class="module-tab" type="button" data-module-tab="ontherun">На бегу</button>
-            <button class="module-tab" type="button" data-module-tab="money">Деньги</button>
-            <button class="module-tab" type="button" data-module-tab="premium">Premium</button>
-            <button class="module-tab" type="button" data-module-tab="reports">Отчеты</button>
-            <button class="module-tab" type="button" data-module-tab="groups">Группы</button>
-            <button class="module-tab" type="button" data-module-tab="business">Бизнес</button>
-            <button class="module-tab" type="button" data-module-tab="settings">Настройки</button>
+          <nav class="module-nav glass-soft" aria-label="Captain Fin modules">
+            <button class="module-tab" type="button" data-module-tab="ontherun" data-i18n="nav.ontherun">На бегу</button>
+            <button class="module-tab" type="button" data-module-tab="captain" data-i18n="nav.captain">Captain Fin</button>
+            <button class="module-tab" type="button" data-module-tab="money" data-i18n="nav.advanced">Advanced</button>
+            <button class="module-tab active" type="button" data-module-tab="ledger" data-i18n="nav.ledger">Учет</button>
+            <button class="module-tab" type="button" data-module-tab="premium" data-i18n="nav.premium">Premium</button>
+            <button class="module-tab" type="button" data-module-tab="reports" data-i18n="nav.reports">Отчеты</button>
+            <button class="module-tab" type="button" data-module-tab="groups" data-i18n="nav.groups">Группы</button>
+            <button class="module-tab" type="button" data-module-tab="business" data-i18n="nav.business">Бизнес</button>
+            <button class="module-tab" type="button" data-module-tab="settings" data-i18n="nav.settings">Настройки</button>
           </nav>
+
+          <section class="mode-ladder glass-soft">
+            <div class="mode-ladder-head">
+              <h2 data-i18n="modes.title">Три рабочих слоя</h2>
+            </div>
+            <div class="mode-card-grid">
+              <button class="mode-card ontherun" type="button" data-mode-open="ontherun">
+                <span>01</span>
+                <b data-i18n="modes.ontherunTitle">На бегу</b>
+                <small data-i18n="modes.ontherunText">Минимум на экране: получил, потратил, осталось. Отправка только когда реальный остаток совпал.</small>
+              </button>
+              <button class="mode-card captain" type="button" data-mode-open="captain">
+                <span>02</span>
+                <b data-i18n="modes.captainTitle">Captain Fin</b>
+                <small data-i18n="modes.captainText">Средний слой для менеджеров: чистые отчеты, сданные записи и контекст модерации.</small>
+              </button>
+              <button class="mode-card advanced" type="button" data-mode-open="money">
+                <span>03</span>
+                <b data-i18n="modes.advancedTitle">Advanced</b>
+                <small data-i18n="modes.advancedText">Слой организатора: группы, выданные деньги, модерация и расширенные инструменты.</small>
+              </button>
+            </div>
+          </section>
 
           <div id="moduleLedger" class="ql-module active" data-module="ledger">
 
@@ -305,12 +349,47 @@
             </section>
           </div>
 
+          <div id="moduleCaptain" class="ql-module hidden" data-module="captain">
+            <section class="captain-card glass-soft">
+              <div class="captain-hero">
+                <div>
+                  <span class="captain-kicker" data-i18n="captain.kicker">Средний слой</span>
+                  <h2 data-i18n="captain.title">Отчеты Captain Fin</h2>
+                  <p class="soft-note tight-note" data-i18n="captain.lead">Этот слой связывает быстрые записи с проверкой менеджера до попадания данных в отчет группы.</p>
+                </div>
+              </div>
+
+              <div class="captain-workflow">
+                <article class="captain-work-card active">
+                  <span>01</span>
+                  <h3 data-i18n="captain.currentTitle">Текущий отчет</h3>
+                  <p data-i18n="captain.currentText">Продолжить активный отчет “на бегу” и подготовить его к сдаче.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-mode-open="ontherun" data-i18n="captain.currentAction">Открыть “На бегу”</button>
+                </article>
+
+                <article class="captain-work-card review">
+                  <span>02</span>
+                  <h3 data-i18n="captain.reviewTitle">Сданные записи</h3>
+                  <p data-i18n="captain.reviewText">Рабочий вид менеджера для проверки отчетов перед включением в общие итоги.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-mode-open="groups" data-i18n="captain.reviewAction">Открыть группы</button>
+                </article>
+
+                <article class="captain-work-card export">
+                  <span>03</span>
+                  <h3 data-i18n="captain.exportTitle">Пакет отчета</h3>
+                  <p data-i18n="captain.exportText">Здесь будут сводки, печатные формы и Excel-выгрузки.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-mode-open="reports" data-i18n="captain.exportAction">Открыть отчеты</button>
+                </article>
+              </div>
+            </section>
+          </div>
+
           <div id="moduleMoney" class="ql-module hidden" data-module="money">
             <section class="advance-card glass-soft">
               <div class="feed-head">
                 <div>
-                  <h2>Деньги под отчет</h2>
-                  <p class="soft-note tight-note">Выдача, сверка и принятие расходов в общий отчет группы.</p>
+                  <h2 data-i18n="money.title">Advanced: деньги под отчет</h2>
+                  <p class="soft-note tight-note" data-i18n="money.lead">Выдача, сверка и принятие расходов в общий отчет группы.</p>
                 </div>
                 <span id="advanceCount">0 строк</span>
               </div>
@@ -325,8 +404,8 @@
 
               <div id="advanceIssuePanel" class="advance-issue-panel hidden">
                 <div class="advance-panel-head">
-                  <h3>Выдать деньги</h3>
-                  <span>Advanced</span>
+                  <h3 data-i18n="money.issueTitle">Выдать деньги</h3>
+                  <span data-i18n="money.issueScope">Advanced / администратор</span>
                 </div>
                 <select id="advanceMemberSelect" class="ql-input">
                   <option value="">Выберите сотрудника</option>
@@ -353,42 +432,42 @@
             <section class="premium-card glass-soft">
               <div class="premium-hero">
                 <div>
-                  <span class="premium-kicker">Premium account</span>
-                  <h2>Премиум функции</h2>
-                  <p class="soft-note tight-note">Тестовый доступ открыт, пока мы фиксируем форму продукта.</p>
+                  <span class="premium-kicker" data-i18n="premium.kicker">Премиум аккаунт</span>
+                  <h2 data-i18n="premium.title">Премиум функции</h2>
+                  <p class="soft-note tight-note" data-i18n="premium.lead">Тестовый доступ открыт, пока мы фиксируем форму продукта.</p>
                 </div>
-                <span class="premium-status-pill">Тестовый доступ</span>
+                <span class="premium-status-pill" data-i18n="premium.status">Тестовый доступ</span>
               </div>
 
               <div class="premium-feature-grid">
                 <article id="premiumAdvancedMode" class="premium-feature-card available">
                   <div class="premium-feature-head">
                     <span class="premium-feature-icon">A</span>
-                    <span class="premium-feature-state">Открыто</span>
+                    <span class="premium-feature-state" data-i18n="premium.status">Тестовый доступ</span>
                   </div>
-                  <h3>Advanced Mode</h3>
-                  <p>Режим организатора: модерация денег, группы и расширенные финансовые инструменты.</p>
-                  <button class="ghost-btn wide-btn" type="button" data-premium-open="money">Открыть Advanced</button>
+                  <h3 data-i18n="premium.advancedTitle">Advanced Mode</h3>
+                  <p data-i18n="premium.advancedText">Режим организатора: модерация денег, группы и расширенные финансовые инструменты.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-open="money" data-i18n="premium.openAdvanced">Открыть Advanced</button>
                 </article>
 
                 <article id="premiumTripFriends" class="premium-feature-card planned">
                   <div class="premium-feature-head">
                     <span class="premium-feature-icon">T</span>
-                    <span class="premium-feature-state">Заглушка</span>
+                    <span class="premium-feature-state" data-i18n="premium.prepared">Подготовлено</span>
                   </div>
-                  <h3>Поездка с друзьями</h3>
-                  <p>Группа людей, общая копилка, расходы поездки и выравнивание балансов по взносам.</p>
-                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="trip">Функция подготовлена</button>
+                  <h3 data-i18n="premium.tripTitle">Поездка с друзьями</h3>
+                  <p data-i18n="premium.tripText">Группа людей, общая копилка, расходы поездки и выравнивание балансов по взносам.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="trip" data-i18n="premium.prepared">Подготовлено</button>
                 </article>
 
                 <article class="premium-feature-card planned">
                   <div class="premium-feature-head">
                     <span class="premium-feature-icon">R</span>
-                    <span class="premium-feature-state">Заглушка</span>
+                    <span class="premium-feature-state" data-i18n="premium.prepared">Подготовлено</span>
                   </div>
-                  <h3>Студия отчетов</h3>
-                  <p>Премиум-сводки, аккуратная печать и пакеты проверки для менеджера.</p>
-                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="reports">Функция подготовлена</button>
+                  <h3 data-i18n="premium.reportTitle">Студия отчетов</h3>
+                  <p data-i18n="premium.reportText">Премиум-сводки, аккуратная печать и пакеты проверки для менеджера.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="reports" data-i18n="premium.prepared">Подготовлено</button>
                 </article>
               </div>
 
@@ -635,21 +714,30 @@
           <div id="moduleSettings" class="ql-module hidden" data-module="settings">
             <section class="settings-card glass-soft">
               <div class="feed-head">
-                <h2>Settings</h2>
-                <span>App tools</span>
+                <h2 data-i18n="settings.title">Настройки</h2>
+                <span data-i18n="settings.tools">Инструменты приложения</span>
               </div>
 
-              <p class="soft-note">Install Quick Ledger as a web app, support the project, and manage account actions.</p>
+              <p class="soft-note" data-i18n="settings.lead">Установить Captain Fin как web app, поддержать проект и управлять аккаунтом.</p>
 
               <div class="settings-actions">
-                <button type="button" class="ghost-btn wide-btn" data-open-install="auto">Install web app</button>
-                <button type="button" class="ghost-btn wide-btn" data-open-donate>Donate</button>
-                <button id="logoutBtn" class="ghost-btn wide-btn danger-soft" type="button">Logout</button>
+                <button type="button" class="ghost-btn wide-btn" data-open-install="auto" data-i18n="settings.install">Установить web app</button>
+                <button type="button" class="ghost-btn wide-btn" data-open-donate data-i18n="settings.donate">Donate</button>
+                <button id="logoutBtn" class="ghost-btn wide-btn danger-soft" type="button" data-i18n="settings.logout">Выйти</button>
               </div>
 
               <div class="settings-note">
-                <h3>Language foundation</h3>
-                <p class="soft-note">The app is prepared for multilingual UI. Full language switching will be added after the module structure is stable.</p>
+                <h3 data-i18n="settings.languageTitle">Язык</h3>
+                <p class="soft-note" data-i18n="language.notice">Если язык приложения не совпал с языком системы, выберите правильный вариант здесь.</p>
+                <select class="ql-input language-select" data-language-select aria-label="Language">
+                  <option value="ru">Русский</option>
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                  <option value="it">Italiano</option>
+                  <option value="es">Español</option>
+                  <option value="sr">Srpski / MNE / HR</option>
+                  <option value="zh">中文（普通话）</option>
+                </select>
               </div>
             </section>
           </div>
@@ -657,8 +745,8 @@
     </section>
 
     <footer class="ql-footer">
-      <button type="button" class="footer-link" data-open-install="auto">Install</button>
-      <button type="button" class="footer-link" data-open-donate>Donate</button>
+      <button type="button" class="footer-link" data-open-install="auto" data-i18n="footer.install">Установить</button>
+      <button type="button" class="footer-link" data-open-donate data-i18n="footer.donate">Donate</button>
     </footer>
   </main>
 
@@ -824,9 +912,9 @@
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260503-62"></script>
+  <script src="/assets/i18n.js?v=20260520-07"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260503-62"></script>
+  <script src="/assets/app.js?v=20260520-07"></script>
 </body>
 </html>

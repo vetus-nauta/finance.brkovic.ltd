@@ -122,7 +122,7 @@ if (($current['ok'] ?? false) !== true || array_key_exists('user', $current) ===
 smoke_pass('current_user endpoint responds');
 
 $appHtml = smoke_http_get($baseUrl . '/app.php');
-foreach (['moduleMoney', 'advanceGroupSelect', 'advanceIssuePanel', 'advanceList', 'modulePremium', 'premiumTripFriends', 'premiumAdvancedMode'] as $marker) {
+foreach (['moduleCaptain', 'captain-workflow', 'moduleMoney', 'advanceGroupSelect', 'advanceIssuePanel', 'advanceList', 'modulePremium', 'premiumTripFriends', 'premiumAdvancedMode'] as $marker) {
     if (strpos($appHtml, $marker) === false) {
         smoke_fail('Step 4/5 UI marker missing in app.php', ['marker' => $marker]);
     }
@@ -133,7 +133,7 @@ foreach (['advance_create', 'advance_submit', 'advance_accept', 'qlLoadAdvances'
         smoke_fail('Step 4/5 UI marker missing in app.js', ['marker' => $marker]);
     }
 }
-smoke_pass('Step 4/5 money and premium UI assets are served');
+smoke_pass('Step 4/5/6 Captain Fin, advanced money and premium UI assets are served');
 
 $admin = smoke_login($baseUrl, $adminEmail, $adminCookie, $logPath);
 smoke_pass('admin login by 6-digit code');

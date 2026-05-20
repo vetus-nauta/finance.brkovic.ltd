@@ -1032,7 +1032,7 @@ function ql_on_the_go_upload_file(): array
     ];
 }
 
-/* === Quick Ledger On the Go Sessions Foundation OTR-4A 20260503-46 === */
+/* === Captain Fin On the Go Sessions Foundation OTR-4A 20260503-46 === */
 
 function ql_on_the_go_active_session_id(int $userId, int $tapeId, string $sessionType): int
 {
@@ -1123,7 +1123,7 @@ function ql_on_the_go_session_list(array $input = []): array
     ];
 }
 
-/* === Quick Ledger On the Go Close Session OTR-4C 20260503-48 === */
+/* === Captain Fin On the Go Close Session OTR-4C 20260503-48 === */
 
 function ql_on_the_go_close_session(array $input = []): array
 {
@@ -1197,7 +1197,7 @@ function ql_on_the_go_close_session(array $input = []): array
 }
 
 
-/* === Quick Ledger On the Go Session Detail / Activate / Archive OTR-4F 20260503-61 === */
+/* === Captain Fin On the Go Session Detail / Activate / Archive OTR-4F 20260503-61 === */
 
 function ql_on_the_go_session_get(int $sessionId, int $userId): ?array
 {
