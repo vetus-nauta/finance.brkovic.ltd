@@ -1,13 +1,18 @@
 :root {
-  --bg: #f4f4f6;
-  --card: rgba(255,255,255,.78);
-  --text: #111827;
-  --muted: #6b7280;
-  --accent: #0a84ff;
-  --line: rgba(17,24,39,.10);
-  --income: #e7f6ed;
-  --expense: #fff5d8;
-  --shadow: 0 18px 50px rgba(15,23,42,.12);
+  --bg: #f5f7fb;
+  --card: rgba(255,255,255,.86);
+  --text: #111318;
+  --muted: #68707d;
+  --accent: #007aff;
+  --accent-soft: rgba(0,122,255,.10);
+  --green: #34c759;
+  --orange: #ff9500;
+  --red: #ff3b30;
+  --line: rgba(17,19,24,.10);
+  --income: #e8f7ee;
+  --expense: #fff4d8;
+  --shadow: 0 24px 70px rgba(40,52,75,.12);
+  --shadow-soft: 0 10px 28px rgba(40,52,75,.08);
 }
 
 * { box-sizing: border-box; }
@@ -17,10 +22,7 @@ body {
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at 10% 0%, rgba(10,132,255,.18), transparent 32%),
-    radial-gradient(circle at 90% 10%, rgba(52,199,89,.15), transparent 30%),
-    var(--bg);
+  background: linear-gradient(180deg, #fcfdff 0%, #f5f7fb 46%, #edf2f7 100%);
 }
 
 .ql-shell {
@@ -31,9 +33,9 @@ body {
 
 .glass {
   background: var(--card);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  border: 1px solid rgba(255,255,255,.65);
+  backdrop-filter: blur(28px) saturate(1.18);
+  -webkit-backdrop-filter: blur(28px) saturate(1.18);
+  border: 1px solid rgba(255,255,255,.72);
   box-shadow: var(--shadow);
 }
 
@@ -56,15 +58,15 @@ body {
 
 h1 {
   margin: 18px 0 10px;
-  font-size: clamp(42px, 9vw, 78px);
-  letter-spacing: -0.065em;
-  line-height: .92;
+  font-size: 54px;
+  letter-spacing: 0;
+  line-height: 1.02;
 }
 
 h2 {
   margin: 0 0 10px;
   font-size: 25px;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .lead {
@@ -95,13 +97,15 @@ h2 {
 
 .primary-btn {
   color: white;
-  background: var(--accent);
+  background: linear-gradient(180deg, #1687ff 0%, #006ee6 100%);
+  box-shadow: 0 9px 22px rgba(0,122,255,.24);
 }
 
 .ghost-btn, .install-grid button, .footer-link {
   color: var(--text);
-  background: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.82);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
 }
 
 .soft-note {
@@ -169,6 +173,7 @@ h2 {
 
 @media (max-width: 640px) {
   .hero-card, .seo-card { border-radius: 28px; padding: 22px; }
+  h1 { font-size: 42px; }
   .hero-actions, .install-grid { display: grid; }
   .primary-btn, .ghost-btn, .install-grid button { width: 100%; }
   .placeholder-grid { grid-template-columns: 1fr; }
@@ -216,7 +221,7 @@ h2 {
 }
 
 .code-input {
-  letter-spacing: .22em;
+  letter-spacing: 0;
   font-weight: 800;
   text-align: center;
 }
@@ -262,10 +267,11 @@ h2 {
 }
 
 .glass-soft {
-  background: rgba(255,255,255,.68);
-  border: 1px solid var(--line);
+  background: rgba(255,255,255,.76);
+  border: 1px solid rgba(255,255,255,.72);
   border-radius: 26px;
   padding: 16px;
+  box-shadow: var(--shadow-soft);
 }
 
 .result-button {
@@ -273,9 +279,10 @@ h2 {
   border: 0;
   border-radius: 20px;
   padding: 18px;
-  background: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.84);
   text-align: left;
   cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.7), var(--shadow-soft);
 }
 
 .result-button span {
@@ -289,7 +296,7 @@ h2 {
   display: block;
   margin-top: 4px;
   font-size: 34px;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .mini-results {
@@ -533,7 +540,7 @@ h2 {
 
 .report-line.strong b {
   font-size: 24px;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .report-split {
@@ -930,6 +937,150 @@ h2 {
   }
 }
 
+/* === Quick Ledger Premium Features Shell STEP-5 20260520 === */
+.premium-card {
+  margin-top: 14px;
+}
+
+.premium-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.92), rgba(244,248,255,.78)),
+    linear-gradient(90deg, rgba(0,122,255,.10), rgba(52,199,89,.08));
+  border: 1px solid rgba(255,255,255,.78);
+  box-shadow: var(--shadow-soft);
+}
+
+.premium-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 13px;
+  padding: 0 10px;
+  background: var(--accent-soft);
+  color: #005ecb;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.premium-hero h2 {
+  margin: 10px 0 0;
+  font-size: 30px;
+}
+
+.premium-status-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: 15px;
+  padding: 0 11px;
+  color: #17633a;
+  background: rgba(52,199,89,.12);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.premium-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.premium-feature-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 230px;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(255,255,255,.78);
+  box-shadow: var(--shadow-soft);
+}
+
+.premium-feature-card.available {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.92), rgba(239,247,255,.78));
+  border-color: rgba(0,122,255,.18);
+}
+
+.premium-feature-card.planned {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.88), rgba(248,250,252,.74));
+}
+
+.premium-feature-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.premium-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  color: white;
+  background: linear-gradient(180deg, #313844 0%, #171b22 100%);
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(23,27,34,.18);
+}
+
+.premium-feature-state {
+  min-height: 26px;
+  border-radius: 13px;
+  padding: 5px 9px;
+  color: var(--muted);
+  background: rgba(17,19,24,.06);
+  font-size: 12px;
+  font-weight: 830;
+}
+
+.premium-feature-card.available .premium-feature-state {
+  color: #005ecb;
+  background: var(--accent-soft);
+}
+
+.premium-feature-card h3 {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+
+.premium-feature-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.premium-feature-card .wide-btn {
+  align-self: end;
+}
+
+@media (max-width: 860px) {
+  .premium-feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .premium-hero {
+    display: grid;
+  }
+
+  .premium-status-pill {
+    justify-self: start;
+  }
+}
+
 /* === Quick Ledger Scope UI 20260503-08 === */
 .scope-box {
   margin-top: 12px;
@@ -985,7 +1136,7 @@ h2 {
 .section-report h3 {
   margin: 0 0 10px;
   font-size: 16px;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .section-report-row {
@@ -1121,7 +1272,7 @@ h2 {
 .message-modal-card h3 {
   margin: 0 0 8px;
   font-size: 24px;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .message-modal-card p {
@@ -1300,14 +1451,14 @@ h2 {
 .pf-kicker {
   font-weight: 900;
   font-size: 12px;
-  letter-spacing: .18em;
+  letter-spacing: 0;
   color: #6b7280;
 }
 
 .pf-head h1 {
   margin: 4px 0;
   font-size: 34px;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .pf-head p,
@@ -1348,7 +1499,7 @@ h2 {
   color: #6b7280;
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0;
 }
 
 .pf-table {
@@ -2032,7 +2183,7 @@ h2 {
 .ledger-detail-amount {
   font-size: 28px;
   font-weight: 900;
-  letter-spacing: -.04em;
+  letter-spacing: 0;
 }
 
 .ledger-detail-amount.income {
@@ -2305,7 +2456,7 @@ h2 {
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .03em;
+  letter-spacing: 0;
 }
 
 .otr-cash-summary-group b,
@@ -2314,7 +2465,7 @@ h2 {
   margin-top: 4px;
   font-size: 15px;
   font-weight: 900;
-  letter-spacing: -.03em;
+  letter-spacing: 0;
 }
 
 @media (max-width: 640px) {
@@ -2406,7 +2557,7 @@ body.ql-otr-mode .otr-tape-head {
 body.ql-otr-mode .otr-tape-head h2 {
   margin: 0;
   font-size: 17px;
-  letter-spacing: -.02em;
+  letter-spacing: 0;
 }
 
 body.ql-otr-mode .otr-tape-head .soft-note {
@@ -2520,7 +2671,7 @@ body.ql-otr-mode .otr-cash-summary-group b,
 body.ql-otr-mode .otr-card-summary b {
   font-size: 16px;
   font-weight: 900;
-  letter-spacing: -.04em;
+  letter-spacing: 0;
 }
 
 /* Main operational card */
@@ -2767,13 +2918,13 @@ body.ql-otr-mode .otr-review-btn {
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: .08em;
+    letter-spacing: 0;
   }
 
   body.ql-otr-mode .otr-mobile-action-btn b {
     font-size: 18px;
     font-weight: 900;
-    letter-spacing: -.04em;
+    letter-spacing: 0;
   }
 
   body.ql-otr-mode .otr-mobile-input-panel {
@@ -2807,14 +2958,14 @@ body.ql-otr-mode .otr-review-btn {
     color: var(--muted);
     font-size: 10px;
     font-weight: 900;
-    letter-spacing: .09em;
+    letter-spacing: 0;
   }
 
   body.ql-otr-mode .otr-mobile-input-head h3 {
     margin: 0;
     font-size: 19px;
     font-weight: 900;
-    letter-spacing: -.04em;
+    letter-spacing: 0;
   }
 
   body.ql-otr-mode .otr-mobile-input-watermark {
@@ -2826,7 +2977,7 @@ body.ql-otr-mode .otr-review-btn {
     opacity: .075;
     font-size: 42px;
     font-weight: 950;
-    letter-spacing: -.06em;
+    letter-spacing: 0;
     line-height: .9;
     text-align: right;
     z-index: 0;
@@ -2929,7 +3080,7 @@ body.ql-otr-mode .otr-session-stack-head {
 body.ql-otr-mode .otr-session-stack-head h3 {
   margin: 0;
   font-size: 14px;
-  letter-spacing: -.02em;
+  letter-spacing: 0;
 }
 
 body.ql-otr-mode .otr-session-stack-head span {
@@ -2988,14 +3139,14 @@ body.ql-otr-mode .otr-session-card span {
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: 0;
 }
 
 body.ql-otr-mode .otr-session-card b {
   margin-top: 5px;
   font-size: 22px;
   font-weight: 950;
-  letter-spacing: -.04em;
+  letter-spacing: 0;
 }
 
 body.ql-otr-mode .otr-session-card small {
@@ -3106,7 +3257,7 @@ body.ql-otr-mode .otr-session-group h4 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -3201,7 +3352,7 @@ body.ql-otr-mode .otr-session-column-head-4f h4 {
   margin: 0;
   font-size: 13px;
   line-height: 1.1;
-  letter-spacing: .14em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: #687284;
 }
@@ -3265,7 +3416,7 @@ body.ql-otr-mode .otr-session-card-4f b {
 
 body.ql-otr-mode .otr-session-card-4f span {
   font-size: 12px;
-  letter-spacing: .12em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: #687284;
   font-weight: 900;
@@ -3303,7 +3454,7 @@ body.ql-otr-mode .otr-session-card-4f em {
 .otr-session-modal-head span {
   display: block;
   font-size: 12px;
-  letter-spacing: .14em;
+  letter-spacing: 0;
   text-transform: uppercase;
   font-weight: 900;
   color: #687284;

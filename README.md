@@ -20,6 +20,7 @@ Current product name in the live codebase: **Quick Ledger**.
 - On the Go fast capture mode
 - Accountable money / advances moderation bridge
 - Money UI for issue / submit / accept / return
+- Premium Features shell with placeholders
 
 ## Live Paths
 
@@ -99,6 +100,18 @@ expenses enter group ledger under the employee's name
 ```
 
 Issuing money is stored as `cash_advances`; it is not written as a group expense until moderation accepts the submitted report.
+
+## Premium Features
+
+Premium account features are visible but not access-gated yet.
+
+Current placeholders:
+
+- Advanced Mode
+- Trip with Friends
+- Report Studio
+
+`Trip with Friends` will later create a people group, track shared-pot contributions, record expenses and equalize balances.
 
 ## Deployment Notes
 

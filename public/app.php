@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Quick Ledger">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/assets/icon-180.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260520-04">
+<link rel="stylesheet" href="/assets/app.css?v=20260520-05">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -56,6 +56,7 @@
             <button class="module-tab active" type="button" data-module-tab="ledger">Ledger</button>
             <button class="module-tab" type="button" data-module-tab="ontherun">On the Go</button>
             <button class="module-tab" type="button" data-module-tab="money">Money</button>
+            <button class="module-tab" type="button" data-module-tab="premium">Premium</button>
             <button class="module-tab" type="button" data-module-tab="reports">Reports</button>
             <button class="module-tab" type="button" data-module-tab="groups">Groups</button>
             <button class="module-tab" type="button" data-module-tab="business">Business</button>
@@ -342,6 +343,53 @@
               <div id="advanceList" class="advance-list">
                 <p class="soft-note">Choose a group to see accountable money.</p>
               </div>
+            </section>
+          </div>
+
+          <div id="modulePremium" class="ql-module hidden" data-module="premium">
+            <section class="premium-card glass-soft">
+              <div class="premium-hero">
+                <div>
+                  <span class="premium-kicker">Premium account</span>
+                  <h2>Premium Features</h2>
+                  <p class="soft-note tight-note">Test access is open while the product shape is being finalized.</p>
+                </div>
+                <span class="premium-status-pill">Test mode</span>
+              </div>
+
+              <div class="premium-feature-grid">
+                <article id="premiumAdvancedMode" class="premium-feature-card available">
+                  <div class="premium-feature-head">
+                    <span class="premium-feature-icon">A</span>
+                    <span class="premium-feature-state">Open now</span>
+                  </div>
+                  <h3>Advanced Mode</h3>
+                  <p>Organizer-level controls, money moderation and group-level finance tools.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-open="money">Open Advanced tools</button>
+                </article>
+
+                <article id="premiumTripFriends" class="premium-feature-card planned">
+                  <div class="premium-feature-head">
+                    <span class="premium-feature-icon">T</span>
+                    <span class="premium-feature-state">Placeholder</span>
+                  </div>
+                  <h3>Trip with Friends</h3>
+                  <p>Group people, collect a shared pot and equalize expenses against each person's contribution.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="trip">Prepare feature</button>
+                </article>
+
+                <article class="premium-feature-card planned">
+                  <div class="premium-feature-head">
+                    <span class="premium-feature-icon">R</span>
+                    <span class="premium-feature-state">Placeholder</span>
+                  </div>
+                  <h3>Report Studio</h3>
+                  <p>Premium summaries, clean print views and manager-level review packages.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="reports">Prepare feature</button>
+                </article>
+              </div>
+
+              <p id="premiumStatus" class="soft-note"></p>
             </section>
           </div>
 

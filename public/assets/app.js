@@ -4544,3 +4544,36 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   window.qlOtrFinalLoadOnTheGo = otrFinalLoadOnTheGo;
 })();
+
+/* === Quick Ledger Premium Feature Shell STEP-5 20260520 === */
+(function() {
+  function premiumStatus(message) {
+    const el = document.getElementById('premiumStatus');
+    if (el) el.textContent = message || '';
+  }
+
+  function qlPremiumOpen(moduleName) {
+    if (typeof window.qlSetModule === 'function') {
+      window.qlSetModule(moduleName || 'money');
+      premiumStatus('');
+    }
+  }
+
+  function qlPremiumSoon(feature) {
+    const labels = {
+      trip: 'Trip with Friends placeholder is ready. Backend and balancing logic will be added later.',
+      reports: 'Report Studio placeholder is ready. Premium report package will be added later.'
+    };
+    premiumStatus(labels[feature] || 'Premium feature placeholder is ready.');
+  }
+
+  document.addEventListener('click', function(event) {
+    const open = event.target.closest('[data-premium-open]');
+    const soon = event.target.closest('[data-premium-soon]');
+
+    if (open) qlPremiumOpen(open.getAttribute('data-premium-open'));
+    if (soon) qlPremiumSoon(soon.getAttribute('data-premium-soon'));
+  });
+
+  window.qlPremiumOpen = qlPremiumOpen;
+})();
