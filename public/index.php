@@ -16,7 +16,10 @@
   <meta name="apple-mobile-web-app-title" content="Quick Ledger">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-    <link rel="apple-touch-icon" href="/assets/icon-180.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
 <meta property="og:title" content="Quick Ledger — Personal & Group Finance Tracker">
   <meta property="og:description" content="Fast personal and group finance tracking web app by brkovic.ltd.">
   <meta property="og:type" content="website">

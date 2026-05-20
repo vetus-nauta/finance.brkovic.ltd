@@ -87,6 +87,21 @@ index.php
 README.md
 ```
 
+Brand app icons are packaged in:
+
+```text
+public/favicon.ico
+public/assets/apple-touch-icon.png
+public/assets/favicon-16x16.png
+public/assets/favicon-32x32.png
+public/assets/favicon-48x48.png
+public/assets/favicon-64x64.png
+public/assets/icon-180.png
+public/assets/icon-192.png
+public/assets/icon-512.png
+public/assets/icon-maskable-512.png
+```
+
 Skip:
 
 ```text
