@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Quick Ledger">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/assets/icon-180.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260520-05">
+<link rel="stylesheet" href="/assets/app.css?v=20260520-06">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -53,14 +53,14 @@
           </div>
         </div>
           <nav class="module-nav glass-soft" aria-label="Quick Ledger modules">
-            <button class="module-tab active" type="button" data-module-tab="ledger">Ledger</button>
-            <button class="module-tab" type="button" data-module-tab="ontherun">On the Go</button>
-            <button class="module-tab" type="button" data-module-tab="money">Money</button>
+            <button class="module-tab active" type="button" data-module-tab="ledger">Учет</button>
+            <button class="module-tab" type="button" data-module-tab="ontherun">На бегу</button>
+            <button class="module-tab" type="button" data-module-tab="money">Деньги</button>
             <button class="module-tab" type="button" data-module-tab="premium">Premium</button>
-            <button class="module-tab" type="button" data-module-tab="reports">Reports</button>
-            <button class="module-tab" type="button" data-module-tab="groups">Groups</button>
-            <button class="module-tab" type="button" data-module-tab="business">Business</button>
-            <button class="module-tab" type="button" data-module-tab="settings">Settings</button>
+            <button class="module-tab" type="button" data-module-tab="reports">Отчеты</button>
+            <button class="module-tab" type="button" data-module-tab="groups">Группы</button>
+            <button class="module-tab" type="button" data-module-tab="business">Бизнес</button>
+            <button class="module-tab" type="button" data-module-tab="settings">Настройки</button>
           </nav>
 
           <div id="moduleLedger" class="ql-module active" data-module="ledger">
@@ -306,42 +306,42 @@
             <section class="advance-card glass-soft">
               <div class="feed-head">
                 <div>
-                  <h2>Money</h2>
-                  <p class="soft-note tight-note">Accountable cash: issue, submit, moderate, then include in the group ledger.</p>
+                  <h2>Деньги под отчет</h2>
+                  <p class="soft-note tight-note">Выдача, сверка и принятие расходов в общий отчет группы.</p>
                 </div>
-                <span id="advanceCount">0 advances</span>
+                <span id="advanceCount">0 строк</span>
               </div>
 
               <div class="advance-toolbar">
-                <label class="form-label" for="advanceGroupSelect">Group</label>
+                <label class="form-label" for="advanceGroupSelect">Группа</label>
                 <select id="advanceGroupSelect" class="ql-input">
-                  <option value="">Choose group</option>
+                  <option value="">Выберите группу</option>
                 </select>
                 <p id="advanceStatus" class="soft-note"></p>
               </div>
 
               <div id="advanceIssuePanel" class="advance-issue-panel hidden">
                 <div class="advance-panel-head">
-                  <h3>Issue money</h3>
-                  <span>Advanced access</span>
+                  <h3>Выдать деньги</h3>
+                  <span>Advanced</span>
                 </div>
                 <select id="advanceMemberSelect" class="ql-input">
-                  <option value="">Choose employee</option>
+                  <option value="">Выберите сотрудника</option>
                 </select>
-                <input id="advanceTitle" class="ql-input" type="text" placeholder="Purpose / trip / report name">
+                <input id="advanceTitle" class="ql-input" type="text" placeholder="Назначение / поездка / отчет">
                 <input id="advanceAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
-                <button id="advanceCreateBtn" class="primary-btn wide-btn" type="button">Issue accountable cash</button>
+                <button id="advanceCreateBtn" class="primary-btn wide-btn" type="button">Выдать под отчет</button>
               </div>
 
               <div id="advanceSummary" class="advance-summary">
-                <div><span>Issued</span><b>€0.00</b></div>
-                <div><span>Spent</span><b>€0.00</b></div>
-                <div><span>Expected left</span><b>€0.00</b></div>
-                <div><span>Waiting</span><b>0</b></div>
+                <div><span>Выдано</span><b>€0.00</b></div>
+                <div><span>Потрачено</span><b>€0.00</b></div>
+                <div><span>Остаток</span><b>€0.00</b></div>
+                <div><span>Ожидает</span><b>0</b></div>
               </div>
 
               <div id="advanceList" class="advance-list">
-                <p class="soft-note">Choose a group to see accountable money.</p>
+                <p class="soft-note">Выберите группу, чтобы увидеть деньги под отчет.</p>
               </div>
             </section>
           </div>
@@ -351,41 +351,41 @@
               <div class="premium-hero">
                 <div>
                   <span class="premium-kicker">Premium account</span>
-                  <h2>Premium Features</h2>
-                  <p class="soft-note tight-note">Test access is open while the product shape is being finalized.</p>
+                  <h2>Премиум функции</h2>
+                  <p class="soft-note tight-note">Тестовый доступ открыт, пока мы фиксируем форму продукта.</p>
                 </div>
-                <span class="premium-status-pill">Test mode</span>
+                <span class="premium-status-pill">Тестовый доступ</span>
               </div>
 
               <div class="premium-feature-grid">
                 <article id="premiumAdvancedMode" class="premium-feature-card available">
                   <div class="premium-feature-head">
                     <span class="premium-feature-icon">A</span>
-                    <span class="premium-feature-state">Open now</span>
+                    <span class="premium-feature-state">Открыто</span>
                   </div>
                   <h3>Advanced Mode</h3>
-                  <p>Organizer-level controls, money moderation and group-level finance tools.</p>
-                  <button class="ghost-btn wide-btn" type="button" data-premium-open="money">Open Advanced tools</button>
+                  <p>Режим организатора: модерация денег, группы и расширенные финансовые инструменты.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-open="money">Открыть Advanced</button>
                 </article>
 
                 <article id="premiumTripFriends" class="premium-feature-card planned">
                   <div class="premium-feature-head">
                     <span class="premium-feature-icon">T</span>
-                    <span class="premium-feature-state">Placeholder</span>
+                    <span class="premium-feature-state">Заглушка</span>
                   </div>
-                  <h3>Trip with Friends</h3>
-                  <p>Group people, collect a shared pot and equalize expenses against each person's contribution.</p>
-                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="trip">Prepare feature</button>
+                  <h3>Поездка с друзьями</h3>
+                  <p>Группа людей, общая копилка, расходы поездки и выравнивание балансов по взносам.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="trip">Функция подготовлена</button>
                 </article>
 
                 <article class="premium-feature-card planned">
                   <div class="premium-feature-head">
                     <span class="premium-feature-icon">R</span>
-                    <span class="premium-feature-state">Placeholder</span>
+                    <span class="premium-feature-state">Заглушка</span>
                   </div>
-                  <h3>Report Studio</h3>
-                  <p>Premium summaries, clean print views and manager-level review packages.</p>
-                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="reports">Prepare feature</button>
+                  <h3>Студия отчетов</h3>
+                  <p>Премиум-сводки, аккуратная печать и пакеты проверки для менеджера.</p>
+                  <button class="ghost-btn wide-btn" type="button" data-premium-soon="reports">Функция подготовлена</button>
                 </article>
               </div>
 

@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /app.php
-Disallow: /api/
+Disallow: /api.php
+Disallow: /storage/
 Sitemap: https://finance.brkovic.ltd/sitemap.xml

@@ -11,7 +11,7 @@
   <link rel="canonical" href="https://finance.brkovic.ltd/">
   <link rel="manifest" href="/manifest.webmanifest">
 
-  <meta name="theme-color" content="#f4f4f6">
+  <meta name="theme-color" content="#f5f7fb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Quick Ledger">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -22,7 +22,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://finance.brkovic.ltd/">
 
-  <link rel="stylesheet" href="/assets/app.css?v=20260503-62">
+  <link rel="stylesheet" href="/assets/app.css?v=20260520-06">
 </head>
 <body>
   <main class="ql-shell">
@@ -81,6 +81,6 @@
   <script src="/assets/i18n.js?v=20260503-62"></script>
   <script src="/assets/donate.js?v=20260503-01"></script>
   <script src="/assets/notifications.js?v=20260503-01"></script>
-  <script src="/assets/app.js?v=20260503-62"></script>
+  <script src="/assets/app.js?v=20260520-06"></script>
 </body>
 </html>

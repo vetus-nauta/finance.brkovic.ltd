@@ -2018,13 +2018,13 @@ function qlAdvanceStatus(message) {
 }
 
 function qlAdvanceStatusLabel(status) {
-  if (status === 'issued') return 'Issued';
-  if (status === 'submitted') return 'To review';
-  if (status === 'accepted') return 'Accepted';
-  if (status === 'returned') return 'Returned';
-  if (status === 'discrepancy') return 'Mismatch';
-  if (status === 'closed') return 'Closed';
-  return status || 'Advance';
+  if (status === 'issued') return 'Выдано';
+  if (status === 'submitted') return 'На проверке';
+  if (status === 'accepted') return 'Принято';
+  if (status === 'returned') return 'Возврат';
+  if (status === 'discrepancy') return 'Расхождение';
+  if (status === 'closed') return 'Закрыто';
+  return status || 'Под отчет';
 }
 
 function qlAdvanceIsWaiting(status) {
@@ -2045,7 +2045,7 @@ function qlAdvanceRefreshGroupSelect() {
     qlAdvanceGroupId = groups[0].id;
   }
 
-  select.innerHTML = '<option value="">Choose group</option>' + groups.map(function(group) {
+  select.innerHTML = '<option value="">Выберите группу</option>' + groups.map(function(group) {
     const level = group.access_level || group.role || 'base';
     return '<option value="' + escapeHtml(group.id) + '">' + escapeHtml(group.name) + ' · ' + escapeHtml(level) + '</option>';
   }).join('');
@@ -2058,8 +2058,8 @@ function qlAdvanceRenderMembers() {
   if (!select) return;
 
   const members = qlAdvanceMembers || [];
-  select.innerHTML = '<option value="">Choose employee</option>' + members.map(function(member) {
-    const label = (member.display_name || member.email || 'Member') + ' · ' + (member.access_level || member.role || 'base');
+  select.innerHTML = '<option value="">Выберите сотрудника</option>' + members.map(function(member) {
+    const label = (member.display_name || member.email || 'Участник') + ' · ' + (member.access_level || member.role || 'base');
     return '<option value="' + escapeHtml(member.user_id) + '">' + escapeHtml(label) + '</option>';
   }).join('');
 }
@@ -2072,7 +2072,7 @@ async function qlAdvanceLoadMembers() {
 
   const data = await qlApi('group_members', { group_id: Number(qlAdvanceGroupId) });
   if (!data.ok) {
-    qlAdvanceStatus('Members error: ' + (data.error || 'unknown'));
+    qlAdvanceStatus('Ошибка участников: ' + (data.error || 'unknown'));
     return;
   }
 
@@ -2109,10 +2109,10 @@ function qlAdvanceRenderSummary() {
   });
 
   summary.innerHTML = `
-    <div><span>Issued</span><b>${qlCurrency(issued)}</b></div>
-    <div><span>Spent</span><b>${qlCurrency(spent)}</b></div>
-    <div><span>Expected left</span><b>${qlCurrency(expectedLeft)}</b></div>
-    <div><span>Waiting</span><b>${waiting}</b></div>
+    <div><span>Выдано</span><b>${qlCurrency(issued)}</b></div>
+    <div><span>Потрачено</span><b>${qlCurrency(spent)}</b></div>
+    <div><span>Остаток</span><b>${qlCurrency(expectedLeft)}</b></div>
+    <div><span>Ожидает</span><b>${waiting}</b></div>
   `;
 }
 
@@ -2126,10 +2126,10 @@ function qlAdvanceActionHtml(advance) {
   if (canSubmit) {
     html += `
       <div class="advance-submit-row">
-        <input class="ql-input" type="text" inputmode="decimal" placeholder="Real cash left" data-advance-actual="${escapeHtml(advance.id)}">
-        <input class="ql-input" type="text" placeholder="Note" data-advance-note="${escapeHtml(advance.id)}">
-        <button class="primary-btn" type="button" data-advance-submit="${escapeHtml(advance.id)}">Submit</button>
-        <button class="ghost-btn" type="button" data-advance-open-tape="${escapeHtml(advance.on_the_go_tape_id || '')}">Open tape</button>
+        <input class="ql-input" type="text" inputmode="decimal" placeholder="Фактический остаток" data-advance-actual="${escapeHtml(advance.id)}">
+        <input class="ql-input" type="text" placeholder="Комментарий" data-advance-note="${escapeHtml(advance.id)}">
+        <button class="primary-btn" type="button" data-advance-submit="${escapeHtml(advance.id)}">Сдать</button>
+        <button class="ghost-btn" type="button" data-advance-open-tape="${escapeHtml(advance.on_the_go_tape_id || '')}">Открыть записи</button>
       </div>
     `;
   }
@@ -2137,8 +2137,8 @@ function qlAdvanceActionHtml(advance) {
   if (canModerate) {
     html += `
       <div class="advance-moderate-row">
-        <button class="primary-btn" type="button" data-advance-accept="${escapeHtml(advance.id)}">Accept</button>
-        <button class="ghost-btn danger-soft-btn" type="button" data-advance-return="${escapeHtml(advance.id)}">Return</button>
+        <button class="primary-btn" type="button" data-advance-accept="${escapeHtml(advance.id)}">Принять</button>
+        <button class="ghost-btn danger-soft-btn" type="button" data-advance-return="${escapeHtml(advance.id)}">Вернуть</button>
       </div>
     `;
   }
@@ -2156,29 +2156,29 @@ function qlAdvanceRenderList() {
   const list = document.getElementById('advanceList');
   const count = document.getElementById('advanceCount');
 
-  if (count) count.textContent = qlAdvances.length + (qlAdvances.length === 1 ? ' advance' : ' advances');
+  if (count) count.textContent = qlAdvances.length + ' строк';
   qlAdvanceRenderSummary();
   qlAdvanceRenderIssuePanel();
 
   if (!list) return;
 
   if (!qlAdvanceGroupId) {
-    list.innerHTML = '<p class="soft-note">Choose a group to see accountable money.</p>';
+    list.innerHTML = '<p class="soft-note">Выберите группу, чтобы увидеть деньги под отчет.</p>';
     return;
   }
 
   if (!qlAdvances.length) {
-    list.innerHTML = '<p class="soft-note">No accountable money in this group yet.</p>';
+    list.innerHTML = '<p class="soft-note">В этой группе пока нет денег под отчет.</p>';
     return;
   }
 
   list.innerHTML = qlAdvances.map(function(advance) {
     const s = advance.summary || {};
     const status = advance.status || 'issued';
-    const employee = advance.assigned_to_display_name || advance.assigned_to_email || 'Employee';
+    const employee = advance.assigned_to_display_name || advance.assigned_to_email || 'Сотрудник';
     const diff = Number(advance.difference_amount || 0);
     const differenceHtml = advance.actual_remaining !== null && advance.actual_remaining !== undefined
-      ? `<div><span>Actual</span><b>${qlCurrency(advance.actual_remaining)}</b></div><div class="${Math.abs(diff) > 0.009 ? 'metric-alert' : ''}"><span>Difference</span><b>${qlCurrency(diff)}</b></div>`
+      ? `<div><span>Факт</span><b>${qlCurrency(advance.actual_remaining)}</b></div><div class="${Math.abs(diff) > 0.009 ? 'metric-alert' : ''}"><span>Разница</span><b>${qlCurrency(diff)}</b></div>`
       : '';
 
     return `
@@ -2196,10 +2196,10 @@ function qlAdvanceRenderList() {
         </div>
 
         <div class="advance-metrics">
-          <div><span>Cash spent</span><b>${qlCurrency(s.cash_out || 0)}</b></div>
-          <div><span>Card spent</span><b>${qlCurrency(s.card_out || 0)}</b></div>
-          <div><span>Expected left</span><b>${qlCurrency(s.cash_left || 0)}</b></div>
-          <div><span>Records</span><b>${Number(s.records_count || 0)}</b></div>
+          <div><span>Наличные</span><b>${qlCurrency(s.cash_out || 0)}</b></div>
+          <div><span>Безнал</span><b>${qlCurrency(s.card_out || 0)}</b></div>
+          <div><span>Остаток</span><b>${qlCurrency(s.cash_left || 0)}</b></div>
+          <div><span>Записи</span><b>${Number(s.records_count || 0)}</b></div>
           ${differenceHtml}
         </div>
 
@@ -2221,11 +2221,11 @@ async function qlLoadAdvances() {
     qlAdvances = [];
     qlAdvanceScope = {};
     qlAdvanceRenderList();
-    qlAdvanceStatus((qlGroups || []).length ? 'Choose a group.' : 'Create or join a group first.');
+    qlAdvanceStatus((qlGroups || []).length ? 'Выберите группу.' : 'Создайте группу или войдите по приглашению.');
     return;
   }
 
-  qlAdvanceStatus('Loading accountable money…');
+  qlAdvanceStatus('Загружаю деньги под отчет...');
 
   const data = await qlApi('advance_list', {
     group_id: Number(qlAdvanceGroupId),
@@ -2236,13 +2236,13 @@ async function qlLoadAdvances() {
     qlAdvances = [];
     qlAdvanceScope = {};
     qlAdvanceRenderList();
-    qlAdvanceStatus('Advance error: ' + (data.error || 'unknown'));
+    qlAdvanceStatus('Ошибка подотчета: ' + (data.error || 'unknown'));
     return;
   }
 
   qlAdvances = data.advances || [];
   qlAdvanceScope = data.scope || {};
-  qlAdvanceStatus(qlAdvanceScope.can_manage_money ? 'Advanced money control.' : (qlAdvanceScope.can_moderate ? 'Moderation mode.' : 'Own assigned money.'));
+  qlAdvanceStatus(qlAdvanceScope.can_manage_money ? 'Advanced-управление деньгами.' : (qlAdvanceScope.can_moderate ? 'Режим модерации.' : 'Ваши выданные деньги.'));
 
   qlAdvanceRenderList();
   await qlAdvanceLoadMembers();
@@ -2255,26 +2255,26 @@ async function qlAdvanceCreate() {
   const amount = (document.getElementById('advanceAmount')?.value || '').trim();
 
   if (!qlAdvanceGroupId) {
-    qlAdvanceStatus('Choose a group first.');
+    qlAdvanceStatus('Сначала выберите группу.');
     return;
   }
   if (!memberId || !amount) {
-    qlAdvanceStatus('Choose employee and amount.');
+    qlAdvanceStatus('Выберите сотрудника и сумму.');
     return;
   }
 
-  qlAdvanceStatus('Issuing accountable cash…');
+  qlAdvanceStatus('Выдаю деньги под отчет...');
 
   const data = await qlApi('advance_create', {
     group_id: Number(qlAdvanceGroupId),
     assigned_to_user_id: Number(memberId),
-    title: title || 'Pocket advance',
+    title: title || 'Деньги под отчет',
     amount: amount,
     currency: 'EUR'
   });
 
   if (!data.ok) {
-    qlAdvanceStatus('Issue error: ' + (data.error || 'unknown'));
+    qlAdvanceStatus('Ошибка выдачи: ' + (data.error || 'unknown'));
     return;
   }
 
@@ -2283,7 +2283,7 @@ async function qlAdvanceCreate() {
   if (titleEl) titleEl.value = '';
   if (amountEl) amountEl.value = '';
 
-  qlAdvanceStatus('Money issued.');
+  qlAdvanceStatus('Деньги выданы.');
   await qlLoadAdvances();
 }
 
@@ -2292,11 +2292,11 @@ async function qlAdvanceSubmit(id) {
   const note = (qlAdvanceField('data-advance-note', id)?.value || '').trim();
 
   if (!actual) {
-    qlAdvanceStatus('Enter real cash left.');
+    qlAdvanceStatus('Введите фактический остаток.');
     return;
   }
 
-  qlAdvanceStatus('Submitting report…');
+  qlAdvanceStatus('Отправляю отчет...');
 
   const data = await qlApi('advance_submit', {
     id: Number(id),
@@ -2305,18 +2305,18 @@ async function qlAdvanceSubmit(id) {
   });
 
   if (!data.ok) {
-    qlAdvanceStatus('Submit error: ' + (data.error || 'unknown'));
+    qlAdvanceStatus('Ошибка сдачи: ' + (data.error || 'unknown'));
     return;
   }
 
-  qlAdvanceStatus(data.advance && data.advance.status === 'discrepancy' ? 'Submitted with mismatch.' : 'Submitted for moderation.');
+  qlAdvanceStatus(data.advance && data.advance.status === 'discrepancy' ? 'Сдано с расхождением.' : 'Сдано на проверку.');
   await qlLoadAdvances();
   if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
 }
 
 async function qlAdvanceAccept(id) {
-  const note = prompt('Moderation note', '') || '';
-  qlAdvanceStatus('Accepting report…');
+  const note = prompt('Комментарий модерации', '') || '';
+  qlAdvanceStatus('Принимаю отчет...');
 
   const data = await qlApi('advance_accept', {
     id: Number(id),
@@ -2324,11 +2324,11 @@ async function qlAdvanceAccept(id) {
   });
 
   if (!data.ok) {
-    qlAdvanceStatus('Accept error: ' + (data.error || 'unknown'));
+    qlAdvanceStatus('Ошибка принятия: ' + (data.error || 'unknown'));
     return;
   }
 
-  qlAdvanceStatus('Accepted. Expenses are now in the group ledger.');
+  qlAdvanceStatus('Принято. Расходы добавлены в групповой учет.');
   await qlLoadAdvances();
 
   if (qlLedgerScopeMode === 'group' && String(qlLedgerGroupId || '') === String(qlAdvanceGroupId || '')) {
@@ -2337,8 +2337,8 @@ async function qlAdvanceAccept(id) {
 }
 
 async function qlAdvanceReturn(id) {
-  const note = prompt('Return note', '') || '';
-  qlAdvanceStatus('Returning report…');
+  const note = prompt('Причина возврата', '') || '';
+  qlAdvanceStatus('Возвращаю отчет...');
 
   const data = await qlApi('advance_return', {
     id: Number(id),
@@ -2346,11 +2346,11 @@ async function qlAdvanceReturn(id) {
   });
 
   if (!data.ok) {
-    qlAdvanceStatus('Return error: ' + (data.error || 'unknown'));
+    qlAdvanceStatus('Ошибка возврата: ' + (data.error || 'unknown'));
     return;
   }
 
-  qlAdvanceStatus('Returned for correction.');
+  qlAdvanceStatus('Возвращено на исправление.');
   await qlLoadAdvances();
 }
 
@@ -4561,10 +4561,10 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   function qlPremiumSoon(feature) {
     const labels = {
-      trip: 'Trip with Friends placeholder is ready. Backend and balancing logic will be added later.',
-      reports: 'Report Studio placeholder is ready. Premium report package will be added later.'
+      trip: 'Заглушка поездки с друзьями готова. Расчеты общей копилки и балансов добавим позже.',
+      reports: 'Заглушка студии отчетов готова. Премиум-пакет отчетов добавим позже.'
     };
-    premiumStatus(labels[feature] || 'Premium feature placeholder is ready.');
+    premiumStatus(labels[feature] || 'Заглушка премиум-функции готова.');
   }
 
   document.addEventListener('click', function(event) {
