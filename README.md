@@ -10,6 +10,7 @@ Current product name in the live codebase: **Quick Ledger**.
 - Personal ledger
 - Group ledger
 - Group invites and members
+- Group-scoped access levels: Base / Manager / Advanced
 - Group messages
 - Categories / sections
 - Attachments for ledger entries
@@ -60,12 +61,26 @@ The smoke test checks:
 - public `current_user`;
 - login by 6-digit email code in local log mode;
 - group creation;
-- invite and member join;
+- email-bound invite and member join;
+- group access levels;
 - group members;
 - group messages and unread state;
-- group ledger write plus admin visibility;
+- Base member denial for direct group ledger;
+- Manager group ledger write plus admin visibility;
 - personal ledger update/delete;
 - On the Go tape/capture/list.
+
+## Group Access Model
+
+Access is scoped to a group membership, not to the global user account.
+
+```text
+base      = On the Go / limited work group mode
+manager   = middle layer / Captain Fin and moderation later
+advanced  = organizer/admin mode
+```
+
+A user can have full personal finance tools and still be `base` inside a specific work group.
 
 ## Deployment Notes
 

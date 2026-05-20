@@ -154,6 +154,10 @@ if ($action === 'ledger_create') {
         ql_json(ql_group_members(ql_input()));
     }
 
+    if ($action === 'group_member_access_update') {
+        ql_json(ql_group_member_access_update(ql_input()));
+    }
+
 
     if ($action === 'category_list') {
         ql_json(ql_category_list(ql_input()));

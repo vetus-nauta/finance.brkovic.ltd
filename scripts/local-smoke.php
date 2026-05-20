@@ -109,9 +109,29 @@ if (empty($groupResponse['ok']) || empty($groupResponse['group']['id'])) {
 $groupId = (int)$groupResponse['group']['id'];
 smoke_pass('admin creates group');
 
-$inviteResponse = smoke_api($baseUrl, 'group_invite_create', ['group_id' => $groupId, 'channel' => 'copy'], $adminCookie);
+$wrongInviteResponse = smoke_api($baseUrl, 'group_invite_create', [
+    'group_id' => $groupId,
+    'channel' => 'copy',
+    'invited_email' => 'wrong-' . $memberEmail,
+    'access_level' => 'base',
+], $adminCookie);
+if (empty($wrongInviteResponse['ok']) || empty($wrongInviteResponse['invite']['url'])) {
+    smoke_fail('email-bound invite failed', $wrongInviteResponse);
+}
+parse_str((string)parse_url($wrongInviteResponse['invite']['url'], PHP_URL_QUERY), $wrongInviteQuery);
+$wrongInviteToken = (string)($wrongInviteQuery['invite'] ?? '');
+
+$inviteResponse = smoke_api($baseUrl, 'group_invite_create', [
+    'group_id' => $groupId,
+    'channel' => 'copy',
+    'invited_email' => $memberEmail,
+    'access_level' => 'base',
+], $adminCookie);
 if (empty($inviteResponse['ok']) || empty($inviteResponse['invite']['url'])) {
     smoke_fail('group_invite_create failed', $inviteResponse);
+}
+if (($inviteResponse['invite']['access_level'] ?? '') !== 'base') {
+    smoke_fail('invite access level failed', $inviteResponse);
 }
 parse_str((string)parse_url($inviteResponse['invite']['url'], PHP_URL_QUERY), $inviteQuery);
 $inviteToken = (string)($inviteQuery['invite'] ?? '');
@@ -123,11 +143,26 @@ smoke_pass('admin creates invite');
 $member = smoke_login($baseUrl, $memberEmail, $memberCookie, $logPath);
 smoke_pass('member login by 6-digit code');
 
+$wrongJoinResponse = smoke_api($baseUrl, 'group_join', ['token' => $wrongInviteToken], $memberCookie);
+if (($wrongJoinResponse['error'] ?? '') !== 'invite_email_mismatch') {
+    smoke_fail('invite email mismatch guard failed', $wrongJoinResponse);
+}
+smoke_pass('email-bound invite rejects wrong user');
+
 $joinResponse = smoke_api($baseUrl, 'group_join', ['token' => $inviteToken], $memberCookie);
 if (empty($joinResponse['ok']) || (int)($joinResponse['group']['id'] ?? 0) !== $groupId) {
     smoke_fail('group_join failed', $joinResponse);
 }
-smoke_pass('member joins group by invite');
+if (($joinResponse['group']['access_level'] ?? '') !== 'base') {
+    smoke_fail('base invite did not create base membership', $joinResponse);
+}
+smoke_pass('member joins group by base invite');
+
+$baseMemberList = smoke_api($baseUrl, 'group_members', ['group_id' => $groupId], $memberCookie);
+if (empty($baseMemberList['ok']) || count($baseMemberList['members'] ?? []) !== 1) {
+    smoke_fail('base member visibility failed', $baseMemberList);
+}
+smoke_pass('base member sees only own membership');
 
 $membersResponse = smoke_api($baseUrl, 'group_members', ['group_id' => $groupId], $adminCookie);
 if (empty($membersResponse['ok']) || count($membersResponse['members'] ?? []) < 2) {
@@ -148,6 +183,45 @@ if (empty($unreadResponse['ok']) || (int)($unreadResponse['unread_count'] ?? 0) 
 }
 smoke_pass('group messages and unread work');
 
+$baseGroupLedgerDenied = smoke_api($baseUrl, 'ledger_create', [
+    'group_id' => $groupId,
+    'entry_type' => 'expense',
+    'money_type' => 'cash',
+    'amount' => '12.34',
+    'purpose' => 'Smoke denied fuel',
+], $memberCookie);
+if (($baseGroupLedgerDenied['error'] ?? '') !== 'access_denied') {
+    smoke_fail('base group ledger denial failed', $baseGroupLedgerDenied);
+}
+smoke_pass('base member cannot write direct group ledger');
+
+$basePersonalLedger = smoke_api($baseUrl, 'ledger_create', [
+    'entry_type' => 'income',
+    'money_type' => 'cash',
+    'amount' => '10',
+    'purpose' => 'Smoke base personal income',
+], $memberCookie);
+if (empty($basePersonalLedger['ok'])) {
+    smoke_fail('base personal full profile failed', $basePersonalLedger);
+}
+smoke_pass('base member keeps full personal profile');
+
+$accessUpdate = smoke_api($baseUrl, 'group_member_access_update', [
+    'group_id' => $groupId,
+    'user_id' => (int)$member['id'],
+    'access_level' => 'manager',
+], $adminCookie);
+if (empty($accessUpdate['ok']) || ($accessUpdate['member']['access_level'] ?? '') !== 'manager') {
+    smoke_fail('admin member access update failed', $accessUpdate);
+}
+smoke_pass('admin promotes member to manager');
+
+$managerMemberList = smoke_api($baseUrl, 'group_members', ['group_id' => $groupId], $memberCookie);
+if (empty($managerMemberList['ok']) || count($managerMemberList['members'] ?? []) < 2) {
+    smoke_fail('manager member visibility failed', $managerMemberList);
+}
+smoke_pass('manager sees group members');
+
 $ledgerResponse = smoke_api($baseUrl, 'ledger_create', [
     'group_id' => $groupId,
     'entry_type' => 'expense',
@@ -156,13 +230,31 @@ $ledgerResponse = smoke_api($baseUrl, 'ledger_create', [
     'purpose' => 'Smoke fuel',
 ], $memberCookie);
 if (empty($ledgerResponse['ok'])) {
-    smoke_fail('member ledger_create failed', $ledgerResponse);
+    smoke_fail('manager ledger_create failed', $ledgerResponse);
 }
 $adminLedger = smoke_api($baseUrl, 'ledger_list', ['group_id' => $groupId], $adminCookie);
 if (empty($adminLedger['ok']) || count($adminLedger['entries'] ?? []) < 1) {
     smoke_fail('admin ledger_list failed', $adminLedger);
 }
-smoke_pass('group ledger write and admin visibility work');
+smoke_pass('manager group ledger write and admin visibility work');
+
+$advancedUpdate = smoke_api($baseUrl, 'group_member_access_update', [
+    'group_id' => $groupId,
+    'user_id' => (int)$member['id'],
+    'access_level' => 'advanced',
+], $adminCookie);
+if (empty($advancedUpdate['ok']) || ($advancedUpdate['member']['access_level'] ?? '') !== 'advanced') {
+    smoke_fail('admin advanced access update failed', $advancedUpdate);
+}
+$advancedInvite = smoke_api($baseUrl, 'group_invite_create', [
+    'group_id' => $groupId,
+    'channel' => 'copy',
+    'access_level' => 'base',
+], $memberCookie);
+if (empty($advancedInvite['ok'])) {
+    smoke_fail('advanced member admin capability failed', $advancedInvite);
+}
+smoke_pass('advanced member can manage invites');
 
 $personalLedger = smoke_api($baseUrl, 'ledger_create', [
     'entry_type' => 'income',
@@ -215,4 +307,3 @@ smoke_pass('On the Go tape/capture/list work');
 @unlink($memberCookie);
 
 echo "OK: local smoke completed for {$baseUrl}\n";
-

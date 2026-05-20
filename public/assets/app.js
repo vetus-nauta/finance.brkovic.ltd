@@ -758,13 +758,13 @@ function qlRenderGroups() {
 
   list.innerHTML = qlGroups.map(function(group) {
     return `
-      <button class="group-row" type="button" data-open-group="${group.id}">
-        <span>
-          <b>${escapeHtml(group.name)}</b>
-          <small>${escapeHtml(group.role)} · ${group.member_count || 1} member(s)</small>
-        </span>
-        <span>›</span>
-      </button>
+	      <button class="group-row" type="button" data-open-group="${group.id}">
+	        <span>
+	          <b>${escapeHtml(group.name)}</b>
+	          <small>${escapeHtml(group.access_level || group.role)} · ${group.member_count || 1} member(s)</small>
+	        </span>
+	        <span>›</span>
+	      </button>
     `;
   }).join('');
 }
@@ -846,10 +846,12 @@ async function qlCreateInvite(channel) {
     return;
   }
 
-  const data = await qlApi('group_invite_create', {
-    group_id: qlActiveGroup.id,
-    channel: channel || 'copy'
-  });
+	  const data = await qlApi('group_invite_create', {
+	    group_id: qlActiveGroup.id,
+	    channel: channel || 'copy',
+	    invited_email: (document.getElementById('inviteEmail')?.value || '').trim(),
+	    access_level: document.getElementById('inviteAccessLevel')?.value || 'base'
+	  });
 
   if (!data.ok) {
     qlGroupMessage('Invite error: ' + (data.error || 'unknown'));
@@ -916,16 +918,46 @@ async function qlLoadMembers() {
   const members = data.members || [];
   if (count) count.textContent = String(members.length);
 
-  box.innerHTML = members.map(function(member) {
-    return `
-      <div class="member-row">
-        <span>
-          <b>${escapeHtml(member.display_name || member.email)}</b>
-          <small>${escapeHtml(member.email)} · ${escapeHtml(member.role)}</small>
-        </span>
-      </div>
-    `;
-  }).join('');
+	  const canManage = qlActiveGroup && qlActiveGroup.access_level === 'advanced';
+	  box.innerHTML = members.map(function(member) {
+	    const access = member.access_level || member.role || 'base';
+	    const control = canManage ? `
+	      <select class="ql-input member-access-select" data-member-access="${escapeHtml(member.user_id)}">
+	        <option value="base" ${access === 'base' ? 'selected' : ''}>На бегу</option>
+	        <option value="manager" ${access === 'manager' ? 'selected' : ''}>Средний</option>
+	        <option value="advanced" ${access === 'advanced' ? 'selected' : ''}>Advanced</option>
+	      </select>
+	    ` : `<small>${escapeHtml(access)}</small>`;
+	    return `
+	      <div class="member-row">
+	        <span>
+	          <b>${escapeHtml(member.display_name || member.email)}</b>
+	          <small>${escapeHtml(member.email)} · ${escapeHtml(member.role)} · ${escapeHtml(access)}</small>
+	        </span>
+	        ${control}
+	      </div>
+	    `;
+	  }).join('');
+	}
+
+async function qlUpdateMemberAccess(userId, accessLevel) {
+  if (!qlActiveGroup || !userId) return;
+
+  const data = await qlApi('group_member_access_update', {
+    group_id: qlActiveGroup.id,
+    user_id: Number(userId),
+    access_level: accessLevel
+  });
+
+  if (!data.ok) {
+    qlGroupMessage('Access update error: ' + (data.error || 'unknown'));
+    await qlLoadMembers();
+    return;
+  }
+
+  qlGroupMessage('Access updated.');
+  await qlLoadGroups();
+  await qlOpenGroup(qlActiveGroup.id);
 }
 
 async function qlHandleInviteFromUrl() {
@@ -956,15 +988,20 @@ async function qlHandleInviteFromUrl() {
 document.addEventListener('click', function(event) {
   const createGroup = event.target.closest('#createGroupBtn');
   const openGroup = event.target.closest('[data-open-group]');
-  const renameGroup = event.target.closest('#renameGroupBtn');
-  const createInvite = event.target.closest('#createInviteBtn');
-  const copyInvite = event.target.closest('#copyInviteBtn');
+	  const renameGroup = event.target.closest('#renameGroupBtn');
+	  const createInvite = event.target.closest('#createInviteBtn');
+	  const copyInvite = event.target.closest('#copyInviteBtn');
 
-  if (createGroup) qlCreateGroup();
-  if (openGroup) qlOpenGroup(openGroup.getAttribute('data-open-group'));
-  if (renameGroup) qlRenameGroup();
-  if (createInvite) qlCreateInvite('copy');
-  if (copyInvite) qlCopyInvite();
+	  if (createGroup) qlCreateGroup();
+	  if (openGroup) qlOpenGroup(openGroup.getAttribute('data-open-group'));
+	  if (renameGroup) qlRenameGroup();
+	  if (createInvite) qlCreateInvite('copy');
+	  if (copyInvite) qlCopyInvite();
+	});
+
+document.addEventListener('change', function(event) {
+  const memberAccess = event.target.closest('[data-member-access]');
+  if (memberAccess) qlUpdateMemberAccess(memberAccess.getAttribute('data-member-access'), memberAccess.value);
 });
 
 const qlPreviousRenderUserForGroups = qlRenderUser;

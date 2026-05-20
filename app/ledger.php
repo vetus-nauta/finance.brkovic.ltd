@@ -36,7 +36,7 @@ function ql_ledger_group_scope(int $groupId, int $userId): ?array
     }
 
     $stmt = ql_db()->prepare("
-        SELECT role
+        SELECT role, access_level, permissions_json
         FROM group_members
         WHERE group_id = ?
           AND user_id = ?
@@ -50,10 +50,28 @@ function ql_ledger_group_scope(int $groupId, int $userId): ?array
         return null;
     }
 
+    $accessLevel = $row['access_level'] ?? ($row['role'] === 'admin' ? 'advanced' : 'base');
+    if (!in_array($accessLevel, ['base', 'manager', 'advanced'], true)) {
+        $accessLevel = 'base';
+    }
+
+    $permissions = json_decode((string)($row['permissions_json'] ?? ''), true);
+    if (!is_array($permissions)) {
+        $permissions = [
+            'can_write_group_ledger' => in_array($accessLevel, ['manager', 'advanced'], true),
+            'can_view_group_reports' => in_array($accessLevel, ['manager', 'advanced'], true),
+            'can_manage_members' => $accessLevel === 'advanced',
+        ];
+    }
+
     return [
         'group_id' => $groupId,
         'role' => $row['role'],
-        'is_admin' => $row['role'] === 'admin',
+        'access_level' => $accessLevel,
+        'permissions' => $permissions,
+        'is_admin' => $row['role'] === 'admin' || $accessLevel === 'advanced',
+        'can_write_group_ledger' => !empty($permissions['can_write_group_ledger']) || in_array($accessLevel, ['manager', 'advanced'], true),
+        'can_view_group_reports' => !empty($permissions['can_view_group_reports']) || in_array($accessLevel, ['manager', 'advanced'], true),
     ];
 }
 
@@ -199,6 +217,9 @@ function ql_ledger_create(array $input): array
         if (!$scope) {
             return ['ok' => false, 'error' => 'not_group_member'];
         }
+        if (empty($scope['can_write_group_ledger'])) {
+            return ['ok' => false, 'error' => 'access_denied', 'required' => 'manager'];
+        }
 
         $groupIdForDb = $groupId;
     }
@@ -288,7 +309,7 @@ function ql_ledger_list(array $input = []): array
             return ['ok' => false, 'error' => 'not_group_member'];
         }
 
-        if ($scope['is_admin']) {
+        if (!empty($scope['can_view_group_reports'])) {
             $where = "le.group_id = ? AND le.deleted_at IS NULL";
             $params = [$groupId];
         } else {
@@ -374,6 +395,7 @@ function ql_ledger_list(array $input = []): array
             'mode' => $groupId > 0 ? 'group' : 'personal',
             'group_id' => $groupId ?: null,
             'is_admin' => $scope['is_admin'] ?? false,
+            'access_level' => $scope['access_level'] ?? null,
         ],
         'entries' => $entries,
         'summary' => [
@@ -436,7 +458,7 @@ function ql_ledger_visible_entry(int $entryId, int $userId): ?array
     $groupId = (int)($entry['group_id'] ?? 0);
     if ($groupId > 0) {
         $scope = ql_ledger_group_scope($groupId, $userId);
-        if ($scope && !empty($scope['is_admin'])) {
+        if ($scope && !empty($scope['can_view_group_reports'])) {
             return $entry;
         }
     }
@@ -557,7 +579,7 @@ function ql_ledger_file_download(): void
 
     if (!$canAccess && (int)($file['group_id'] ?? 0) > 0) {
         $scope = ql_ledger_group_scope((int)$file['group_id'], (int)$user['id']);
-        $canAccess = $scope && !empty($scope['is_admin']);
+        $canAccess = $scope && !empty($scope['can_view_group_reports']);
     }
 
     if (!$canAccess) {
@@ -848,7 +870,7 @@ function ql_ledger_report(array $input): array
             return ['ok' => false, 'error' => 'not_group_member'];
         }
 
-        if ($scope['is_admin']) {
+        if (!empty($scope['can_view_group_reports'])) {
             $where = "group_id = ? AND deleted_at IS NULL AND entry_datetime BETWEEN ? AND ?";
             $params = [$groupId, $fromSql, $toSql];
         } else {
@@ -972,7 +994,7 @@ function ql_ledger_report(array $input): array
 
     $members = [];
 
-    if ($groupId > 0 && $scope && $scope['is_admin']) {
+    if ($groupId > 0 && $scope && !empty($scope['can_view_group_reports'])) {
         $memberWhere = "le.group_id = ? AND le.deleted_at IS NULL AND le.entry_datetime BETWEEN ? AND ?";
         $memberParams = [$groupId, $fromSql, $toSql];
 
@@ -1054,6 +1076,7 @@ function ql_ledger_report(array $input): array
             'mode' => $groupId > 0 ? 'group' : 'personal',
             'group_id' => $groupId ?: null,
             'is_admin' => $scope['is_admin'] ?? false,
+            'access_level' => $scope['access_level'] ?? null,
         ],
         'sections' => $sections,
         'members' => $members,

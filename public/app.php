@@ -325,6 +325,12 @@
             </div>
 
             <div class="invite-box">
+              <input id="inviteEmail" class="ql-input" type="email" placeholder="Employee email (optional)">
+              <select id="inviteAccessLevel" class="ql-input">
+                <option value="base">На бегу / Base</option>
+                <option value="manager">Средний / Manager</option>
+                <option value="advanced">Advanced / Admin</option>
+              </select>
               <button id="createInviteBtn" class="primary-btn wide-btn" type="button">Create invite link</button>
 
               <div id="inviteActions" class="invite-actions hidden">
