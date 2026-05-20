@@ -89,8 +89,10 @@ function smoke_login(string $baseUrl, string $email, string $cookieFile, string 
 $stamp = date('Ymd-His');
 $adminEmail = "admin-{$stamp}@example.test";
 $memberEmail = "member-{$stamp}@example.test";
+$workerEmail = "worker-{$stamp}@example.test";
 $adminCookie = tempnam(sys_get_temp_dir(), 'finance-admin-cookie-');
 $memberCookie = tempnam(sys_get_temp_dir(), 'finance-member-cookie-');
+$workerCookie = tempnam(sys_get_temp_dir(), 'finance-worker-cookie-');
 
 $current = smoke_api($baseUrl, 'current_user');
 if (($current['ok'] ?? false) !== true || array_key_exists('user', $current) === false) {
@@ -256,6 +258,157 @@ if (empty($advancedInvite['ok'])) {
 }
 smoke_pass('advanced member can manage invites');
 
+$workerInviteResponse = smoke_api($baseUrl, 'group_invite_create', [
+    'group_id' => $groupId,
+    'channel' => 'copy',
+    'invited_email' => $workerEmail,
+    'access_level' => 'base',
+], $adminCookie);
+if (empty($workerInviteResponse['ok']) || empty($workerInviteResponse['invite']['url'])) {
+    smoke_fail('worker invite failed', $workerInviteResponse);
+}
+parse_str((string)parse_url($workerInviteResponse['invite']['url'], PHP_URL_QUERY), $workerInviteQuery);
+$workerInviteToken = (string)($workerInviteQuery['invite'] ?? '');
+if ($workerInviteToken === '') {
+    smoke_fail('worker invite token missing', $workerInviteResponse);
+}
+$worker = smoke_login($baseUrl, $workerEmail, $workerCookie, $logPath);
+$workerJoin = smoke_api($baseUrl, 'group_join', ['token' => $workerInviteToken], $workerCookie);
+if (empty($workerJoin['ok']) || ($workerJoin['group']['access_level'] ?? '') !== 'base') {
+    smoke_fail('worker base join failed', $workerJoin);
+}
+smoke_pass('second base member joins for advance flow');
+
+$workerLedgerDenied = smoke_api($baseUrl, 'ledger_create', [
+    'group_id' => $groupId,
+    'entry_type' => 'expense',
+    'money_type' => 'cash',
+    'amount' => '9.50',
+    'purpose' => 'Smoke worker denied direct ledger',
+], $workerCookie);
+if (($workerLedgerDenied['error'] ?? '') !== 'access_denied') {
+    smoke_fail('worker base direct ledger denial failed', $workerLedgerDenied);
+}
+smoke_pass('advance worker cannot write direct group ledger');
+
+$advanceCreate = smoke_api($baseUrl, 'advance_create', [
+    'group_id' => $groupId,
+    'assigned_to_user_id' => (int)$worker['id'],
+    'amount' => '100',
+    'title' => 'Smoke accountable cash',
+], $adminCookie);
+if (empty($advanceCreate['ok']) || empty($advanceCreate['advance']['id']) || empty($advanceCreate['advance']['on_the_go_tape_id'])) {
+    smoke_fail('advance_create failed', $advanceCreate);
+}
+if (($advanceCreate['advance']['status'] ?? '') !== 'issued') {
+    smoke_fail('advance initial status failed', $advanceCreate);
+}
+$advanceId = (int)$advanceCreate['advance']['id'];
+$advanceTapeId = (int)$advanceCreate['advance']['on_the_go_tape_id'];
+smoke_pass('admin issues accountable money without ledger expense');
+
+$workerAdvances = smoke_api($baseUrl, 'advance_list', ['group_id' => $groupId], $workerCookie);
+if (empty($workerAdvances['ok']) || count($workerAdvances['advances'] ?? []) !== 1) {
+    smoke_fail('worker advance list failed', $workerAdvances);
+}
+if (round((float)($workerAdvances['advances'][0]['summary']['cash_in'] ?? 0), 2) !== 100.00) {
+    smoke_fail('worker advance received summary failed', $workerAdvances);
+}
+smoke_pass('base worker sees received/spent/remaining for own advance');
+
+$advanceCapture = smoke_api($baseUrl, 'on_the_go_create', [
+    'tape_id' => $advanceTapeId,
+    'capture_type' => 'cash_out',
+    'amount' => '40',
+    'description' => 'Smoke advance provision',
+], $workerCookie);
+if (empty($advanceCapture['ok']) || empty($advanceCapture['capture']['id'])) {
+    smoke_fail('advance on_the_go_create failed', $advanceCapture);
+}
+
+$workerAdvancesAfterSpend = smoke_api($baseUrl, 'advance_list', ['group_id' => $groupId], $workerCookie);
+if (empty($workerAdvancesAfterSpend['ok']) || round((float)($workerAdvancesAfterSpend['advances'][0]['summary']['cash_left'] ?? 0), 2) !== 60.00) {
+    smoke_fail('advance remaining summary failed', $workerAdvancesAfterSpend);
+}
+smoke_pass('advance summary updates from On the Go capture');
+
+$advanceSubmit = smoke_api($baseUrl, 'advance_submit', [
+    'id' => $advanceId,
+    'actual_remaining' => '60',
+    'note' => 'Smoke checked cash in pocket',
+], $workerCookie);
+if (empty($advanceSubmit['ok']) || ($advanceSubmit['advance']['status'] ?? '') !== 'submitted') {
+    smoke_fail('advance_submit failed', $advanceSubmit);
+}
+if (round((float)($advanceSubmit['advance']['difference_amount'] ?? 1), 2) !== 0.00) {
+    smoke_fail('advance difference calculation failed', $advanceSubmit);
+}
+smoke_pass('base worker submits advance for moderation');
+
+$adminAdvanceList = smoke_api($baseUrl, 'advance_list', ['group_id' => $groupId], $adminCookie);
+$adminSawSubmittedAdvance = false;
+foreach ($adminAdvanceList['advances'] ?? [] as $advanceRow) {
+    if ((int)($advanceRow['id'] ?? 0) === $advanceId && ($advanceRow['status'] ?? '') === 'submitted') {
+        $adminSawSubmittedAdvance = true;
+        break;
+    }
+}
+if (empty($adminAdvanceList['ok']) || !$adminSawSubmittedAdvance) {
+    smoke_fail('admin submitted advance visibility failed', $adminAdvanceList);
+}
+smoke_pass('admin sees submitted advance red-line candidate');
+
+$advanceAccept = smoke_api($baseUrl, 'advance_accept', [
+    'id' => $advanceId,
+    'note' => 'Smoke accepted',
+], $adminCookie);
+if (empty($advanceAccept['ok']) || ($advanceAccept['advance']['status'] ?? '') !== 'accepted' || (int)($advanceAccept['entries_created'] ?? 0) !== 1) {
+    smoke_fail('advance_accept failed', $advanceAccept);
+}
+smoke_pass('admin accepts advance and expands expenses into group ledger');
+
+$adminLedgerAfterAdvance = smoke_api($baseUrl, 'ledger_list', ['group_id' => $groupId, 'limit' => 300], $adminCookie);
+$foundAdvanceLedgerEntry = false;
+foreach ($adminLedgerAfterAdvance['entries'] ?? [] as $entry) {
+    if (($entry['purpose'] ?? '') === 'Smoke advance provision' && ($entry['owner_email'] ?? '') === $workerEmail) {
+        $foundAdvanceLedgerEntry = true;
+        break;
+    }
+}
+if (empty($adminLedgerAfterAdvance['ok']) || !$foundAdvanceLedgerEntry) {
+    smoke_fail('accepted advance ledger entry missing', $adminLedgerAfterAdvance);
+}
+smoke_pass('accepted advance appears in group ledger with source user');
+
+$advanceReturnCreate = smoke_api($baseUrl, 'advance_create', [
+    'group_id' => $groupId,
+    'assigned_to_user_id' => (int)$worker['id'],
+    'amount' => '50',
+    'title' => 'Smoke return correction',
+], $adminCookie);
+if (empty($advanceReturnCreate['ok']) || empty($advanceReturnCreate['advance']['id'])) {
+    smoke_fail('advance return fixture create failed', $advanceReturnCreate);
+}
+$advanceReturnId = (int)$advanceReturnCreate['advance']['id'];
+
+$advanceDiscrepancy = smoke_api($baseUrl, 'advance_submit', [
+    'id' => $advanceReturnId,
+    'actual_remaining' => '45',
+    'note' => 'Smoke mismatch',
+], $workerCookie);
+if (empty($advanceDiscrepancy['ok']) || ($advanceDiscrepancy['advance']['status'] ?? '') !== 'discrepancy') {
+    smoke_fail('advance discrepancy submit failed', $advanceDiscrepancy);
+}
+
+$advanceReturn = smoke_api($baseUrl, 'advance_return', [
+    'id' => $advanceReturnId,
+    'note' => 'Smoke return for correction',
+], $adminCookie);
+if (empty($advanceReturn['ok']) || ($advanceReturn['advance']['status'] ?? '') !== 'returned') {
+    smoke_fail('advance_return failed', $advanceReturn);
+}
+smoke_pass('admin returns mismatched advance for correction');
+
 $personalLedger = smoke_api($baseUrl, 'ledger_create', [
     'entry_type' => 'income',
     'money_type' => 'cash',
@@ -305,5 +458,6 @@ smoke_pass('On the Go tape/capture/list work');
 
 @unlink($adminCookie);
 @unlink($memberCookie);
+@unlink($workerCookie);
 
 echo "OK: local smoke completed for {$baseUrl}\n";

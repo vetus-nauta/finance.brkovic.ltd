@@ -134,9 +134,9 @@ personal ledger update/delete work
 On the Go tape/capture/list work
 ```
 
-## Known Next Step
+## Completed By Step 3
 
-Step 3 should add the `advance / accountable money` object:
+Step 3 added the `advance / accountable money` object:
 
 ```text
 admin issued money -> base user pocket session -> submit for moderation -> manager/admin accepts -> expenses enter common report
@@ -144,3 +144,8 @@ admin issued money -> base user pocket session -> submit for moderation -> manag
 
 This must not be modeled as a normal expense at issue time.
 
+See:
+
+```text
+docs/STEP3_ADVANCES_2026-05-20.md
+```

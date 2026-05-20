@@ -18,6 +18,7 @@ Current product name in the live codebase: **Quick Ledger**.
 - Business desk: company profile, clients, proformas
 - PWA install flow for iOS / Android / desktop
 - On the Go fast capture mode
+- Accountable money / advances moderation bridge
 
 ## Live Paths
 
@@ -67,6 +68,7 @@ The smoke test checks:
 - group messages and unread state;
 - Base member denial for direct group ledger;
 - Manager group ledger write plus admin visibility;
+- accountable money issue -> On the Go submit -> admin accept/return -> group ledger conversion;
 - personal ledger update/delete;
 - On the Go tape/capture/list.
 
@@ -81,6 +83,20 @@ advanced  = organizer/admin mode
 ```
 
 A user can have full personal finance tools and still be `base` inside a specific work group.
+
+## Accountable Money Flow
+
+Step 3 adds the bridge between the fast employee mode and the group report:
+
+```text
+advanced/admin issues money
+base employee records expenses in On the Go
+base employee submits actual remaining cash
+manager/admin accepts
+expenses enter group ledger under the employee's name
+```
+
+Issuing money is stored as `cash_advances`; it is not written as a group expense until moderation accepts the submitted report.
 
 ## Deployment Notes
 

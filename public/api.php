@@ -6,6 +6,7 @@ require __DIR__ . '/../app/groups.php';
 require __DIR__ . '/../app/messages.php';
 require __DIR__ . '/../app/business.php';
 require __DIR__ . '/../app/on_the_go.php';
+require __DIR__ . '/../app/advances.php';
 
 $action = $_GET['action'] ?? '';
 
@@ -90,7 +91,27 @@ try {
         ql_json(ql_on_the_go_convert_to_ledger(ql_input()));
     }
 
-if ($action === 'ledger_create') {
+    if ($action === 'advance_create') {
+        ql_json(ql_advance_create(ql_input()));
+    }
+
+    if ($action === 'advance_list') {
+        ql_json(ql_advance_list(ql_input()));
+    }
+
+    if ($action === 'advance_submit') {
+        ql_json(ql_advance_submit(ql_input()));
+    }
+
+    if ($action === 'advance_accept') {
+        ql_json(ql_advance_accept(ql_input()));
+    }
+
+    if ($action === 'advance_return') {
+        ql_json(ql_advance_return(ql_input()));
+    }
+
+    if ($action === 'ledger_create') {
         ql_json(ql_ledger_create(ql_input()));
     }
 
