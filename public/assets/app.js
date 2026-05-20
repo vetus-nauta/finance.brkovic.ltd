@@ -4585,3 +4585,161 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   window.qlPremiumOpen = qlPremiumOpen;
 })();
+
+/* === Captain Fin Middle Layer Live Summary STEP-7 20260520 === */
+(function() {
+  let captainLoading = false;
+
+  function t(key) {
+    return typeof window.cfT === 'function' ? window.cfT(key) : key;
+  }
+
+  function statusLabel(status) {
+    if (typeof qlAdvanceStatusLabel === 'function') return qlAdvanceStatusLabel(status);
+    return status || '';
+  }
+
+  function renderCurrentReport(data) {
+    const box = document.getElementById('captainCurrentSummary');
+    if (!box) return;
+
+    if (!data.ok) {
+      box.innerHTML = '<p class="soft-note">' + escapeHtml(data.error || 'unknown') + '</p>';
+      return;
+    }
+
+    const tapes = Array.isArray(data.tapes) ? data.tapes : [];
+    const tape = tapes.find(function(item) { return item.status === 'active'; }) || tapes[0] || null;
+
+    if (!tape) {
+      box.innerHTML = '<p class="soft-note">' + escapeHtml(t('captain.noCurrent')) + '</p>';
+      return;
+    }
+
+    const summary = tape.summary || {};
+    const spent = Number(summary.cash_out || 0) + Number(summary.card_out || 0);
+
+    box.innerHTML = `
+      <div class="captain-mini-metrics">
+        <div><span>${escapeHtml(t('captain.given'))}</span><b>${qlCurrency(summary.cash_in || tape.cash_received || 0)}</b></div>
+        <div><span>${escapeHtml(t('captain.spent'))}</span><b>${qlCurrency(spent)}</b></div>
+        <div><span>${escapeHtml(t('captain.left'))}</span><b>${qlCurrency(summary.cash_left || 0)}</b></div>
+        <div><span>${escapeHtml(t('captain.records'))}</span><b>${Number(summary.records_count || 0)}</b></div>
+      </div>
+    `;
+  }
+
+  async function loadGroupsForCaptain() {
+    if (Array.isArray(qlGroups) && qlGroups.length) return qlGroups;
+
+    const data = await qlApi('group_list', {});
+    if (!data.ok) return [];
+
+    qlGroups = data.groups || [];
+    if (typeof qlRenderGroups === 'function') qlRenderGroups();
+    return qlGroups;
+  }
+
+  function renderSubmitted(rows) {
+    const box = document.getElementById('captainSubmittedList');
+    if (!box) return;
+
+    const activeRows = rows
+      .filter(function(row) {
+        return !['accepted', 'closed'].includes(row.status || '');
+      })
+      .slice(0, 6);
+
+    if (!activeRows.length) {
+      box.innerHTML = '<p class="soft-note">' + escapeHtml(t('captain.noSubmitted')) + '</p>';
+      return;
+    }
+
+    box.innerHTML = activeRows.map(function(advance) {
+      const summary = advance.summary || {};
+      const employee = advance.assigned_to_display_name || advance.assigned_to_email || '';
+      const group = advance.group_name || '';
+      const records = Number(summary.records_count || 0);
+
+      return `
+        <article class="captain-review-row status-${escapeHtml(advance.status || '')}">
+          <b>${escapeHtml(advance.title || 'Captain Fin')}</b>
+          <small>${escapeHtml(group)} · ${escapeHtml(employee)}</small>
+          <small>${escapeHtml(statusLabel(advance.status))} · ${qlCurrency(advance.amount || 0)} · ${records} ${escapeHtml(t('captain.records'))}</small>
+        </article>
+      `;
+    }).join('');
+  }
+
+  async function loadSubmittedReports() {
+    const groups = await loadGroupsForCaptain();
+    const rows = [];
+
+    for (const group of groups.slice(0, 8)) {
+      const data = await qlApi('advance_list', {
+        group_id: Number(group.id),
+        limit: 30
+      });
+
+      if (data.ok && Array.isArray(data.advances)) {
+        data.advances.forEach(function(advance) {
+          rows.push(Object.assign({}, advance, {
+            group_name: advance.group_name || group.name
+          }));
+        });
+      }
+    }
+
+    rows.sort(function(a, b) {
+      const priority = {submitted: 0, discrepancy: 1, returned: 2, issued: 3, accepted: 4, closed: 5};
+      const pa = priority[a.status] ?? 9;
+      const pb = priority[b.status] ?? 9;
+      if (pa !== pb) return pa - pb;
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+
+    renderSubmitted(rows);
+  }
+
+  async function qlLoadCaptainFin() {
+    if (captainLoading) return;
+    captainLoading = true;
+
+    const current = document.getElementById('captainCurrentSummary');
+    const submitted = document.getElementById('captainSubmittedList');
+    if (current) current.innerHTML = '<p class="soft-note">' + escapeHtml(t('captain.loading')) + '</p>';
+    if (submitted) submitted.innerHTML = '<p class="soft-note">' + escapeHtml(t('captain.loading')) + '</p>';
+
+    try {
+      const tapes = await qlApi('on_the_go_tape_list', {});
+      renderCurrentReport(tapes);
+      await loadSubmittedReports();
+    } finally {
+      captainLoading = false;
+    }
+  }
+
+  const previousSetModule = window.qlSetModule || (typeof qlSetModule === 'function' ? qlSetModule : null);
+  window.qlSetModule = function(moduleName) {
+    if (typeof previousSetModule === 'function') {
+      previousSetModule(moduleName);
+    }
+
+    if (moduleName === 'captain') {
+      setTimeout(qlLoadCaptainFin, 80);
+    }
+  };
+
+  try {
+    qlSetModule = window.qlSetModule;
+  } catch (error) {}
+
+  window.addEventListener('captainfin:languagechange', function() {
+    const module = document.getElementById('moduleCaptain');
+    if (module && !module.classList.contains('hidden')) {
+      qlLoadCaptainFin();
+    }
+  });
+
+  window.qlLoadCaptainFin = qlLoadCaptainFin;
+})();

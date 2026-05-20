@@ -901,7 +901,7 @@ h2 {
   display: grid;
   align-content: start;
   gap: 10px;
-  min-height: 230px;
+  min-height: 310px;
   padding: 14px;
   border-radius: 22px;
   background: rgba(255,255,255,.78);
@@ -946,6 +946,85 @@ h2 {
 
 .captain-work-card .wide-btn {
   align-self: end;
+}
+
+.captain-live-panel {
+  display: grid;
+  gap: 8px;
+  min-height: 88px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.56);
+  border: 1px solid var(--line);
+}
+
+.captain-live-panel .soft-note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.captain-mini-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.captain-mini-metrics div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.72);
+}
+
+.captain-mini-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.captain-mini-metrics b {
+  display: block;
+  margin-top: 3px;
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.captain-review-list {
+  align-content: start;
+}
+
+.captain-review-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.74);
+  border-left: 4px solid var(--coral);
+}
+
+.captain-review-row.status-issued {
+  border-left-color: var(--teal);
+}
+
+.captain-review-row.status-returned,
+.captain-review-row.status-discrepancy {
+  border-left-color: var(--gold);
+}
+
+.captain-review-row.status-accepted,
+.captain-review-row.status-closed {
+  border-left-color: var(--green);
+}
+
+.captain-review-row b {
+  font-size: 14px;
+}
+
+.captain-review-row small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 @media (max-width: 860px) {

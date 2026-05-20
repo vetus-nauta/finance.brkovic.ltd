@@ -25,7 +25,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://finance.brkovic.ltd/">
 
-  <link rel="stylesheet" href="/assets/app.css?v=20260520-07">
+  <link rel="stylesheet" href="/assets/app.css?v=20260520-08">
 </head>
 <body>
   <main class="ql-shell">
@@ -78,9 +78,9 @@
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260520-07"></script>
+  <script src="/assets/i18n.js?v=20260520-08"></script>
   <script src="/assets/donate.js?v=20260503-01"></script>
   <script src="/assets/notifications.js?v=20260503-01"></script>
-  <script src="/assets/app.js?v=20260520-07"></script>
+  <script src="/assets/app.js?v=20260520-08"></script>
 </body>
 </html>

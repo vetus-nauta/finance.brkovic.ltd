@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260520-07">
+<link rel="stylesheet" href="/assets/app.css?v=20260520-08">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -364,6 +364,9 @@
                   <span>01</span>
                   <h3 data-i18n="captain.currentTitle">Текущий отчет</h3>
                   <p data-i18n="captain.currentText">Продолжить активный отчет “на бегу” и подготовить его к сдаче.</p>
+                  <div id="captainCurrentSummary" class="captain-live-panel">
+                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные Captain Fin…</p>
+                  </div>
                   <button class="ghost-btn wide-btn" type="button" data-mode-open="ontherun" data-i18n="captain.currentAction">Открыть “На бегу”</button>
                 </article>
 
@@ -371,6 +374,9 @@
                   <span>02</span>
                   <h3 data-i18n="captain.reviewTitle">Сданные записи</h3>
                   <p data-i18n="captain.reviewText">Рабочий вид менеджера для проверки отчетов перед включением в общие итоги.</p>
+                  <div id="captainSubmittedList" class="captain-live-panel captain-review-list">
+                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные Captain Fin…</p>
+                  </div>
                   <button class="ghost-btn wide-btn" type="button" data-mode-open="groups" data-i18n="captain.reviewAction">Открыть группы</button>
                 </article>
 
@@ -378,6 +384,9 @@
                   <span>03</span>
                   <h3 data-i18n="captain.exportTitle">Пакет отчета</h3>
                   <p data-i18n="captain.exportText">Здесь будут сводки, печатные формы и Excel-выгрузки.</p>
+                  <div id="captainReportPack" class="captain-live-panel">
+                    <p class="soft-note" data-i18n="captain.packSoon">Печатные формы и Excel будут собраны вокруг проверенного среднего слоя.</p>
+                  </div>
                   <button class="ghost-btn wide-btn" type="button" data-mode-open="reports" data-i18n="captain.exportAction">Открыть отчеты</button>
                 </article>
               </div>
@@ -912,9 +921,9 @@
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260520-07"></script>
+  <script src="/assets/i18n.js?v=20260520-08"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260520-07"></script>
+  <script src="/assets/app.js?v=20260520-08"></script>
 </body>
 </html>
