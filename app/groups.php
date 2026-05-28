@@ -97,7 +97,10 @@ function ql_group_membership(int $groupId, int $userId): ?array
 function ql_group_is_admin(int $groupId, int $userId): bool
 {
     $m = ql_group_membership($groupId, $userId);
-    return $m && (($m['role'] ?? '') === 'admin' || ($m['access_level'] ?? '') === 'advanced');
+    if (!$m) return false;
+    $role = (string)($m['role'] ?? '');
+    $access = (string)($m['access_level'] ?? '');
+    return $role === 'admin' || $role === 'owner' || $access === 'advanced';
 }
 
 function ql_group_create(array $input): array
@@ -494,8 +497,243 @@ function ql_group_member_access_update(array $input): array
     ");
     $stmt->execute([$role, $accessLevel, $permissionsJson, $groupId, $targetUserId]);
 
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write((int)$user['id'], 'member_access_updated', 'group_member', $targetUserId, [
+            'group_id' => $groupId,
+            'target_user_id' => $targetUserId,
+            'access_level' => $accessLevel,
+            'role' => $role
+        ]);
+    }
+
     return [
         'ok' => true,
         'member' => ql_group_membership($groupId, $targetUserId)
     ];
+}
+
+function ql_group_count_value(string $sql, array $params = []): ?int
+{
+    try {
+        $stmt = ql_db()->prepare($sql);
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function ql_group_financial_evidence_summary(int $groupId): array
+{
+    return [
+        'ledger_entries' => ql_group_count_value(
+            "SELECT COUNT(*) FROM ledger_entries WHERE group_id = ? AND deleted_at IS NULL",
+            [$groupId]
+        ),
+        'live_report_tapes' => ql_group_count_value(
+            "SELECT COUNT(*) FROM on_the_go_tapes WHERE group_id = ?",
+            [$groupId]
+        ),
+        'live_report_captures' => ql_group_count_value(
+            "
+                SELECT COUNT(*)
+                FROM on_the_go_captures c
+                JOIN on_the_go_tapes t ON t.id = c.tape_id
+                WHERE t.group_id = ?
+            ",
+            [$groupId]
+        ),
+        'proof_files' => ql_group_count_value(
+            "
+                SELECT COUNT(*)
+                FROM on_the_go_files f
+                JOIN on_the_go_captures c ON c.id = f.capture_id
+                JOIN on_the_go_tapes t ON t.id = c.tape_id
+                WHERE t.group_id = ?
+            ",
+            [$groupId]
+        ),
+        'advances' => ql_group_count_value(
+            "SELECT COUNT(*) FROM cash_advances WHERE group_id = ? AND deleted_at IS NULL",
+            [$groupId]
+        ),
+        'messages' => ql_group_count_value(
+            "SELECT COUNT(*) FROM group_messages WHERE group_id = ? AND deleted_at IS NULL",
+            [$groupId]
+        ),
+        'closed_final_reports' => ql_group_count_value(
+            "
+                SELECT COUNT(*)
+                FROM audit_log
+                WHERE action = 'ledger_group_report_finalized'
+                  AND entity_type = 'group'
+                  AND entity_id = ?
+            ",
+            [$groupId]
+        ),
+    ];
+}
+
+function ql_group_evidence_preserved(array $before, array $after): bool
+{
+    foreach ($before as $key => $value) {
+        if ($value === null || !array_key_exists($key, $after) || $after[$key] === null) {
+            continue;
+        }
+        if ((int)$after[$key] !== (int)$value) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ql_group_table_has_column(string $table, string $column): bool
+{
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        return false;
+    }
+
+    try {
+        $stmt = ql_db()->prepare("
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+        ");
+        $stmt->execute([$table, $column]);
+        return (int)$stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function ql_group_delete(array $input): array
+{
+    $user = ql_require_user();
+    $groupId = (int)($input['group_id'] ?? 0);
+
+    if ($groupId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_group_id'];
+    }
+
+    $db = ql_db();
+    $db->beginTransaction();
+
+    try {
+        $groupStmt = $db->prepare("SELECT id, name, created_by, status FROM groups WHERE id = ? LIMIT 1 FOR UPDATE");
+        $groupStmt->execute([$groupId]);
+        $group = $groupStmt->fetch();
+
+        if (!$group) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'group_not_found'];
+        }
+
+        $isCreator = (int)($group['created_by'] ?? 0) === (int)$user['id'];
+        $isAdmin = ql_group_is_admin($groupId, (int)$user['id']);
+        if (!$isCreator && !$isAdmin) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'admin_required'];
+        }
+
+        $evidenceBefore = ql_group_financial_evidence_summary($groupId);
+
+        if (($group['status'] ?? '') === 'archived') {
+            $db->rollBack();
+            return [
+                'ok' => true,
+                'group' => ['id' => $groupId, 'name' => (string)$group['name'], 'status' => 'archived'],
+                'archive_mode' => 'soft',
+                'financial_evidence' => [
+                    'before' => $evidenceBefore,
+                    'after' => $evidenceBefore,
+                    'preserved' => true,
+                ],
+                'already_deleted' => true
+            ];
+        }
+
+        $now = date('Y-m-d H:i:s');
+
+        $memberSet = ["status = 'left'"];
+        $memberParams = [];
+        if (ql_group_table_has_column('group_members', 'left_at')) {
+            $memberSet[] = 'left_at = ?';
+            $memberParams[] = $now;
+        }
+        if (ql_group_table_has_column('group_members', 'updated_at')) {
+            $memberSet[] = 'updated_at = ?';
+            $memberParams[] = $now;
+        }
+        $memberParams[] = $groupId;
+        $members = $db->prepare("UPDATE group_members SET " . implode(', ', $memberSet) . " WHERE group_id = ? AND status = 'active'");
+        $members->execute($memberParams);
+        $membersArchived = $members->rowCount();
+
+        $inviteSet = ["status = 'revoked'"];
+        $inviteParams = [];
+        if (ql_group_table_has_column('group_invites', 'revoked_at')) {
+            $inviteSet[] = 'revoked_at = ?';
+            $inviteParams[] = $now;
+        }
+        if (ql_group_table_has_column('group_invites', 'updated_at')) {
+            $inviteSet[] = 'updated_at = ?';
+            $inviteParams[] = $now;
+        }
+        $inviteParams[] = $groupId;
+        $invites = $db->prepare("UPDATE group_invites SET " . implode(', ', $inviteSet) . " WHERE group_id = ? AND status = 'active'");
+        $invites->execute($inviteParams);
+        $invitesRevoked = $invites->rowCount();
+
+        $groupSet = ["status = 'archived'"];
+        $groupParams = [];
+        if (ql_group_table_has_column('groups', 'archived_at')) {
+            $groupSet[] = 'archived_at = ?';
+            $groupParams[] = $now;
+        }
+        if (ql_group_table_has_column('groups', 'updated_at')) {
+            $groupSet[] = 'updated_at = ?';
+            $groupParams[] = $now;
+        }
+        $groupParams[] = $groupId;
+        $groupArchive = $db->prepare("UPDATE groups SET " . implode(', ', $groupSet) . " WHERE id = ? AND status = 'active'");
+        $groupArchive->execute($groupParams);
+        $evidenceAfter = ql_group_financial_evidence_summary($groupId);
+        $evidencePreserved = ql_group_evidence_preserved($evidenceBefore, $evidenceAfter);
+
+        if (function_exists('ql_audit_write')) {
+            ql_audit_write((int)$user['id'], 'group_deleted', 'group', $groupId, [
+                'group_name' => (string)$group['name'],
+                'archive_mode' => 'soft',
+                'created_by' => (int)($group['created_by'] ?? 0),
+                'deleted_at' => $now,
+                'archived_at' => $now,
+                'members_archived' => $membersArchived,
+                'invites_revoked' => $invitesRevoked,
+                'financial_evidence_before' => $evidenceBefore,
+                'financial_evidence_after' => $evidenceAfter,
+                'financial_evidence_preserved' => $evidencePreserved
+            ]);
+        }
+
+        $db->commit();
+
+        return [
+            'ok' => true,
+            'group' => ['id' => $groupId, 'name' => (string)$group['name'], 'status' => 'archived'],
+            'archive_mode' => 'soft',
+            'members_archived' => $membersArchived,
+            'invites_revoked' => $invitesRevoked,
+            'financial_evidence' => [
+                'before' => $evidenceBefore,
+                'after' => $evidenceAfter,
+                'preserved' => $evidencePreserved,
+            ],
+        ];
+    } catch (Throwable $e) {
+        $db->rollBack();
+        return ['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()];
+    }
 }

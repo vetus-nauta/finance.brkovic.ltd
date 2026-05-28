@@ -1,0 +1,680 @@
+{
+  "ids": {
+    "stamp": "20260527212947",
+    "admin_user_id": 58,
+    "base_user_id": 59,
+    "other_user_id": 60,
+    "group_id": 20,
+    "message_id": 11,
+    "other_advance_id": 43,
+    "admin_tape_id": 71,
+    "report_id": 194
+  },
+  "base_group": {
+    "id": "20",
+    "name": "QA production base rights rerun 20260527212947",
+    "description": null,
+    "created_by": "58",
+    "status": "active",
+    "created_at": "2026-05-27 17:29:51",
+    "role": "member",
+    "access_level": "base",
+    "member_display_name": "vetus.nauta+qa-base-rerun-base-20260527212947",
+    "member_count": "3",
+    "permissions": {
+      "mode": "base",
+      "can_use_on_the_go": true,
+      "can_use_captain_fin": false,
+      "can_moderate": false,
+      "can_view_group_reports": false,
+      "can_write_group_ledger": false,
+      "can_manage_money": false,
+      "can_manage_members": false
+    }
+  },
+  "base_members": {
+    "ok": true,
+    "scope": {
+      "id": "57",
+      "group_id": "20",
+      "user_id": "59",
+      "display_name": "vetus.nauta+qa-base-rerun-base-20260527212947",
+      "role": "member",
+      "access_level": "base",
+      "invited_by": "58",
+      "invite_id": "37",
+      "status": "active",
+      "joined_at": "2026-05-27 17:29:51",
+      "left_at": null,
+      "created_at": "2026-05-27 17:29:51",
+      "updated_at": null,
+      "permissions": {
+        "mode": "base",
+        "can_use_on_the_go": true,
+        "can_use_captain_fin": false,
+        "can_moderate": false,
+        "can_view_group_reports": false,
+        "can_write_group_ledger": false,
+        "can_manage_money": false,
+        "can_manage_members": false
+      }
+    },
+    "members": [
+      {
+        "user_id": "59",
+        "display_name": "vetus.nauta+qa-base-rerun-base-20260527212947",
+        "role": "member",
+        "access_level": "base",
+        "status": "active",
+        "joined_at": "2026-05-27 17:29:51",
+        "email": "[email]",
+        "permissions": {
+          "mode": "base",
+          "can_use_on_the_go": true,
+          "can_use_captain_fin": false,
+          "can_moderate": false,
+          "can_view_group_reports": false,
+          "can_write_group_ledger": false,
+          "can_manage_money": false,
+          "can_manage_members": false
+        }
+      }
+    ],
+    "_http_status": 200,
+    "_action": "group_members"
+  },
+  "base_unread": {
+    "ok": true,
+    "unread_count": 0,
+    "messages": [],
+    "_http_status": 200,
+    "_action": "message_unread"
+  },
+  "tape_before": {
+    "ok": true,
+    "active_tape_id": 73,
+    "tapes": [
+      {
+        "id": "73",
+        "user_id": "59",
+        "group_id": "20",
+        "advance_id": null,
+        "stream_type": "cash",
+        "title": "On the Go",
+        "cash_received": "0.00",
+        "currency": "EUR",
+        "status": "active",
+        "created_at": "2026-05-27 17:29:53",
+        "updated_at": null,
+        "closed_at": null,
+        "submitted_at": null,
+        "actual_remaining": null,
+        "difference_amount": null,
+        "archived_at": null,
+        "summary": {
+          "stream_type": "cash",
+          "admin_cash_in": 0,
+          "extra_cash_in": 0,
+          "cash_in": 0,
+          "cash_out": 0,
+          "card_out": 0,
+          "cash_left": 0,
+          "records_count": 0
+        },
+        "card_summary": {
+          "stream_type": "cash",
+          "admin_cash_in": 0,
+          "extra_cash_in": 0,
+          "cash_in": 0,
+          "cash_out": 0,
+          "card_out": 0,
+          "spent_total": 0,
+          "cash_left": 0,
+          "before_amount": 0,
+          "after_amount": 0,
+          "cash_delta": 0,
+          "card_delta": 0,
+          "delta": 0,
+          "records_count": 0,
+          "reportable_count": 0,
+          "files_count": 0,
+          "first_record_at": "",
+          "last_record_at": "",
+          "submitted_actual_remaining": null,
+          "submitted_delta": null
+        },
+        "card_state": "empty"
+      }
+    ],
+    "_http_status": 200,
+    "_action": "on_the_go_tape_list"
+  },
+  "draft": {
+    "ok": true,
+    "draft": {
+      "id": 5,
+      "user_id": 59,
+      "group_id": 20,
+      "participant_user_id": 59,
+      "tape_id": 73,
+      "session_id": 58,
+      "stream_type": "cash",
+      "client_draft_id": "draft-base-rights-20260527212947",
+      "draft_status": "active",
+      "sync_state": "saved",
+      "raw_notes": "-5 QA base own operational row 20260527212947",
+      "parsed_rows": [
+        {
+          "capture_type": "cash_out",
+          "amount": 5,
+          "description": "QA base own operational row 20260527212947",
+          "source": "-5 QA base own operational row 20260527212947"
+        }
+      ],
+      "skipped_rows": [],
+      "cash_received": 0,
+      "draft_totals": {
+        "stream_type": "cash",
+        "cash_received": 0,
+        "extra_cash_in": 0,
+        "cash_in": 0,
+        "cash_out": 5,
+        "card_out": 0,
+        "cash_left": -5,
+        "records_count": 1
+      },
+      "last_error": "",
+      "last_operation_id": "op-draft-base-rights-20260527212947",
+      "created_at": "2026-05-27 17:29:53",
+      "updated_at": "",
+      "closed_at": "",
+      "submitted_at": ""
+    },
+    "tape": {
+      "id": "73",
+      "user_id": "59",
+      "group_id": "20",
+      "advance_id": null,
+      "stream_type": "cash",
+      "title": "On the Go",
+      "cash_received": "0.00",
+      "currency": "EUR",
+      "status": "active",
+      "created_at": "2026-05-27 17:29:53",
+      "updated_at": "2026-05-27 17:29:53",
+      "closed_at": null,
+      "submitted_at": null,
+      "actual_remaining": null,
+      "difference_amount": null,
+      "archived_at": null,
+      "summary": {
+        "stream_type": "cash",
+        "admin_cash_in": 0,
+        "extra_cash_in": 0,
+        "cash_in": 0,
+        "cash_out": 0,
+        "card_out": 0,
+        "cash_left": 0,
+        "records_count": 0
+      },
+      "card_summary": {
+        "stream_type": "cash",
+        "admin_cash_in": 0,
+        "extra_cash_in": 0,
+        "cash_in": 0,
+        "cash_out": 0,
+        "card_out": 0,
+        "spent_total": 0,
+        "cash_left": 0,
+        "before_amount": 0,
+        "after_amount": 0,
+        "cash_delta": 0,
+        "card_delta": 0,
+        "delta": 0,
+        "records_count": 0,
+        "reportable_count": 0,
+        "files_count": 0,
+        "first_record_at": "",
+        "last_record_at": "",
+        "submitted_actual_remaining": null,
+        "submitted_delta": null
+      }
+    },
+    "tape_id": 73,
+    "session_id": 58,
+    "proof_states": [],
+    "_http_status": 200,
+    "_action": "on_the_go_field_draft_save"
+  },
+  "saved": {
+    "ok": true,
+    "tape_id": 73,
+    "stream_type": "cash",
+    "session_id": 58,
+    "tape": {
+      "id": "73",
+      "user_id": "59",
+      "group_id": "20",
+      "advance_id": null,
+      "stream_type": "cash",
+      "title": "On the Go",
+      "cash_received": "0.00",
+      "currency": "EUR",
+      "status": "active",
+      "created_at": "2026-05-27 17:29:53",
+      "updated_at": "2026-05-27 17:29:53",
+      "closed_at": null,
+      "submitted_at": null,
+      "actual_remaining": null,
+      "difference_amount": null,
+      "archived_at": null,
+      "summary": {
+        "stream_type": "cash",
+        "admin_cash_in": 0,
+        "extra_cash_in": 0,
+        "cash_in": 0,
+        "cash_out": 5,
+        "card_out": 0,
+        "cash_left": -5,
+        "records_count": 1
+      },
+      "card_summary": {
+        "stream_type": "cash",
+        "admin_cash_in": 0,
+        "extra_cash_in": 0,
+        "cash_in": 0,
+        "cash_out": 5,
+        "card_out": 0,
+        "spent_total": 5,
+        "cash_left": -5,
+        "before_amount": 0,
+        "after_amount": -5,
+        "cash_delta": -5,
+        "card_delta": 0,
+        "delta": -5,
+        "records_count": 1,
+        "reportable_count": 0,
+        "files_count": 0,
+        "first_record_at": "2026-05-27 17:29:53",
+        "last_record_at": "2026-05-27 17:29:53",
+        "submitted_actual_remaining": null,
+        "submitted_delta": null
+      }
+    },
+    "next_tape_id": null,
+    "next_tape": null,
+    "items": [
+      {
+        "id": "141",
+        "user_id": "59",
+        "tape_id": "73",
+        "session_id": "58",
+        "capture_type": "cash_out",
+        "amount": "5.00",
+        "currency": "EUR",
+        "description": "QA base own operational row 20260527212947",
+        "review_status": "needs_review",
+        "reportable": "0",
+        "recognition_status": "none",
+        "recognized_amount": null,
+        "recognized_currency": null,
+        "recognized_date": null,
+        "recognized_vendor": null,
+        "recognized_text": null,
+        "recognition_confidence": null,
+        "recognition_error": null,
+        "created_at": "2026-05-27 17:29:53",
+        "updated_at": null,
+        "files_count": "0"
+      }
+    ],
+    "skipped": [],
+    "created_count": 1,
+    "synced_count": 1,
+    "client_operation_id": "op-sync-base-rights-20260527212947",
+    "_http_status": 200,
+    "_action": "on_the_go_signed_sync"
+  },
+  "cards": {
+    "ok": true,
+    "scope": {
+      "mode": "group",
+      "group_id": 20,
+      "can_view_group_reports": false,
+      "can_view_archive": false,
+      "access_level": "base"
+    },
+    "cards": [
+      {
+        "id": 73,
+        "tape_id": 73,
+        "user_id": 59,
+        "group_id": 20,
+        "advance_id": null,
+        "stream_type": "cash",
+        "title": "On the Go",
+        "cash_received": 0,
+        "currency": "EUR",
+        "status": "active",
+        "card_state": "draft",
+        "submitted": false,
+        "included": false,
+        "archived_at": "",
+        "ui_archived": false,
+        "created_at": "2026-05-27 17:29:53",
+        "updated_at": "2026-05-27 17:29:53",
+        "closed_at": "",
+        "submitted_at": "",
+        "actual_remaining": null,
+        "difference_amount": null,
+        "user_display_name": "vetus.nauta+qa-base-rerun-base-20260527212947",
+        "email": "[email]",
+        "summary": {
+          "stream_type": "cash",
+          "admin_cash_in": 0,
+          "extra_cash_in": 0,
+          "cash_in": 0,
+          "cash_out": 5,
+          "card_out": 0,
+          "spent_total": 5,
+          "cash_left": -5,
+          "before_amount": 0,
+          "after_amount": -5,
+          "cash_delta": -5,
+          "card_delta": 0,
+          "delta": -5,
+          "records_count": 1,
+          "reportable_count": 0,
+          "files_count": 0,
+          "first_record_at": "2026-05-27 17:29:53",
+          "last_record_at": "2026-05-27 17:29:53",
+          "submitted_actual_remaining": null,
+          "submitted_delta": null
+        },
+        "viewer_is_owner": true,
+        "can_moderate": false,
+        "can_edit": true,
+        "can_toggle": true,
+        "can_delete": true,
+        "can_submit": true,
+        "can_return": false,
+        "can_request_return": false,
+        "return_requested_at": "",
+        "can_archive_completed": false,
+        "can_view_archive": false,
+        "submit_block_reason": "",
+        "submit_block_message": "",
+        "submit_blocking_card_id": null
+      }
+    ],
+    "_http_status": 200,
+    "_action": "on_the_go_card_list"
+  },
+  "advances": {
+    "ok": true,
+    "scope": {
+      "mode": "group",
+      "group_id": 20,
+      "access_level": "base",
+      "can_moderate": false,
+      "can_manage_money": false
+    },
+    "advances": [],
+    "totals": {
+      "open_issued": 0,
+      "open_spent": 0,
+      "open_cash_spent": 0,
+      "open_card_spent": 0,
+      "open_cash_left": 0,
+      "open_count": 0,
+      "accepted_spent": 0,
+      "accepted_cash_spent": 0,
+      "accepted_card_spent": 0,
+      "accepted_count": 0,
+      "accepted_records": 0
+    },
+    "_http_status": 200,
+    "_action": "advance_list"
+  },
+  "group_report": {
+    "ok": true,
+    "period": {
+      "type": "custom",
+      "from": "2026-05-27",
+      "to": "2026-05-27"
+    },
+    "summary": {
+      "income": 0,
+      "expense": 0,
+      "balance": 0,
+      "cash_income": 0,
+      "cash_expense": 0,
+      "cash_balance": 0,
+      "noncash_income": 0,
+      "noncash_expense": 0,
+      "noncash_balance": 0,
+      "records": 0
+    },
+    "position": {
+      "before": 0,
+      "movement": 0,
+      "after": 0,
+      "cash_before": 0,
+      "cash_movement": 0,
+      "cash_after": 0,
+      "noncash_before": 0,
+      "noncash_movement": 0,
+      "noncash_after": 0
+    },
+    "scope": {
+      "mode": "group",
+      "group_id": 20,
+      "is_admin": false,
+      "access_level": "base"
+    },
+    "sections": [],
+    "members": [],
+    "remaining": null,
+    "adjustment": null,
+    "_http_status": 200,
+    "_action": "ledger_report"
+  },
+  "checks": [
+    {
+      "status": "PASS",
+      "message": "request_code admin"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for admin"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code admin"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code base"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for base"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code base"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code other"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for other"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code other"
+    },
+    {
+      "status": "PASS",
+      "message": "admin creates fresh group"
+    },
+    {
+      "status": "PASS",
+      "message": "default invite base creates base"
+    },
+    {
+      "status": "PASS",
+      "message": "join base as base"
+    },
+    {
+      "status": "PASS",
+      "message": "default invite other creates base"
+    },
+    {
+      "status": "PASS",
+      "message": "join other as base"
+    },
+    {
+      "status": "PASS",
+      "message": "admin creates group cash income"
+    },
+    {
+      "status": "PASS",
+      "message": "admin message send still works"
+    },
+    {
+      "status": "PASS",
+      "message": "admin money management still works for setup"
+    },
+    {
+      "status": "PASS",
+      "message": "admin creates included card for final report"
+    },
+    {
+      "status": "PASS",
+      "message": "admin saves included card row"
+    },
+    {
+      "status": "PASS",
+      "message": "admin includes card for final report"
+    },
+    {
+      "status": "PASS",
+      "message": "admin finalizes report for base denial checks"
+    },
+    {
+      "status": "PASS",
+      "message": "admin still sees all group members"
+    },
+    {
+      "status": "PASS",
+      "message": "admin still sees final report list"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee can use personal FinDesk ledger"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee personal report remains available"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee group list shows base access"
+    },
+    {
+      "status": "PASS",
+      "message": "base permissions deny reports, ledger write, money, moderation, and member management"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee sees only self in group_members"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied ledger_group_google_sheet with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied ledger_group_final_report_list with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied ledger_group_final_report_detail with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied ledger_group_final_report_package with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied ledger_group_final_report_google_sheet with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied message_list with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied message_send with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied advance_create with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "base denied group_member_access_update with admin_required"
+    },
+    {
+      "status": "PASS",
+      "message": "base message_unread is safe empty HTTP 200"
+    },
+    {
+      "status": "PASS",
+      "message": "base cannot download current group Excel"
+    },
+    {
+      "status": "PASS",
+      "message": "base cannot download final group Excel"
+    },
+    {
+      "status": "PASS",
+      "message": "base operational tape starts from own cash base 0"
+    },
+    {
+      "status": "PASS",
+      "message": "base Field Combat draft saves and participant is forced to self"
+    },
+    {
+      "status": "PASS",
+      "message": "base can save own operational row without admin/group cash"
+    },
+    {
+      "status": "PASS",
+      "message": "base sees only own operational cards"
+    },
+    {
+      "status": "PASS",
+      "message": "base sees only own accountable data"
+    },
+    {
+      "status": "PASS",
+      "message": "base group self-control excludes admin group cash"
+    }
+  ]
+}

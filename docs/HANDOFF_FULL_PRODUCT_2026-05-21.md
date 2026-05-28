@@ -1,8 +1,8 @@
 # Full Product Handoff: finance.brkovic.ltd / FinDesk
 
-Date: 2026-05-21  
-Project path: `/home/alexey/GitHub/finance.brkovic.ltd`  
-Local test URL: `http://127.0.0.1:18889/reset-local.php`  
+Date: 2026-05-21
+Project path: `/home/alexey/GitHub/finance.brkovic.ltd`
+Local test URL: `http://127.0.0.1:18889/reset-local.php`
 GitHub repo: `finance.brkovic.ltd`
 
 ## Read This First
@@ -11,10 +11,25 @@ This is the main handoff for the next chat or another PC. The previous narrow ha
 
 Important status:
 
-- `origin/main` is at commit `2b3e245 Update FinDesk handoff docs`.
+- Latest new-chat handoff is:
+  `docs/HANDOFF_NEW_CHAT_2026-05-22_CASH_CARD_LIVE_REPORT.md`.
+  Read it first for the current local state, cash/card Live Report implementation and next step.
+- User-message digest for the next chat is:
+  `docs/USER_MESSAGES_DIGEST_2026-05-22.md`.
+  Read it to preserve the user's intent, unresolved requirements and pain points.
+- `origin/main` was fetched on 2026-05-22 and is at commit `72b38e6 Add full FinDesk product handoff`.
 - The local working tree has many uncommitted changes. They are not fully reflected on GitHub yet.
 - Do not run destructive git commands. Do not reset, checkout or discard local changes.
 - The user is unhappy with the current On-the-Go / FinDesk flow because it became structurally confusing. The next work must fix structure first, then polish style.
+- UX/CSS visual rule for the currently liked glass Live Report style is captured in:
+  `docs/KNOWLEDGE_UX_CSS_GLASS_RULE_2026-05-21.md`.
+  Do not apply it globally yet; keep it as the future style reference.
+- Deep financial flow, control-tree, UX-risk and accounting-invariant review is captured in:
+  `docs/FINANCIAL_FLOW_ARCHITECTURE_REVIEW_2026-05-22.md`.
+  Read it before changing Advanced, FinDesk totals, cash/noncash formulas or accountable-money states.
+- First implementation stage for cash/card separation is captured in:
+  `docs/KNOWLEDGE_CASH_CARD_PARALLEL_LIVE_REPORTS_2026-05-22.md`.
+  Treat cash and bank card as parallel Live Report streams, not as mixed rows in one cash remainder.
 
 ## Product In One Sentence
 
@@ -37,9 +52,26 @@ Main idea:
 - user checks the app balance against real cash in pocket;
 - then the report can go to moderation.
 
+First implementation stage from 2026-05-22:
+
+- before starting a Live Report, the user chooses `Наличные` or `Банковская карта`;
+- cash and card are parallel streams with the same interface but different ids and visual themes;
+- cash uses green glass / money-stack metaphor and has incoming cash plus cash remainder;
+- card uses yellow glass / bank-card metaphor and starts from zero into negative expenses;
+- card expenses never reduce physical cash remainder;
+- the only intersection is a separate summary/export cell for "spent from bank card";
+- complex bank transfers, card integrations and fully noncash advance logic stay as Advanced stubs for this stage.
+
 For a base employee this screen must be almost everything they need. They should not see admin/business/advanced clutter inside this flow.
 
 For an administrator using simplified mode, this screen is also available, but the admin's report is one layer higher. The top informational number should read like "Касса" for the current report, not "остаток основного слоя". Admin can still move to FinDesk/Advanced from navigation.
+
+Important accounting model clarification from 2026-05-21:
+
+- "Подотчеты" means employee reports for money issued to them by the administrator.
+- Administrator has their own "Живой отчет"; its base is the whole group cash position entered/managed in Advanced, not an employee advance.
+- Employee "Живой отчет" for accountable money is a separate tape linked to `cash_advances.on_the_go_tape_id`; its base amount comes from the issued advance and must not be overwritten by the mobile editor.
+- Employee submits the podotchet; manager/admin accepts or returns it; accepted podotchets are then combined with the administrator's own live report into the common report for a chosen period.
 
 ### 2. FinDesk
 
@@ -638,6 +670,9 @@ docs/STEP4_ADVANCE_UI_2026-05-20.md
 docs/STEP6_BRAND_I18N_MODES_2026-05-20.md
 docs/STEP7_CAPTAIN_FIN_LIVE_LAYER_2026-05-20.md
 docs/HANDOFF_ON_THE_GO_INTERMEDIATE_PAGE_2026-05-21.md
+docs/IPHONE_NOTES_UX_ALGORITHMS_2026-05-21.md
+docs/FINANCIAL_FLOW_ARCHITECTURE_REVIEW_2026-05-22.md
+docs/KNOWLEDGE_CASH_CARD_PARALLEL_LIVE_REPORTS_2026-05-22.md
 ```
 
 ## Local Desktop / Launcher State
@@ -717,6 +752,14 @@ User wants premium light iOS 26 glass feel, but style must not hide broken logic
 Design rules for next work:
 
 - mobile, tablet and desktop must all be checked;
+- mobile, tablet and desktop are three separate layout paths, not one stretched responsive screen;
+- define and preserve explicit device breakpoints in CSS:
+  - mobile: `max-width: 700px`;
+  - tablet: `701px` through `1099px`;
+  - desktop: `1100px+`;
+- mobile should be designed first for real field use: nobody walks around stores with a laptop;
+- tablet can use a wider, denser workspace;
+- desktop can use centered professional work canvases or split layouts, but must not stretch operational forms across the whole browser width;
 - mobile often splits one desktop screen into two screens;
 - do not make a landing page inside the app;
 - do not add explanatory cards about product layers in the work screen;
@@ -782,6 +825,7 @@ Use these references:
 ```text
 docs/assets/iphone-notes-reference-list.png
 docs/assets/iphone-notes-reference-note.png
+docs/IPHONE_NOTES_UX_ALGORITHMS_2026-05-21.md
 ```
 
 Implementation intent:
@@ -876,6 +920,7 @@ Manual smoke:
 ## Do Not Forget
 
 - The local desktop version of the older Captain Fin idea is not the same as the mobile PWA. Desktop can keep two columns; mobile should split list/editor into screens.
+- Treat desktop, tablet and mobile as separate product surfaces. Do not rely on a single elastic layout for all three.
 - Personal account rights and group role rights are separate.
 - Issued accountable money is not an expense until accepted.
 - Reports are cards/documents first, ledger rows second.

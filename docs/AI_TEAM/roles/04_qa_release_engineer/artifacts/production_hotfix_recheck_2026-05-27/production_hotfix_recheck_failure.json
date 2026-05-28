@@ -1,0 +1,521 @@
+{
+  "ok": false,
+  "stamp": "20260527211338",
+  "message": "base employee unread feed does not expose group messages",
+  "context": {
+    "baseUnread": {
+      "ok": false,
+      "error": "server_error",
+      "message": "SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_role,\n            current_member.access_level AS current_access_level...' at line 11",
+      "_http_status": 500,
+      "_action": "message_unread"
+    }
+  },
+  "ids": {
+    "stamp": "20260527211338",
+    "admin_user_id": "49",
+    "emp1_user_id": "50",
+    "emp2_user_id": "51",
+    "emp3_user_id": "52",
+    "participant_group_id": "17",
+    "admin_income_id": "79",
+    "admin_tape_id": "60",
+    "emp1_advance_id": "37",
+    "emp1_tape_id": "62",
+    "emp2_advance_id": "38",
+    "emp2_tape_id": "63",
+    "emp3_advance_id": "39",
+    "emp3_tape_id": "64",
+    "emp1_submit_status": "submitted",
+    "emp1_difference_amount": 0,
+    "emp2_submit_status": "discrepancy",
+    "emp2_difference_amount": 36,
+    "emp3_submit_status": "submitted",
+    "emp3_difference_amount": 0,
+    "emp1_entries_created": 4,
+    "emp1_rollover_advance_id": 40,
+    "emp1_rollover_tape_id": 65,
+    "emp2_entries_created": 4,
+    "emp2_rollover_advance_id": 0,
+    "emp2_rollover_tape_id": 0,
+    "emp3_entries_created": 0,
+    "emp3_rollover_advance_id": 41,
+    "emp3_rollover_tape_id": 66,
+    "participant_report_id": 176,
+    "rightsAdmin_user_id": "53",
+    "rightsBase_user_id": "54",
+    "rightsOther_user_id": "55",
+    "rights_group_id": "18",
+    "rights_other_advance_id": "42",
+    "rights_admin_tape_id": "68",
+    "rights_report_id": 184
+  },
+  "checks_count": 114,
+  "checks": [
+    {
+      "status": "PASS",
+      "message": "request_code admin"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for admin"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code admin"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "participant-control group created"
+    },
+    {
+      "status": "PASS",
+      "message": "invite emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "join emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "invite emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "join emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "invite emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "join emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "admin sees four participant-control group members"
+    },
+    {
+      "status": "PASS",
+      "message": "admin income EUR 1000"
+    },
+    {
+      "status": "PASS",
+      "message": "admin Live Report expense card created"
+    },
+    {
+      "status": "PASS",
+      "message": "admin Live Report expenses saved"
+    },
+    {
+      "status": "PASS",
+      "message": "admin Live Report expense card included"
+    },
+    {
+      "status": "PASS",
+      "message": "advance issued emp1 135"
+    },
+    {
+      "status": "PASS",
+      "message": "advance issued emp2 94"
+    },
+    {
+      "status": "PASS",
+      "message": "advance issued emp3 117"
+    },
+    {
+      "status": "PASS",
+      "message": "advance expenses saved emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "advance expenses saved emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "advance submitted emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "advance submitted emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "advance submitted emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "employee 1 submitted EUR 67 with no discrepancy"
+    },
+    {
+      "status": "PASS",
+      "message": "employee 2 overrun is EUR 36 before accept"
+    },
+    {
+      "status": "PASS",
+      "message": "employee 3 no-spend submitted EUR 117"
+    },
+    {
+      "status": "PASS",
+      "message": "advance accepted emp1"
+    },
+    {
+      "status": "PASS",
+      "message": "advance accepted emp2"
+    },
+    {
+      "status": "PASS",
+      "message": "advance accepted emp3"
+    },
+    {
+      "status": "PASS",
+      "message": "current export exposes participant-control values"
+    },
+    {
+      "status": "PASS",
+      "message": "current Excel downloaded with participant-control values"
+    },
+    {
+      "status": "PASS",
+      "message": "participant-control group finalized"
+    },
+    {
+      "status": "PASS",
+      "message": "final report appears in archive list"
+    },
+    {
+      "status": "PASS",
+      "message": "final report detail opens"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: income/received is 1000"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: expense is 284"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: balance is 716"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: admin_cash_left is 568"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee positive remaining is 184"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee reimbursement due is 36"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee net remaining is 148"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee 1 signed remainder 67 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee 2 signed remainder -36 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee 3 signed remainder 117 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "final detail: employee 2 reimbursement due 36 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "closed group package opens"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: income/received is 1000"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: expense is 284"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: balance is 716"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: admin_cash_left is 568"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: employee positive remaining is 184"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: employee reimbursement due is 36"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package summary: employee net remaining is 148"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package participant control: employee 1 signed remainder 67 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package participant control: employee 2 signed remainder -36 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package participant control: employee 3 signed remainder 117 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package participant control: employee 2 reimbursement due 36 visible"
+    },
+    {
+      "status": "PASS",
+      "message": "closed package accountable totals expose reimbursement due 36"
+    },
+    {
+      "status": "PASS",
+      "message": "final Google/TSV export exposes participant-control values"
+    },
+    {
+      "status": "PASS",
+      "message": "final Excel downloaded with participant-control values"
+    },
+    {
+      "status": "PASS",
+      "message": "participant-control equation 568 + 67 - 36 + 117 = 716"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code rightsAdmin"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for rightsAdmin"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code rightsAdmin"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code rightsBase"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for rightsBase"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code rightsBase"
+    },
+    {
+      "status": "PASS",
+      "message": "request_code rightsOther"
+    },
+    {
+      "status": "PASS",
+      "message": "FTP credentials supplied through environment"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code available for rightsOther"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code rightsOther"
+    },
+    {
+      "status": "PASS",
+      "message": "base-rights group created"
+    },
+    {
+      "status": "PASS",
+      "message": "invite rightsBase"
+    },
+    {
+      "status": "PASS",
+      "message": "join rightsBase"
+    },
+    {
+      "status": "PASS",
+      "message": "invite rightsOther"
+    },
+    {
+      "status": "PASS",
+      "message": "join rightsOther"
+    },
+    {
+      "status": "PASS",
+      "message": "default invite creates access_level base"
+    },
+    {
+      "status": "PASS",
+      "message": "joined base employee has access_level base"
+    },
+    {
+      "status": "PASS",
+      "message": "rights admin group income created"
+    },
+    {
+      "status": "PASS",
+      "message": "admin group message send still works"
+    },
+    {
+      "status": "PASS",
+      "message": "admin money management still works for setup"
+    },
+    {
+      "status": "PASS",
+      "message": "rights admin included card created for archive setup"
+    },
+    {
+      "status": "PASS",
+      "message": "rights admin included card saved for archive setup"
+    },
+    {
+      "status": "PASS",
+      "message": "rights admin included card accepted for archive setup"
+    },
+    {
+      "status": "PASS",
+      "message": "admin final report/archive still works for setup"
+    },
+    {
+      "status": "PASS",
+      "message": "admin can still see all members"
+    },
+    {
+      "status": "PASS",
+      "message": "admin can still list final reports"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee group list shows base access"
+    },
+    {
+      "status": "PASS",
+      "message": "base permissions deny reports, ledger write, money management"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee sees only self in group_members"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied ledger_group_google_sheet with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied ledger_group_final_report_list with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied ledger_group_final_report_detail with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied ledger_group_final_report_package with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied ledger_group_final_report_google_sheet with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied message_list with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied message_send with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied advance_create with access_denied"
+    },
+    {
+      "status": "PASS",
+      "message": "rightsBase denied group_member_access_update with admin_required"
+    }
+  ],
+  "artifacts": {
+    "current_group_google_sheet": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_current_group_google_sheet.tsv",
+    "current_group_excel": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_current_group_report.xls",
+    "final_report_detail": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_final_report_detail.json",
+    "closed_group_package": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_closed_group_package.json",
+    "final_report_google_sheet": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_final_report_google_sheet.tsv",
+    "final_group_excel": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_final_group_report.xls",
+    "package_print": "/home/alexey/GitHub/finance.brkovic.ltd/docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_hotfix_recheck_2026-05-27/participant_closed_group_package_print.html"
+  }
+}

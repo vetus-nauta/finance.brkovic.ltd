@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinDesk AI Office</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #667085;
+      --line: rgba(17,24,39,.12);
+      --soft: rgba(255,255,255,.72);
+      --blue: #0a84ff;
+      --teal: #007a78;
+      --gold: #b7791f;
+      --red: #d92d20;
+      --green: #087443;
+      --shadow: 0 22px 60px rgba(31,41,55,.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% -8%, rgba(0,122,255,.14), transparent 30%),
+        radial-gradient(circle at 86% 0%, rgba(183,121,31,.12), transparent 28%),
+        linear-gradient(180deg, #f9fcff 0%, #eef6f8 100%);
+    }
+
+    .office-shell {
+      min-height: 100vh;
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+    }
+
+    .office-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,.82);
+      border-radius: 24px;
+      background: rgba(255,255,255,.7);
+      box-shadow: 0 14px 38px rgba(31,41,55,.08);
+      backdrop-filter: blur(22px) saturate(1.18);
+    }
+
+    .office-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .office-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      object-fit: cover;
+      box-shadow: 0 10px 22px rgba(7,61,73,.16);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(18px, 2vw, 26px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .office-subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .office-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .office-card {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.82);
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.58)),
+        var(--soft);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(26px) saturate(1.2);
+      overflow: hidden;
+    }
+
+    .office-card[data-role="deputy"] { border-top: 4px solid var(--blue); }
+    .office-card[data-role="finance"] { border-top: 4px solid var(--green); }
+    .office-card[data-role="backend"] { border-top: 4px solid #344054; }
+    .office-card[data-role="frontend"] { border-top: 4px solid var(--teal); }
+    .office-card[data-role="qa"] { border-top: 4px solid var(--gold); }
+    .office-card[data-role="audit"] { border-top: 4px solid var(--red); }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .role-kicker {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 820;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(17px, 1.35vw, 22px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      padding: 7px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.72);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 820;
+    }
+
+    .mission {
+      margin: 0;
+      color: #475467;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .links {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-content: start;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    a, button {
+      font: inherit;
+    }
+
+    .link-btn,
+    .copy-btn {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.68);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 820;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .copy-btn {
+      width: 100%;
+      color: white;
+      border-color: transparent;
+      background: linear-gradient(180deg, #0a84ff 0%, #0066d6 100%);
+      box-shadow: 0 12px 26px rgba(0,102,214,.22);
+    }
+
+    .card-foot {
+      display: grid;
+      gap: 8px;
+    }
+
+    .prompt {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 11px 14px;
+      border-radius: 999px;
+      background: rgba(17,24,39,.88);
+      color: white;
+      font-size: 13px;
+      font-weight: 760;
+      box-shadow: 0 18px 40px rgba(17,24,39,.22);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+    }
+
+    .toast.is-visible { opacity: 1; }
+
+    @media (max-width: 980px) {
+      .office-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(3, minmax(280px, 1fr));
+      }
+      .office-subtitle { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      .office-shell { padding: 10px; }
+      .office-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+      }
+      .office-card { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="office-shell">
+    <header class="office-topbar">
+      <div class="office-title">
+        <img class="office-mark" src="../../public/assets/brand-mark.png" alt="">
+        <div>
+          <h1>FinDesk AI Office</h1>
+          <div class="office-subtitle">6 кабинетов: техзам + 5 сотрудников-чатов</div>
+        </div>
+      </div>
+      <a class="link-btn" href="./PROJECT_DIRECTOR_HANDOFF_2026-05-26.md">Директор проекта</a>
+      <a class="link-btn" href="./00_START_HERE.md">Офисный регламент</a>
+    </header>
+
+    <section class="office-grid" aria-label="AI office roles">
+      <article class="office-card" data-role="deputy">
+        <div class="card-head">
+          <div>
+            <p class="role-kicker">Кабинет 0</p>
+            <h2>Техзам / координатор</h2>
+          </div>
+          <span class="status-pill">управление</span>
+        </div>
+        <p class="mission">Держит офис, синхронизацию кабинетов, порядок документации и переводит решения CEO в рабочие задачи.</p>
+        <div class="links">
+          <a class="link-btn" href="./04_TASK_BOARD.md">Доска задач</a>
+          <a class="link-btn" href="./05_DECISIONS.md">Решения</a>
+          <a class="link-btn" href="./02_CURRENT_STATE.md">Состояние</a>
+          <a class="link-btn" href="./TECH_DEPUTY_CURRENT_CHAT.md">Чат</a>
+          <a class="link-btn" href="./CEO_TECHNICAL_BRIEF.docx">CEO Word</a>
+          <a class="link-btn" href="./CHAT_LINKS.md">Все чаты</a>
+        </div>
+        <div class="card-foot">
+          <button class="copy-btn" type="button" data-copy="prompt-deputy">Скопировать промпт</button>
+          <textarea id="prompt-deputy" class="prompt">Ты работаешь как техзам и координатор AI Office для FinDesk.
+
+Проект: /home/alexey/GitHub/finance.brkovic.ltd
+
+Сначала выполни:
+git status --short
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+php scripts/local-smoke.php http://127.0.0.1:18889
+
+Прочитай:
+docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/01_PRODUCT_COMPASS.md
+docs/AI_TEAM/02_CURRENT_STATE.md
+docs/AI_TEAM/03_WORKFLOW_RULES.md
+docs/AI_TEAM/04_TASK_BOARD.md
+docs/AI_TEAM/05_DECISIONS.md
+
+Твоя задача: координировать роли, не ломать рабочее дерево, фиксировать решения и задачи. Не выполняй работу узкого специалиста без явной команды CEO.</textarea>
+        </div>
+      </article>
+
+      <article class="office-card" data-role="finance">
+        <div class="card-head">
+          <div>
+            <p class="role-kicker">Кабинет 1</p>
+            <h2>Product Finance Architect</h2>
+          </div>
+          <span class="status-pill">смысл денег</span>
+        </div>
+        <p class="mission">Отвечает за финансовое дерево, формулы, термины, cash/card, подотчеты, остатки и финальный отчет.</p>
+        <div class="links">
+          <a class="link-btn" href="./roles/01_product_finance_architect/ROLE.md">Role</a>
+          <a class="link-btn" href="./roles/01_product_finance_architect/STATUS.md">Status</a>
+          <a class="link-btn" href="./roles/01_product_finance_architect/FINDINGS.md">Findings</a>
+          <a class="link-btn" href="./roles/01_product_finance_architect/TASKS_TO_OTHERS.md">Tasks</a>
+          <a class="link-btn" href="./roles/01_product_finance_architect/CHAT.md">Чат</a>
+        </div>
+        <div class="card-foot">
+          <button class="copy-btn" type="button" data-copy="prompt-finance">Скопировать промпт</button>
+          <textarea id="prompt-finance" class="prompt">Ты работаешь как Product Finance Architect для FinDesk.
+
+Проект: /home/alexey/GitHub/finance.brkovic.ltd
+
+Сначала выполни baseline-команды из docs/AI_TEAM/00_START_HERE.md.
+
+Прочитай:
+docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/01_PRODUCT_COMPASS.md
+docs/AI_TEAM/02_CURRENT_STATE.md
+docs/AI_TEAM/03_WORKFLOW_RULES.md
+docs/AI_TEAM/roles/01_product_finance_architect/ROLE.md
+docs/AI_TEAM/roles/01_product_finance_architect/STATUS.md
+
+Не меняй backend/frontend код без явной команды. Твоя зона: финансовая логика, термины, формулы, сценарии, противоречия в цифрах. Все выводы пиши в свой кабинет.</textarea>
+        </div>
+      </article>
+
+      <article class="office-card" data-role="backend">
+        <div class="card-head">
+          <div>
+            <p class="role-kicker">Кабинет 2</p>
+            <h2>Backend Data Engineer</h2>
+          </div>
+          <span class="status-pill">данные/API</span>
+        </div>
+        <p class="mission">Отвечает за PHP/API, базу, состояния отчетов, экспорт, перенос остатков и сохранность истории.</p>
+        <div class="links">
+          <a class="link-btn" href="./roles/02_backend_data_engineer/ROLE.md">Role</a>
+          <a class="link-btn" href="./roles/02_backend_data_engineer/STATUS.md">Status</a>
+          <a class="link-btn" href="./roles/02_backend_data_engineer/FINDINGS.md">Findings</a>
+          <a class="link-btn" href="./roles/02_backend_data_engineer/TASKS_TO_OTHERS.md">Tasks</a>
+          <a class="link-btn" href="./roles/02_backend_data_engineer/CHAT.md">Чат</a>
+        </div>
+        <div class="card-foot">
+          <button class="copy-btn" type="button" data-copy="prompt-backend">Скопировать промпт</button>
+          <textarea id="prompt-backend" class="prompt">Ты работаешь как Backend Data Engineer для FinDesk.
+
+Проект: /home/alexey/GitHub/finance.brkovic.ltd
+
+Сначала выполни baseline-команды из docs/AI_TEAM/00_START_HERE.md.
+
+Прочитай:
+docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/01_PRODUCT_COMPASS.md
+docs/AI_TEAM/02_CURRENT_STATE.md
+docs/AI_TEAM/03_WORKFLOW_RULES.md
+docs/AI_TEAM/roles/02_backend_data_engineer/ROLE.md
+docs/AI_TEAM/roles/02_backend_data_engineer/STATUS.md
+
+Твоя зона: app/*.php, public/api.php, deploy SQL, smoke tests, data/export correctness. Не редизайнь UX и не меняй финансовые термины самовольно.</textarea>
+        </div>
+      </article>
+
+      <article class="office-card" data-role="frontend">
+        <div class="card-head">
+          <div>
+            <p class="role-kicker">Кабинет 3</p>
+            <h2>Frontend UX Engineer</h2>
+          </div>
+          <span class="status-pill">экраны</span>
+        </div>
+        <p class="mission">Отвечает за меню, mobile/tablet/desktop, компактность, карточки, таблицы, читаемость и визуальную дисциплину.</p>
+        <div class="links">
+          <a class="link-btn" href="./roles/03_frontend_ux_engineer/ROLE.md">Role</a>
+          <a class="link-btn" href="./roles/03_frontend_ux_engineer/STATUS.md">Status</a>
+          <a class="link-btn" href="./roles/03_frontend_ux_engineer/FINDINGS.md">Findings</a>
+          <a class="link-btn" href="./roles/03_frontend_ux_engineer/TASKS_TO_OTHERS.md">Tasks</a>
+          <a class="link-btn" href="./roles/03_frontend_ux_engineer/CHAT.md">Чат</a>
+        </div>
+        <div class="card-foot">
+          <button class="copy-btn" type="button" data-copy="prompt-frontend">Скопировать промпт</button>
+          <textarea id="prompt-frontend" class="prompt">Ты работаешь как Frontend UX Engineer для FinDesk.
+
+Проект: /home/alexey/GitHub/finance.brkovic.ltd
+
+Сначала выполни baseline-команды из docs/AI_TEAM/00_START_HERE.md.
+
+Прочитай:
+docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/01_PRODUCT_COMPASS.md
+docs/AI_TEAM/02_CURRENT_STATE.md
+docs/AI_TEAM/03_WORKFLOW_RULES.md
+docs/AI_TEAM/roles/03_frontend_ux_engineer/ROLE.md
+docs/AI_TEAM/roles/03_frontend_ux_engineer/STATUS.md
+
+Твоя зона: public/app.php, public/assets/app.css, public/assets/app.js, i18n, responsive UX. Не меняй финансовые формулы и backend state machine.</textarea>
+        </div>
+      </article>
+
+      <article class="office-card" data-role="qa">
+        <div class="card-head">
+          <div>
+            <p class="role-kicker">Кабинет 4</p>
+            <h2>QA Release Engineer</h2>
+          </div>
+          <span class="status-pill">проверка</span>
+        </div>
+        <p class="mission">Отвечает за smoke, сценарии денег, роли, desktop/tablet/mobile, экспорт, регрессии и доказательства готовности.</p>
+        <div class="links">
+          <a class="link-btn" href="./roles/04_qa_release_engineer/ROLE.md">Role</a>
+          <a class="link-btn" href="./roles/04_qa_release_engineer/STATUS.md">Status</a>
+          <a class="link-btn" href="./roles/04_qa_release_engineer/FINDINGS.md">Findings</a>
+          <a class="link-btn" href="./roles/04_qa_release_engineer/TASKS_TO_OTHERS.md">Tasks</a>
+          <a class="link-btn" href="./roles/04_qa_release_engineer/CHAT.md">Чат</a>
+        </div>
+        <div class="card-foot">
+          <button class="copy-btn" type="button" data-copy="prompt-qa">Скопировать промпт</button>
+          <textarea id="prompt-qa" class="prompt">Ты работаешь как QA Release Engineer для FinDesk.
+
+Проект: /home/alexey/GitHub/finance.brkovic.ltd
+
+Сначала выполни baseline-команды из docs/AI_TEAM/00_START_HERE.md.
+
+Прочитай:
+docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/01_PRODUCT_COMPASS.md
+docs/AI_TEAM/02_CURRENT_STATE.md
+docs/AI_TEAM/03_WORKFLOW_RULES.md
+docs/AI_TEAM/roles/04_qa_release_engineer/ROLE.md
+docs/AI_TEAM/roles/04_qa_release_engineer/STATUS.md
+
+Твоя зона: тесты, ручные сценарии, device review, release evidence. Не переписывай product rules и не чини код без отдельной задачи.</textarea>
+        </div>
+      </article>
+
+      <article class="office-card" data-role="audit">
+        <div class="card-head">
+          <div>
+            <p class="role-kicker">Кабинет 5</p>
+            <h2>Chief Auditor</h2>
+          </div>
+          <span class="status-pill">release gate</span>
+        </div>
+        <p class="mission">Сверяет всех, держит риски, противоречия и право блокировать выпуск, если финансовая картина не доказана.</p>
+        <div class="links">
+          <a class="link-btn" href="./roles/05_chief_auditor/ROLE.md">Role</a>
+          <a class="link-btn" href="./roles/05_chief_auditor/MASTER_STATUS.md">Master</a>
+          <a class="link-btn" href="./roles/05_chief_auditor/RISKS.md">Risks</a>
+          <a class="link-btn" href="./roles/05_chief_auditor/RELEASE_GATE.md">Gate</a>
+          <a class="link-btn" href="./roles/05_chief_auditor/CHAT.md">Чат</a>
+        </div>
+        <div class="card-foot">
+          <button class="copy-btn" type="button" data-copy="prompt-audit">Скопировать промпт</button>
+          <textarea id="prompt-audit" class="prompt">Ты работаешь как Chief Auditor для FinDesk.
+
+Проект: /home/alexey/GitHub/finance.brkovic.ltd
+
+Сначала выполни baseline-команды из docs/AI_TEAM/00_START_HERE.md.
+
+Прочитай:
+docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/01_PRODUCT_COMPASS.md
+docs/AI_TEAM/02_CURRENT_STATE.md
+docs/AI_TEAM/03_WORKFLOW_RULES.md
+docs/AI_TEAM/roles/05_chief_auditor/ROLE.md
+docs/AI_TEAM/roles/05_chief_auditor/MASTER_STATUS.md
+docs/AI_TEAM/roles/05_chief_auditor/RISKS.md
+docs/AI_TEAM/roles/05_chief_auditor/RELEASE_GATE.md
+
+Твоя зона: противоречия, риски, release gate, CEO-level truth. Не становись скрытым кодером и не одобряй выпуск без доказательств QA/backend/frontend/product.</textarea>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div class="toast" data-toast>Промпт скопирован</div>
+
+  <script>
+    const toast = document.querySelector('[data-toast]');
+    let toastTimer = null;
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add('is-visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 1800);
+    }
+
+    async function copyPrompt(id) {
+      const node = document.getElementById(id);
+      if (!node) return;
+      const text = node.value;
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Промпт скопирован');
+      } catch (error) {
+        node.style.position = 'fixed';
+        node.style.opacity = '1';
+        node.style.width = '80vw';
+        node.style.height = '40vh';
+        node.select();
+        document.execCommand('copy');
+        node.style.position = 'absolute';
+        node.style.opacity = '0';
+        node.style.width = '1px';
+        node.style.height = '1px';
+        showToast('Промпт скопирован');
+      }
+    }
+
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-copy]');
+      if (!button) return;
+      copyPrompt(button.dataset.copy);
+    });
+  </script>
+</body>
+</html>

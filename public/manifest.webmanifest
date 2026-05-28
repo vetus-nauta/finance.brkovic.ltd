@@ -2,7 +2,9 @@
     "id": "/app.php",
     "name": "FinDesk by brkovic.ltd",
     "short_name": "FinDesk",
-    "description": "Multilingual personal, group and premium finance tools by brkovic.ltd.",
+    "description": "Installable private finance reporting app for On the Go capture, reviewed group reports and Advanced accountable-money workflows.",
+    "lang": "en",
+    "dir": "ltr",
     "start_url": "/app.php",
     "scope": "/",
     "display": "standalone",
@@ -13,6 +15,34 @@
         "finance",
         "productivity",
         "business"
+    ],
+    "shortcuts": [
+        {
+            "name": "Open FinDesk",
+            "short_name": "App",
+            "description": "Open the signed-in FinDesk workspace.",
+            "url": "/app.php",
+            "icons": [
+                {
+                    "src": "/assets/icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                }
+            ]
+        },
+        {
+            "name": "Install Help",
+            "short_name": "Install",
+            "description": "Open the public FinDesk page with install options.",
+            "url": "/",
+            "icons": [
+                {
+                    "src": "/assets/icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                }
+            ]
+        }
     ],
     "icons": [
         {

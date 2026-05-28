@@ -30,8 +30,24 @@ CREATE TABLE IF NOT EXISTS on_the_go_files (
   storage_path VARCHAR(500) NOT NULL,
   mime_type VARCHAR(120) NULL,
   size_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  proof_role VARCHAR(40) NOT NULL DEFAULT 'attachment',
+  proof_bundle_id VARCHAR(120) NULL,
+  source_file_id BIGINT UNSIGNED NULL,
+  file_hash_sha256 CHAR(64) NULL,
+  metadata_json MEDIUMTEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_capture (capture_id),
-  KEY idx_user_created (user_id, created_at)
+  KEY idx_user_created (user_id, created_at),
+  KEY idx_otr_files_bundle (proof_bundle_id),
+  KEY idx_otr_files_role (proof_role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE on_the_go_files
+  ADD COLUMN IF NOT EXISTS proof_role VARCHAR(40) NOT NULL DEFAULT 'attachment' AFTER size_bytes,
+  ADD COLUMN IF NOT EXISTS proof_bundle_id VARCHAR(120) DEFAULT NULL AFTER proof_role,
+  ADD COLUMN IF NOT EXISTS source_file_id BIGINT UNSIGNED DEFAULT NULL AFTER proof_bundle_id,
+  ADD COLUMN IF NOT EXISTS file_hash_sha256 CHAR(64) DEFAULT NULL AFTER source_file_id,
+  ADD COLUMN IF NOT EXISTS metadata_json MEDIUMTEXT NULL AFTER file_hash_sha256,
+  ADD KEY IF NOT EXISTS idx_otr_files_bundle (proof_bundle_id),
+  ADD KEY IF NOT EXISTS idx_otr_files_role (proof_role);

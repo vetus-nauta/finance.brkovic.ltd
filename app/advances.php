@@ -64,10 +64,11 @@ function ql_advance_tape_summary(int $tapeId): array
         LIMIT 1
     ");
     $tapeStmt->execute([$tapeId]);
-    $cashIn = round((float)($tapeStmt->fetchColumn() ?: 0), 2);
+    $adminCashIn = round((float)($tapeStmt->fetchColumn() ?: 0), 2);
 
     $stmt = ql_db()->prepare("
         SELECT
+            COALESCE(SUM(CASE WHEN capture_type = 'cash_in' THEN amount ELSE 0 END), 0) AS extra_cash_in,
             COALESCE(SUM(CASE WHEN capture_type = 'cash_out' THEN amount ELSE 0 END), 0) AS cash_out,
             COALESCE(SUM(CASE WHEN capture_type = 'noncash_out' THEN amount ELSE 0 END), 0) AS card_out,
             COUNT(id) AS records_count,
@@ -76,15 +77,19 @@ function ql_advance_tape_summary(int $tapeId): array
         FROM on_the_go_captures
         WHERE tape_id = ?
           AND review_status <> 'archived'
-          AND capture_type IN ('cash_out', 'noncash_out')
+          AND capture_type IN ('cash_in', 'cash_out', 'noncash_out')
     ");
     $stmt->execute([$tapeId]);
     $row = $stmt->fetch() ?: [];
 
+    $extraCashIn = round((float)($row['extra_cash_in'] ?? 0), 2);
+    $cashIn = round($adminCashIn + $extraCashIn, 2);
     $cashOut = round((float)($row['cash_out'] ?? 0), 2);
     $cardOut = round((float)($row['card_out'] ?? 0), 2);
 
     return [
+        'admin_cash_in' => $adminCashIn,
+        'extra_cash_in' => $extraCashIn,
         'cash_in' => $cashIn,
         'cash_out' => $cashOut,
         'card_out' => $cardOut,
@@ -156,8 +161,95 @@ function ql_advance_public(array $advance): array
         'pending_count' => 0,
         'reportable_count' => 0,
     ];
+    $effectiveLeft = $advance['actual_remaining'] !== null
+        ? (float)$advance['actual_remaining']
+        : (float)($advance['summary']['cash_left'] ?? 0);
+    $advance['summary']['effective_cash_left'] = round($effectiveLeft, 2);
 
     return $advance;
+}
+
+function ql_advance_totals(int $groupId, ?int $assignedUserId = null): array
+{
+    if ($groupId <= 0) {
+        return [
+            'open_issued' => 0.0,
+            'open_spent' => 0.0,
+            'open_cash_spent' => 0.0,
+            'open_card_spent' => 0.0,
+            'open_cash_left' => 0.0,
+            'open_count' => 0,
+            'accepted_spent' => 0.0,
+            'accepted_cash_spent' => 0.0,
+            'accepted_card_spent' => 0.0,
+            'accepted_count' => 0,
+            'accepted_records' => 0,
+        ];
+    }
+
+    $params = [$groupId];
+    $ownerWhere = '';
+    if ($assignedUserId !== null && $assignedUserId > 0) {
+        $ownerWhere = ' AND ca.assigned_to_user_id = ?';
+        $params[] = $assignedUserId;
+    }
+
+    $stmt = ql_db()->prepare("
+        SELECT
+            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN ca.amount ELSE 0 END), 0) AS open_issued,
+            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN COALESCE(s.cash_out, 0) + COALESCE(s.card_out, 0) ELSE 0 END), 0) AS open_spent,
+            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN COALESCE(s.cash_out, 0) ELSE 0 END), 0) AS open_cash_spent,
+            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN COALESCE(s.card_out, 0) ELSE 0 END), 0) AS open_card_spent,
+            COALESCE(SUM(
+                CASE
+                    WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN
+                        CASE
+                            WHEN ca.actual_remaining IS NOT NULL THEN ca.actual_remaining
+                            ELSE COALESCE(t.cash_received, ca.amount) + COALESCE(s.extra_cash_in, 0) - COALESCE(s.cash_out, 0)
+                        END
+                    ELSE 0
+                END
+            ), 0) AS open_cash_left,
+            SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN 1 ELSE 0 END) AS open_count,
+            COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.cash_out, 0) + COALESCE(s.card_out, 0) ELSE 0 END), 0) AS accepted_spent,
+            COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.cash_out, 0) ELSE 0 END), 0) AS accepted_cash_spent,
+            COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.card_out, 0) ELSE 0 END), 0) AS accepted_card_spent,
+            SUM(CASE WHEN ca.status = 'accepted' AND COALESCE(s.records_count, 0) > 0 THEN 1 ELSE 0 END) AS accepted_count,
+            COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.records_count, 0) ELSE 0 END), 0) AS accepted_records
+        FROM cash_advances ca
+        LEFT JOIN on_the_go_tapes t ON t.id = ca.on_the_go_tape_id
+        LEFT JOIN (
+            SELECT
+                tape_id,
+                COALESCE(SUM(CASE WHEN capture_type = 'cash_in' THEN amount ELSE 0 END), 0) AS extra_cash_in,
+                COALESCE(SUM(CASE WHEN capture_type = 'cash_out' THEN amount ELSE 0 END), 0) AS cash_out,
+                COALESCE(SUM(CASE WHEN capture_type = 'noncash_out' THEN amount ELSE 0 END), 0) AS card_out,
+                COUNT(id) AS records_count
+            FROM on_the_go_captures
+            WHERE review_status <> 'archived'
+              AND capture_type IN ('cash_in', 'cash_out', 'noncash_out')
+            GROUP BY tape_id
+        ) s ON s.tape_id = t.id
+        WHERE ca.group_id = ?
+          AND ca.deleted_at IS NULL
+          {$ownerWhere}
+    ");
+    $stmt->execute($params);
+    $row = $stmt->fetch() ?: [];
+
+    return [
+        'open_issued' => round((float)($row['open_issued'] ?? 0), 2),
+        'open_spent' => round((float)($row['open_spent'] ?? 0), 2),
+        'open_cash_spent' => round((float)($row['open_cash_spent'] ?? 0), 2),
+        'open_card_spent' => round((float)($row['open_card_spent'] ?? 0), 2),
+        'open_cash_left' => round((float)($row['open_cash_left'] ?? 0), 2),
+        'open_count' => (int)($row['open_count'] ?? 0),
+        'accepted_spent' => round((float)($row['accepted_spent'] ?? 0), 2),
+        'accepted_cash_spent' => round((float)($row['accepted_cash_spent'] ?? 0), 2),
+        'accepted_card_spent' => round((float)($row['accepted_card_spent'] ?? 0), 2),
+        'accepted_count' => (int)($row['accepted_count'] ?? 0),
+        'accepted_records' => (int)($row['accepted_records'] ?? 0),
+    ];
 }
 
 function ql_advance_create(array $input): array
@@ -217,9 +309,9 @@ function ql_advance_create(array $input): array
 
         $tapeStmt = $db->prepare("
             INSERT INTO on_the_go_tapes
-                (user_id, group_id, advance_id, title, cash_received, currency, status)
+                (user_id, group_id, advance_id, stream_type, title, cash_received, currency, status)
             VALUES
-                (?, ?, ?, ?, ?, ?, 'active')
+                (?, ?, ?, 'cash', ?, ?, ?, 'active')
         ");
         $tapeStmt->execute([$assignedUserId, $groupId, $advanceId, $title, $amount, $currency]);
         $tapeId = (int)$db->lastInsertId();
@@ -232,7 +324,25 @@ function ql_advance_create(array $input): array
         ");
         $update->execute([$tapeId, $advanceId]);
 
+        if (function_exists('ql_audit_write')) {
+            ql_audit_write($userId, 'advance_issued', 'cash_advance', $advanceId, [
+                'group_id' => $groupId,
+                'assigned_to_user_id' => $assignedUserId,
+                'amount' => $amount,
+                'currency' => $currency,
+                'title' => $title,
+                'tape_id' => $tapeId
+            ]);
+        }
         $db->commit();
+        ql_on_the_go_journal_append('advance_issued', $userId, $tapeId, [
+            'group_id' => $groupId,
+            'advance_id' => $advanceId,
+            'assigned_to_user_id' => $assignedUserId,
+            'amount' => $amount,
+            'currency' => $currency,
+            'title' => $title,
+        ]);
 
         return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];
     } catch (Throwable $e) {
@@ -259,6 +369,7 @@ function ql_advance_list(array $input = []): array
     $where = "ca.deleted_at IS NULL";
     $scope = null;
 
+    $totalsOwnerUserId = null;
     if ($groupId > 0) {
         $scope = ql_advance_scope($groupId, $userId);
         if (!$scope) {
@@ -272,6 +383,7 @@ function ql_advance_list(array $input = []): array
             $where .= " AND ca.group_id = ? AND ca.assigned_to_user_id = ?";
             $params[] = $groupId;
             $params[] = $userId;
+            $totalsOwnerUserId = $userId;
         }
     } else {
         $where .= " AND ca.assigned_to_user_id = ?";
@@ -325,7 +437,81 @@ function ql_advance_list(array $input = []): array
             'can_moderate' => $scope['can_moderate'] ?? false,
             'can_manage_money' => $scope['can_manage_money'] ?? false,
         ],
-        'advances' => $advances
+        'advances' => $advances,
+        'totals' => $groupId > 0 ? ql_advance_totals($groupId, $totalsOwnerUserId) : null
+    ];
+}
+
+function ql_advance_detail(array $input): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $advanceId = (int)($input['id'] ?? $input['advance_id'] ?? 0);
+
+    if ($advanceId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_advance_id'];
+    }
+
+    $advance = ql_advance_visible_row($advanceId, $userId);
+    if (!$advance) {
+        return ['ok' => false, 'error' => 'advance_not_found'];
+    }
+
+    $groupId = (int)$advance['group_id'];
+    $scope = ql_advance_scope($groupId, $userId);
+    $isAssigned = (int)$advance['assigned_to_user_id'] === $userId;
+
+    if (!$isAssigned && (!$scope || !ql_advance_can_see_group($scope))) {
+        return ['ok' => false, 'error' => 'access_denied'];
+    }
+
+    $tapeId = (int)($advance['on_the_go_tape_id'] ?? 0);
+    $assignedUserId = (int)$advance['assigned_to_user_id'];
+    $items = [];
+
+    if ($tapeId > 0) {
+        $stmt = ql_db()->prepare("
+            SELECT
+                c.id,
+                c.user_id,
+                c.tape_id,
+                c.session_id,
+                c.capture_type,
+                c.amount,
+                c.currency,
+                c.description,
+                c.review_status,
+                c.reportable,
+                c.created_at,
+                c.updated_at,
+                s.session_type,
+                s.status AS session_status,
+                (
+                    SELECT COUNT(*)
+                    FROM on_the_go_files f
+                    WHERE f.capture_id = c.id
+                ) AS files_count
+            FROM on_the_go_captures c
+            LEFT JOIN on_the_go_sessions s ON s.id = c.session_id
+            WHERE c.user_id = ?
+              AND c.tape_id = ?
+              AND c.review_status <> 'archived'
+            ORDER BY c.created_at ASC, c.id ASC
+        ");
+        $stmt->execute([$assignedUserId, $tapeId]);
+        $items = $stmt->fetchAll();
+    }
+
+    return [
+        'ok' => true,
+        'scope' => [
+            'is_assigned' => $isAssigned,
+            'can_moderate' => $scope['can_moderate'] ?? false,
+            'can_manage_money' => $scope['can_manage_money'] ?? false,
+            'access_level' => $scope['access_level'] ?? null,
+        ],
+        'advance' => ql_advance_public($advance),
+        'items' => $items,
     ];
 }
 
@@ -406,6 +592,24 @@ function ql_advance_submit(array $input): array
         number_format($difference, 2, '.', ''),
         $tapeId,
         $userId
+    ]);
+
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write($userId, 'advance_submitted', 'cash_advance', $advanceId, [
+            'group_id' => (int)$advance['group_id'],
+            'status' => $nextStatus,
+            'expected_remaining' => number_format($expected, 2, '.', ''),
+            'actual_remaining' => number_format($actual, 2, '.', ''),
+            'difference_amount' => number_format($difference, 2, '.', '')
+        ]);
+    }
+    ql_on_the_go_journal_append('advance_submitted', $userId, $tapeId, [
+        'group_id' => (int)$advance['group_id'],
+        'advance_id' => $advanceId,
+        'status' => $nextStatus,
+        'expected_remaining' => number_format($expected, 2, '.', ''),
+        'actual_remaining' => number_format($actual, 2, '.', ''),
+        'difference_amount' => number_format($difference, 2, '.', ''),
     ]);
 
     return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];
@@ -532,6 +736,8 @@ function ql_advance_accept(array $input): array
     $db = ql_db();
     $entriesCreated = 0;
     $filesCopied = 0;
+    $rolloverAdvanceId = 0;
+    $rolloverTapeId = 0;
 
     try {
         $db->beginTransaction();
@@ -619,13 +825,97 @@ function ql_advance_accept(array $input): array
             $advanceId
         ]);
 
+        $remainingSource = $advance['actual_remaining'] ?? $advance['expected_remaining'] ?? null;
+        if ($remainingSource !== null) {
+            $remaining = round((float)$remainingSource, 2);
+        } else {
+            $summary = ql_advance_tape_summary($tapeId);
+            $remaining = round((float)($summary['cash_left'] ?? 0), 2);
+        }
+
+        if ($remaining > 0.009) {
+            $rolloverTitle = 'Остаток подотчета #' . $advanceId;
+            $rolloverTapeId = ql_on_the_go_seed_next_tape($assignedUserId, $groupId, $remaining, $tapeId);
+
+            $rolloverInsert = $db->prepare("
+                INSERT INTO cash_advances
+                    (group_id, issued_by_user_id, assigned_to_user_id, on_the_go_tape_id, title, amount, currency, status)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, 'issued')
+            ");
+            $rolloverInsert->execute([
+                $groupId,
+                (int)($advance['issued_by_user_id'] ?? $userId),
+                $assignedUserId,
+                $rolloverTapeId ?: null,
+                $rolloverTitle,
+                number_format($remaining, 2, '.', ''),
+                ql_advance_currency($advance['currency'] ?? 'EUR')
+            ]);
+            $rolloverAdvanceId = (int)$db->lastInsertId();
+
+            if ($rolloverTapeId > 0) {
+                $rolloverTapeUpdate = $db->prepare("
+                    UPDATE on_the_go_tapes
+                    SET advance_id = ?,
+                        title = ?,
+                        cash_received = ?,
+                        group_id = ?,
+                        updated_at = NOW()
+                    WHERE id = ?
+                      AND user_id = ?
+                    LIMIT 1
+                ");
+                $rolloverTapeUpdate->execute([
+                    $rolloverAdvanceId,
+                    $rolloverTitle,
+                    number_format($remaining, 2, '.', ''),
+                    $groupId,
+                    $rolloverTapeId,
+                    $assignedUserId
+                ]);
+            }
+        }
+
+        if (function_exists('ql_audit_write')) {
+            ql_audit_write($userId, 'advance_accepted', 'cash_advance', $advanceId, [
+                'group_id' => $groupId,
+                'assigned_to_user_id' => $assignedUserId,
+                'entries_created' => $entriesCreated,
+                'files_copied' => $filesCopied,
+                'rollover_advance_id' => $rolloverAdvanceId,
+                'rollover_tape_id' => $rolloverTapeId,
+                'rollover_amount' => $rolloverAdvanceId > 0 ? number_format($remaining, 2, '.', '') : null
+            ]);
+        }
         $db->commit();
+        ql_on_the_go_journal_append('advance_accepted', $userId, $tapeId, [
+            'group_id' => $groupId,
+            'advance_id' => $advanceId,
+            'assigned_to_user_id' => $assignedUserId,
+            'entries_created' => $entriesCreated,
+            'files_copied' => $filesCopied,
+            'rollover_advance_id' => $rolloverAdvanceId,
+            'rollover_tape_id' => $rolloverTapeId,
+        ]);
+
+        if ($rolloverAdvanceId > 0) {
+            ql_on_the_go_journal_append('advance_remainder_reserved', $userId, $rolloverTapeId, [
+                'group_id' => $groupId,
+                'source_advance_id' => $advanceId,
+                'advance_id' => $rolloverAdvanceId,
+                'assigned_to_user_id' => $assignedUserId,
+                'amount' => number_format($remaining, 2, '.', ''),
+            ]);
+        }
 
         return [
             'ok' => true,
             'advance' => ql_advance_public(ql_advance_row($advanceId)),
             'entries_created' => $entriesCreated,
-            'files_copied' => $filesCopied
+            'files_copied' => $filesCopied,
+            'rollover_advance_id' => $rolloverAdvanceId,
+            'rollover_tape_id' => $rolloverTapeId
         ];
     } catch (Throwable $e) {
         if ($db->inTransaction()) {
@@ -678,5 +968,572 @@ function ql_advance_return(array $input): array
         $advanceId
     ]);
 
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write($userId, 'advance_returned', 'cash_advance', $advanceId, [
+            'group_id' => (int)$advance['group_id'],
+            'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+            'note' => $note
+        ]);
+    }
+    ql_on_the_go_journal_append('advance_returned', $userId, (int)($advance['on_the_go_tape_id'] ?? 0), [
+        'group_id' => (int)$advance['group_id'],
+        'advance_id' => $advanceId,
+        'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+        'note' => $note,
+    ]);
+
     return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];
+}
+
+function ql_advance_unaccept(array $input): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $advanceId = (int)($input['id'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+
+    if ($advanceId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_advance_id'];
+    }
+    if (mb_strlen($note) > 5000) {
+        $note = mb_substr($note, 0, 5000);
+    }
+
+    $advance = ql_advance_visible_row($advanceId, $userId);
+    if (!$advance) {
+        return ['ok' => false, 'error' => 'advance_not_found'];
+    }
+
+    $groupId = (int)$advance['group_id'];
+    $assignedUserId = (int)$advance['assigned_to_user_id'];
+    $scope = ql_advance_scope($groupId, $userId);
+    if (!$scope || empty($scope['can_moderate'])) {
+        return ['ok' => false, 'error' => 'access_denied', 'required' => 'manager'];
+    }
+    if ((string)$advance['status'] !== 'accepted') {
+        return ['ok' => false, 'error' => 'invalid_advance_status'];
+    }
+
+    $tapeId = (int)($advance['on_the_go_tape_id'] ?? 0);
+    if ($tapeId <= 0) {
+        return ['ok' => false, 'error' => 'advance_tape_missing'];
+    }
+
+    $db = ql_db();
+    $moderationNote = $note !== '' ? $note : 'Возвращено из рабочего пакета на доработку';
+    $ledgerRowsArchived = 0;
+    $childClosed = null;
+
+    try {
+        $db->beginTransaction();
+
+        $lockStmt = $db->prepare("
+            SELECT *
+            FROM cash_advances
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $lockStmt->execute([$advanceId]);
+        $locked = $lockStmt->fetch();
+        if (!$locked) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'advance_not_found'];
+        }
+        if ((string)$locked['status'] !== 'accepted') {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'invalid_advance_status'];
+        }
+
+        $childStmt = $db->prepare("
+            SELECT ca.*
+            FROM cash_advances ca
+            WHERE ca.group_id = ?
+              AND ca.assigned_to_user_id = ?
+              AND ca.title = ?
+            ORDER BY ca.id DESC
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $childStmt->execute([$groupId, $assignedUserId, 'Остаток подотчета #' . $advanceId]);
+        $child = $childStmt->fetch();
+
+        if ($child) {
+            if (!empty($child['deleted_at']) || (string)$child['status'] === 'closed') {
+                $db->rollBack();
+                return [
+                    'ok' => false,
+                    'error' => 'advance_remainder_closed',
+                    'message' => 'Остаток этого подотчета уже закрыт или возвращен в кассу. Вернуть его на доработку можно только вручную после сверки кассы.',
+                    'followup_advance_id' => (int)$child['id'],
+                ];
+            }
+
+            $childTapeId = (int)($child['on_the_go_tape_id'] ?? 0);
+            $childRecords = 0;
+            if ($childTapeId > 0) {
+                $recordStmt = $db->prepare("
+                    SELECT COUNT(*)
+                    FROM on_the_go_captures
+                    WHERE tape_id = ?
+                      AND review_status <> 'archived'
+                ");
+                $recordStmt->execute([$childTapeId]);
+                $childRecords = (int)$recordStmt->fetchColumn();
+            }
+
+            if ($childRecords > 0 || !in_array((string)$child['status'], ['issued', 'returned'], true)) {
+                $db->rollBack();
+                return [
+                    'ok' => false,
+                    'error' => 'advance_has_followup',
+                    'message' => 'Сначала обработайте следующий подотчет #' . (int)$child['id'],
+                    'followup_advance_id' => (int)$child['id'],
+                ];
+            }
+
+            $closeChild = $db->prepare("
+                UPDATE cash_advances
+                SET status = 'closed',
+                    expected_remaining = 0,
+                    actual_remaining = 0,
+                    difference_amount = 0,
+                    moderation_note = ?,
+                    returned_by_user_id = ?,
+                    returned_at = NOW(),
+                    deleted_at = NOW()
+                WHERE id = ?
+                  AND deleted_at IS NULL
+                LIMIT 1
+            ");
+            $closeChild->execute(['Закрыто при возврате исходного подотчета #' . $advanceId, $userId, (int)$child['id']]);
+            $childClosed = (int)$child['id'];
+
+            if ($childTapeId > 0) {
+                $db->prepare("
+                    UPDATE on_the_go_sessions
+                    SET status = 'archived',
+                        closed_at = COALESCE(closed_at, NOW()),
+                        archived_at = COALESCE(archived_at, NOW())
+                    WHERE tape_id = ?
+                      AND status <> 'archived'
+                ")->execute([$childTapeId]);
+                $db->prepare("
+                    UPDATE on_the_go_tapes
+                    SET status = 'archived',
+                        actual_remaining = 0,
+                        difference_amount = 0,
+                        closed_at = COALESCE(closed_at, NOW()),
+                        archived_at = COALESCE(archived_at, NOW())
+                    WHERE id = ?
+                      AND status <> 'archived'
+                    LIMIT 1
+                ")->execute([$childTapeId]);
+            }
+        }
+
+        $ledgerUpdate = $db->prepare("
+            UPDATE ledger_entries
+            SET deleted_at = COALESCE(deleted_at, NOW()),
+                updated_at = NOW()
+            WHERE group_id = ?
+              AND deleted_at IS NULL
+              AND note LIKE ?
+        ");
+        $ledgerUpdate->execute([$groupId, 'From advance #' . $advanceId . ',%']);
+        $ledgerRowsArchived = $ledgerUpdate->rowCount();
+
+        $captureUpdate = $db->prepare("
+            UPDATE on_the_go_captures
+            SET review_status = 'needs_review',
+                reportable = 0,
+                updated_at = NOW()
+            WHERE tape_id = ?
+              AND review_status <> 'archived'
+              AND capture_type IN ('cash_in', 'cash_out', 'noncash_out')
+        ");
+        $captureUpdate->execute([$tapeId]);
+
+        ql_on_the_go_active_session_id($assignedUserId, $tapeId, 'cash');
+
+        $tapeUpdate = $db->prepare("
+            UPDATE on_the_go_tapes
+            SET status = 'active',
+                submitted_at = NULL,
+                actual_remaining = NULL,
+                difference_amount = NULL,
+                archived_at = NULL,
+                updated_at = NOW()
+            WHERE id = ?
+              AND user_id = ?
+            LIMIT 1
+        ");
+        $tapeUpdate->execute([$tapeId, $assignedUserId]);
+
+        $advanceUpdate = $db->prepare("
+            UPDATE cash_advances
+            SET status = 'returned',
+                expected_remaining = NULL,
+                actual_remaining = NULL,
+                difference_amount = NULL,
+                submitted_at = NULL,
+                accepted_by_user_id = NULL,
+                accepted_at = NULL,
+                moderation_note = ?,
+                returned_by_user_id = ?,
+                returned_at = NOW()
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $advanceUpdate->execute([$moderationNote, $userId, $advanceId]);
+
+        if (function_exists('ql_audit_write')) {
+            ql_audit_write($userId, 'advance_unaccepted', 'cash_advance', $advanceId, [
+                'group_id' => $groupId,
+                'assigned_to_user_id' => $assignedUserId,
+                'ledger_rows_archived' => $ledgerRowsArchived,
+                'child_closed' => $childClosed,
+                'note' => $note,
+            ]);
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return ['ok' => false, 'error' => 'advance_unaccept_failed', 'message' => $e->getMessage()];
+    }
+
+    ql_on_the_go_journal_append('advance_unaccepted', $userId, $tapeId, [
+        'group_id' => $groupId,
+        'advance_id' => $advanceId,
+        'assigned_to_user_id' => $assignedUserId,
+        'ledger_rows_archived' => $ledgerRowsArchived,
+        'child_closed' => $childClosed,
+        'note' => $note,
+    ]);
+
+    return [
+        'ok' => true,
+        'advance' => ql_advance_public(ql_advance_row($advanceId)),
+        'ledger_rows_archived' => $ledgerRowsArchived,
+        'child_closed' => $childClosed,
+    ];
+}
+
+function ql_advance_return_cash(array $input): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $advanceId = (int)($input['id'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+
+    if ($advanceId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_advance_id'];
+    }
+    if (mb_strlen($note) > 5000) {
+        $note = mb_substr($note, 0, 5000);
+    }
+
+    $advance = ql_advance_visible_row($advanceId, $userId);
+    if (!$advance) {
+        return ['ok' => false, 'error' => 'advance_not_found'];
+    }
+
+    $groupId = (int)$advance['group_id'];
+    $scope = ql_advance_scope($groupId, $userId);
+    if (!$scope || empty($scope['can_manage_money'])) {
+        return ['ok' => false, 'error' => 'access_denied', 'required' => 'advanced'];
+    }
+
+    $status = (string)$advance['status'];
+    if (!in_array($status, ['issued', 'returned'], true)) {
+        return ['ok' => false, 'error' => 'invalid_advance_status'];
+    }
+
+    $tapeId = (int)($advance['on_the_go_tape_id'] ?? 0);
+    $summary = $tapeId > 0 ? ql_advance_tape_summary($tapeId) : [
+        'cash_left' => round((float)($advance['amount'] ?? 0), 2),
+        'records_count' => 0,
+    ];
+    if ((int)($summary['records_count'] ?? 0) > 0) {
+        return ['ok' => false, 'error' => 'advance_has_records'];
+    }
+
+    $returnedAmount = round((float)($summary['cash_left'] ?? $advance['amount'] ?? 0), 2);
+    if ($returnedAmount <= 0.009) {
+        return ['ok' => false, 'error' => 'empty_cash_remainder'];
+    }
+
+    $db = ql_db();
+    $moderationNote = $note !== '' ? $note : ('Остаток возвращен в кассу: ' . number_format($returnedAmount, 2, '.', '') . ' EUR');
+
+    try {
+        $db->beginTransaction();
+
+        $lockStmt = $db->prepare("
+            SELECT id, status
+            FROM cash_advances
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $lockStmt->execute([$advanceId]);
+        $locked = $lockStmt->fetch();
+        if (!$locked) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'advance_not_found'];
+        }
+        if (!in_array((string)$locked['status'], ['issued', 'returned'], true)) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'invalid_advance_status'];
+        }
+
+        if ($tapeId > 0) {
+            $recordStmt = $db->prepare("
+                SELECT COUNT(*)
+                FROM on_the_go_captures
+                WHERE tape_id = ?
+                  AND review_status <> 'archived'
+            ");
+            $recordStmt->execute([$tapeId]);
+            if ((int)$recordStmt->fetchColumn() > 0) {
+                $db->rollBack();
+                return ['ok' => false, 'error' => 'advance_has_records'];
+            }
+        }
+
+        $advanceUpdate = $db->prepare("
+            UPDATE cash_advances
+            SET status = 'closed',
+                expected_remaining = 0,
+                actual_remaining = 0,
+                difference_amount = 0,
+                moderation_note = ?,
+                returned_by_user_id = ?,
+                returned_at = NOW(),
+                deleted_at = NOW()
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $advanceUpdate->execute([$moderationNote, $userId, $advanceId]);
+
+        if ($tapeId > 0) {
+            $sessionUpdate = $db->prepare("
+                UPDATE on_the_go_sessions
+                SET status = 'archived',
+                    closed_at = COALESCE(closed_at, NOW()),
+                    archived_at = COALESCE(archived_at, NOW())
+                WHERE tape_id = ?
+                  AND status <> 'archived'
+            ");
+            $sessionUpdate->execute([$tapeId]);
+
+            $tapeUpdate = $db->prepare("
+                UPDATE on_the_go_tapes
+                SET status = 'archived',
+                    actual_remaining = 0,
+                    difference_amount = 0,
+                    closed_at = COALESCE(closed_at, NOW()),
+                    archived_at = COALESCE(archived_at, NOW())
+                WHERE id = ?
+                  AND status <> 'archived'
+                LIMIT 1
+            ");
+            $tapeUpdate->execute([$tapeId]);
+        }
+
+        if (function_exists('ql_audit_write')) {
+            ql_audit_write($userId, 'advance_cash_returned', 'cash_advance', $advanceId, [
+                'group_id' => $groupId,
+                'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+                'amount_returned' => number_format($returnedAmount, 2, '.', ''),
+                'currency' => (string)($advance['currency'] ?? 'EUR'),
+                'previous_status' => $status,
+                'note' => $note,
+            ]);
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return ['ok' => false, 'error' => 'advance_return_cash_failed', 'message' => $e->getMessage()];
+    }
+
+    ql_on_the_go_journal_append('advance_cash_returned', $userId, $tapeId, [
+        'group_id' => $groupId,
+        'advance_id' => $advanceId,
+        'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+        'amount_returned' => number_format($returnedAmount, 2, '.', ''),
+        'currency' => (string)($advance['currency'] ?? 'EUR'),
+        'previous_status' => $status,
+        'note' => $note,
+    ]);
+
+    return [
+        'ok' => true,
+        'cash_returned' => true,
+        'advance_id' => $advanceId,
+        'tape_id' => $tapeId,
+        'amount_returned' => $returnedAmount,
+        'currency' => (string)($advance['currency'] ?? 'EUR'),
+    ];
+}
+
+function ql_advance_cancel(array $input): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $advanceId = (int)($input['id'] ?? 0);
+    $reason = trim((string)($input['reason'] ?? $input['note'] ?? ''));
+
+    if ($advanceId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_advance_id'];
+    }
+    if ($reason === '') {
+        return ['ok' => false, 'error' => 'empty_cancel_reason'];
+    }
+    if (mb_strlen($reason) > 5000) {
+        $reason = mb_substr($reason, 0, 5000);
+    }
+
+    $advance = ql_advance_visible_row($advanceId, $userId);
+    if (!$advance) {
+        return ['ok' => false, 'error' => 'advance_not_found'];
+    }
+
+    $scope = ql_advance_scope((int)$advance['group_id'], $userId);
+    if (!$scope || empty($scope['can_manage_money'])) {
+        return ['ok' => false, 'error' => 'access_denied', 'required' => 'advanced'];
+    }
+
+    $status = (string)$advance['status'];
+    if (in_array($status, ['accepted', 'closed'], true)) {
+        return ['ok' => false, 'error' => 'cannot_cancel_final_advance'];
+    }
+    if (!in_array($status, ['issued', 'submitted', 'returned', 'discrepancy'], true)) {
+        return ['ok' => false, 'error' => 'invalid_advance_status'];
+    }
+
+    $tapeId = (int)($advance['on_the_go_tape_id'] ?? 0);
+    $note = 'Отмена выдачи: ' . $reason;
+    if (mb_strlen($note) > 5000) {
+        $note = mb_substr($note, 0, 5000);
+    }
+
+    $db = ql_db();
+
+    try {
+        $db->beginTransaction();
+
+        $lockStmt = $db->prepare("
+            SELECT id, status
+            FROM cash_advances
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $lockStmt->execute([$advanceId]);
+        $locked = $lockStmt->fetch();
+        if (!$locked) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'advance_not_found'];
+        }
+
+        $lockedStatus = (string)$locked['status'];
+        if (in_array($lockedStatus, ['accepted', 'closed'], true)) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'cannot_cancel_final_advance'];
+        }
+        if (!in_array($lockedStatus, ['issued', 'submitted', 'returned', 'discrepancy'], true)) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'invalid_advance_status'];
+        }
+
+        $advanceUpdate = $db->prepare("
+            UPDATE cash_advances
+            SET status = 'closed',
+                moderation_note = ?,
+                returned_by_user_id = ?,
+                returned_at = NOW(),
+                deleted_at = NOW()
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $advanceUpdate->execute([$note, $userId, $advanceId]);
+
+        if ($tapeId > 0) {
+            $captureUpdate = $db->prepare("
+                UPDATE on_the_go_captures
+                SET review_status = 'archived',
+                    updated_at = NOW()
+                WHERE tape_id = ?
+                  AND review_status = 'needs_review'
+            ");
+            $captureUpdate->execute([$tapeId]);
+
+            $sessionUpdate = $db->prepare("
+                UPDATE on_the_go_sessions
+                SET status = 'archived',
+                    closed_at = COALESCE(closed_at, NOW()),
+                    archived_at = COALESCE(archived_at, NOW())
+                WHERE tape_id = ?
+                  AND status <> 'archived'
+            ");
+            $sessionUpdate->execute([$tapeId]);
+
+            $tapeUpdate = $db->prepare("
+                UPDATE on_the_go_tapes
+                SET status = 'archived',
+                    closed_at = COALESCE(closed_at, NOW()),
+                    archived_at = COALESCE(archived_at, NOW())
+                WHERE id = ?
+                  AND status <> 'archived'
+                LIMIT 1
+            ");
+            $tapeUpdate->execute([$tapeId]);
+        }
+
+        if (function_exists('ql_audit_write')) {
+            ql_audit_write($userId, 'advance_cancelled', 'cash_advance', $advanceId, [
+                'group_id' => (int)$advance['group_id'],
+                'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+                'amount' => (string)($advance['amount'] ?? ''),
+                'currency' => (string)($advance['currency'] ?? 'EUR'),
+                'reason' => $reason,
+                'previous_status' => $status
+            ]);
+        }
+        $db->commit();
+        ql_on_the_go_journal_append('advance_cancelled', $userId, $tapeId, [
+            'group_id' => (int)$advance['group_id'],
+            'advance_id' => $advanceId,
+            'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+            'amount' => (string)($advance['amount'] ?? ''),
+            'currency' => (string)($advance['currency'] ?? 'EUR'),
+            'reason' => $reason,
+            'previous_status' => $status,
+        ]);
+
+        return [
+            'ok' => true,
+            'cancelled' => true,
+            'advance_id' => $advanceId,
+            'reason' => $reason
+        ];
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return ['ok' => false, 'error' => 'advance_cancel_failed', 'message' => $e->getMessage()];
+    }
 }

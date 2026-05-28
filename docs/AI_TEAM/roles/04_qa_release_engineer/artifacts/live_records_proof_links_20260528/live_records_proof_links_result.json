@@ -1,0 +1,551 @@
+{
+  "ok": true,
+  "run_id": "20260528LIVEPROOFLINKSQA01",
+  "ids": {
+    "run_id": "20260528LIVEPROOFLINKSQA01",
+    "base_url": "https://finance.brkovic.ltd",
+    "admin_user_id": 68,
+    "member_user_id": 69,
+    "group_id": 31,
+    "tape_id": 95,
+    "capture_id": 151,
+    "proof_bundle_id": "qa-proof-bundle-20260528LIVEPROOFLINKSQA01",
+    "image_file_id": 20,
+    "pdf_file_id": 21,
+    "member_file_ids": [
+      20,
+      21
+    ],
+    "admin_file_ids": [
+      20,
+      21
+    ]
+  },
+  "checks": [
+    {
+      "status": "PASS",
+      "message": "auth code supplied for admin"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code admin"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code supplied for member"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code member"
+    },
+    {
+      "status": "PASS",
+      "message": "admin created production group"
+    },
+    {
+      "status": "PASS",
+      "message": "admin created member invite"
+    },
+    {
+      "status": "PASS",
+      "message": "member joined group"
+    },
+    {
+      "status": "PASS",
+      "message": "member created Live Report card"
+    },
+    {
+      "status": "PASS",
+      "message": "member created record with proof target"
+    },
+    {
+      "status": "PASS",
+      "message": "member uploaded image proof"
+    },
+    {
+      "status": "PASS",
+      "message": "member uploaded PDF proof"
+    },
+    {
+      "status": "PASS",
+      "message": "member submitted Live Report card to group admin"
+    },
+    {
+      "status": "PASS",
+      "message": "owner card detail shows files_count=2"
+    },
+    {
+      "status": "PASS",
+      "message": "admin card detail for employee shows files_count=2"
+    },
+    {
+      "status": "PASS",
+      "message": "owner file_list returns two visible proof links"
+    },
+    {
+      "status": "PASS",
+      "message": "admin file_list returns two employee proof links"
+    },
+    {
+      "status": "PASS",
+      "message": "member opens pdf proof file 21"
+    },
+    {
+      "status": "PASS",
+      "message": "member PDF is inline/new-tab compatible"
+    },
+    {
+      "status": "PASS",
+      "message": "member opens image proof file 20"
+    },
+    {
+      "status": "PASS",
+      "message": "member image is inline/new-tab compatible"
+    },
+    {
+      "status": "PASS",
+      "message": "admin opens pdf proof file 21"
+    },
+    {
+      "status": "PASS",
+      "message": "admin PDF is inline/new-tab compatible"
+    },
+    {
+      "status": "PASS",
+      "message": "admin opens image proof file 20"
+    },
+    {
+      "status": "PASS",
+      "message": "admin image is inline/new-tab compatible"
+    },
+    {
+      "status": "PASS",
+      "message": "anonymous proof download is denied"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 browser session is authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 card row renders two proof controls"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 card modal has close control"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 image opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 image viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 PDF opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 pdf viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "member mobile390x844 records state recoverable after refresh"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 browser session is authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 card row renders two proof controls"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 card modal has close control"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 image opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 image viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 PDF opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 pdf viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "member tablet820x1180 records state recoverable after refresh"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 browser session is authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 card row renders two proof controls"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 card modal has close control"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 image opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 image viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 PDF opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 pdf viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "member desktop1440x900 records state recoverable after refresh"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 browser session is authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 card row renders two proof controls"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 card modal has close control"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 image opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 image viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 PDF opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 pdf viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 records state recoverable after refresh"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 browser session is authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 card row renders two proof controls"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 card modal has close control"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 image opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 image viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 PDF opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 pdf viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "admin tablet820x1180 records state recoverable after refresh"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 browser session is authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 card row renders two proof controls"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 card modal has close control"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 image opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 image viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 PDF opens inline viewer"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 pdf viewer keeps new-tab escape link"
+    },
+    {
+      "status": "PASS",
+      "message": "admin desktop1440x900 records state recoverable after refresh"
+    }
+  ],
+  "defects": [
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member mobile390x844 stream gate overlays records list and can intercept card clicks",
+      "evidence": {
+        "tape_id": 95
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member mobile390x844 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": true,
+        "frame": false,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=20"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member mobile390x844 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": false,
+        "frame": true,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=21"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member tablet820x1180 stream gate overlays records list and can intercept card clicks",
+      "evidence": {
+        "tape_id": 95
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member tablet820x1180 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": true,
+        "frame": false,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=20"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member tablet820x1180 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": false,
+        "frame": true,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=21"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member desktop1440x900 stream gate overlays records list and can intercept card clicks",
+      "evidence": {
+        "tape_id": 95
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member desktop1440x900 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": true,
+        "frame": false,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=20"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "member desktop1440x900 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": false,
+        "frame": true,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=21"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin mobile390x844 records list does not show target card before direct open",
+      "evidence": {
+        "tape_id": 95
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin mobile390x844 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": true,
+        "frame": false,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=20"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin mobile390x844 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": false,
+        "frame": true,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=21"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin tablet820x1180 records list does not show target card before direct open",
+      "evidence": {
+        "tape_id": 95
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin tablet820x1180 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": true,
+        "frame": false,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=20"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin tablet820x1180 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": false,
+        "frame": true,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=21"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin desktop1440x900 records list does not show target card before direct open",
+      "evidence": {
+        "tape_id": 95
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin desktop1440x900 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": true,
+        "frame": false,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=20"
+      }
+    },
+    {
+      "severity": "non-blocker",
+      "owner": "Frontend/UX",
+      "title": "admin desktop1440x900 proof viewer new-tab link also has download attribute",
+      "evidence": {
+        "img": false,
+        "frame": true,
+        "linkTarget": "_blank",
+        "linkRel": "noopener",
+        "linkDownload": true,
+        "openHref": "/api.php?action=on_the_go_file_download&id=21"
+      }
+    }
+  ],
+  "screenshots": [
+    "member-mobile390x844-records-list.png",
+    "member-mobile390x844-card-detail.png",
+    "member-mobile390x844-image-viewer.png",
+    "member-mobile390x844-pdf-viewer.png",
+    "member-tablet820x1180-records-list.png",
+    "member-tablet820x1180-card-detail.png",
+    "member-tablet820x1180-image-viewer.png",
+    "member-tablet820x1180-pdf-viewer.png",
+    "member-desktop1440x900-records-list.png",
+    "member-desktop1440x900-card-detail.png",
+    "member-desktop1440x900-image-viewer.png",
+    "member-desktop1440x900-pdf-viewer.png",
+    "admin-mobile390x844-records-list.png",
+    "admin-mobile390x844-card-detail.png",
+    "admin-mobile390x844-image-viewer.png",
+    "admin-mobile390x844-pdf-viewer.png",
+    "admin-tablet820x1180-records-list.png",
+    "admin-tablet820x1180-card-detail.png",
+    "admin-tablet820x1180-image-viewer.png",
+    "admin-tablet820x1180-pdf-viewer.png",
+    "admin-desktop1440x900-records-list.png",
+    "admin-desktop1440x900-card-detail.png",
+    "admin-desktop1440x900-image-viewer.png",
+    "admin-desktop1440x900-pdf-viewer.png"
+  ],
+  "generated_at": "2026-05-28T15:52:03.775Z"
+}

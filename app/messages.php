@@ -11,6 +11,27 @@ function ql_message_require_group_member(int $groupId, int $userId): ?array
     return ql_group_membership($groupId, $userId);
 }
 
+function ql_message_can_use_group_messages(?array $membership): bool
+{
+    if (!$membership) {
+        return false;
+    }
+
+    $permissions = $membership['permissions'] ?? [];
+    if (!is_array($permissions)) {
+        $permissions = [];
+    }
+    $accessLevel = (string)($membership['access_level'] ?? 'base');
+    $role = (string)($membership['role'] ?? '');
+
+    return $role === 'admin'
+        || in_array($accessLevel, ['manager', 'advanced'], true)
+        || !empty($permissions['can_moderate'])
+        || !empty($permissions['can_view_group_reports'])
+        || !empty($permissions['can_manage_money'])
+        || !empty($permissions['can_manage_members']);
+}
+
 function ql_message_send(array $input): array
 {
     $user = ql_require_user();
@@ -22,8 +43,12 @@ function ql_message_send(array $input): array
         return ['ok' => false, 'error' => 'invalid_group_id'];
     }
 
-    if (!ql_message_require_group_member($groupId, (int)$user['id'])) {
+    $membership = ql_message_require_group_member($groupId, (int)$user['id']);
+    if (!$membership) {
         return ['ok' => false, 'error' => 'not_group_member'];
+    }
+    if (!ql_message_can_use_group_messages($membership)) {
+        return ['ok' => false, 'error' => 'access_denied'];
     }
 
     if ($text === '') {
@@ -96,8 +121,12 @@ function ql_message_list(array $input): array
         return ['ok' => false, 'error' => 'invalid_group_id'];
     }
 
-    if (!ql_message_require_group_member($groupId, (int)$user['id'])) {
+    $membership = ql_message_require_group_member($groupId, (int)$user['id']);
+    if (!$membership) {
         return ['ok' => false, 'error' => 'not_group_member'];
+    }
+    if (!ql_message_can_use_group_messages($membership)) {
+        return ['ok' => false, 'error' => 'access_denied'];
     }
 
     $stmt = ql_db()->prepare("
@@ -141,6 +170,10 @@ function ql_message_unread(array $input = []): array
             u.email AS sender_email,
             gm.message_text,
             gm.created_at
+            ,
+            current_member.role AS member_role_for_scope,
+            current_member.access_level AS member_access_level_for_scope,
+            current_member.permissions_json AS member_permissions_json_for_scope
         FROM group_messages gm
         JOIN groups g ON g.id = gm.group_id
         JOIN group_members current_member
@@ -158,7 +191,20 @@ function ql_message_unread(array $input = []): array
     ");
     $stmt->execute([(int)$user['id'], (int)$user['id'], (int)$user['id']]);
 
-    $messages = $stmt->fetchAll();
+    $messages = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $membership = [
+            'role' => (string)($row['member_role_for_scope'] ?? ''),
+            'access_level' => (string)($row['member_access_level_for_scope'] ?? 'base'),
+            'permissions_json' => (string)($row['member_permissions_json_for_scope'] ?? ''),
+        ];
+        $membership = ql_group_member_public($membership);
+        if (!ql_message_can_use_group_messages($membership)) {
+            continue;
+        }
+        unset($row['member_role_for_scope'], $row['member_access_level_for_scope'], $row['member_permissions_json_for_scope']);
+        $messages[] = $row;
+    }
 
     return [
         'ok' => true,
@@ -177,8 +223,12 @@ function ql_message_mark_read(array $input): array
         return ['ok' => false, 'error' => 'invalid_group_id'];
     }
 
-    if (!ql_message_require_group_member($groupId, (int)$user['id'])) {
+    $membership = ql_message_require_group_member($groupId, (int)$user['id']);
+    if (!$membership) {
         return ['ok' => false, 'error' => 'not_group_member'];
+    }
+    if (!ql_message_can_use_group_messages($membership)) {
+        return ['ok' => false, 'error' => 'access_denied'];
     }
 
     $stmt = ql_db()->prepare("

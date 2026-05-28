@@ -1,0 +1,125 @@
+{
+  "ok": false,
+  "run_id": "20260528RECORDSRECHECK03",
+  "ids": {
+    "run_id": "20260528RECORDSRECHECK03",
+    "target": "local frontend assets + production API proxy",
+    "admin_user_id": 78,
+    "member_user_id": 79,
+    "base_user_id": 80,
+    "group_id": 34,
+    "tape_id": 101,
+    "capture_id": 154,
+    "proof_bundle_id": "qa-recheck-bundle-20260528RECORDSRECHECK03",
+    "image_file_id": 26,
+    "pdf_file_id": 27
+  },
+  "checks": [
+    {
+      "status": "PASS",
+      "message": "auth code supplied for admin"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code admin"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code supplied for member"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code member"
+    },
+    {
+      "status": "PASS",
+      "message": "auth code supplied for base"
+    },
+    {
+      "status": "PASS",
+      "message": "verify_code base"
+    },
+    {
+      "status": "PASS",
+      "message": "admin created group"
+    },
+    {
+      "status": "PASS",
+      "message": "admin invited member"
+    },
+    {
+      "status": "PASS",
+      "message": "member joined as base"
+    },
+    {
+      "status": "PASS",
+      "message": "admin invited base"
+    },
+    {
+      "status": "PASS",
+      "message": "base joined as base"
+    },
+    {
+      "status": "PASS",
+      "message": "member created Live Report card"
+    },
+    {
+      "status": "PASS",
+      "message": "member created record"
+    },
+    {
+      "status": "PASS",
+      "message": "member uploaded image proof"
+    },
+    {
+      "status": "PASS",
+      "message": "member uploaded PDF proof"
+    },
+    {
+      "status": "PASS",
+      "message": "member submitted card to FinDesk"
+    },
+    {
+      "status": "PASS",
+      "message": "admin API card_list with group_id sees employee card"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee API card_list does not expose other employee card"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee cannot open other employee card detail"
+    },
+    {
+      "status": "PASS",
+      "message": "base employee cannot list other employee proof files"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 local frontend proxy authenticated"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 ordinary records list shows employee card without direct-open fallback"
+    },
+    {
+      "status": "PASS",
+      "message": "admin mobile390x844 records list is not covered by stream gate"
+    }
+  ],
+  "blockers": [],
+  "defects": [],
+  "browser_diagnostics": [
+    {
+      "role": "admin",
+      "label": "mobile390x844",
+      "console": [],
+      "pageerror": [],
+      "requestfailed": []
+    }
+  ],
+  "error": "page.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-otr-card-open=\"101\"]')\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-otr-card-open=\"101\" class=\"otr-report-card-main\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+  "context": {},
+  "generated_at": "2026-05-28T16:08:04.431Z"
+}

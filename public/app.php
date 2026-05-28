@@ -1,3 +1,7 @@
+<?php
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,21 +11,26 @@
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#f6f8fb">
   <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="FinDesk">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<link rel="stylesheet" href="/assets/app.css?v=20260520-09">
+  <link rel="stylesheet" href="/assets/app.css?v=20260528-records-scroll1">
 </head>
 <body>
   <main class="ql-shell app-shell">
     <section class="hero-card glass">
-      <div class="brand-pill"><span data-i18n="app.brand">FinDesk · brkovic.ltd</span><span class="brand-dot"></span><span data-i18n="app.secure">secure finance web app</span></div>
+      <div class="brand-pill">
+        <img class="brand-mark" src="/assets/brand-mark.png?v=20260522-106" alt="FinDesk" width="28" height="28">
+        <span data-i18n="app.brand">FinDesk · brkovic.ltd</span><span class="brand-dot"></span><span data-i18n="app.secure">secure finance web app</span>
+      </div>
 
-      <div class="language-strip glass-soft">
+      <div class="language-strip glass-soft" data-language-strip>
         <div class="language-strip-copy">
           <span data-i18n="language.detected">Language</span>
           <b data-detected-language>English</b>
@@ -39,6 +48,7 @@
             <option value="zh">中文（普通话）</option>
           </select>
         </label>
+        <button class="language-close" type="button" data-language-close aria-label="Close language notice">×</button>
       </div>
 
       <div id="authStateLoading">
@@ -46,88 +56,110 @@
         <p class="lead" data-i18n="auth.loadingLead">Checking your session…</p>
       </div>
 
-      <div id="loginPanel" class="auth-panel hidden">
-        <h1 data-i18n="auth.signInTitle">Sign in</h1>
-        <p class="lead" data-i18n="auth.signInLead">Enter your email. We will send a 6-digit code.</p>
+        <div id="loginPanel" class="auth-panel hidden">
+        <h1 data-i18n="auth.signInTitle">FinDesk access code</h1>
+        <p class="lead" data-i18n="auth.signInLead">Enter your email and receive a 6-digit code to open FinDesk.</p>
 
         <label class="form-label" for="loginEmail" data-i18n="auth.email">Email</label>
-        <input id="loginEmail" class="ql-input" type="email" placeholder="you@example.com" autocomplete="email">
+        <input id="loginEmail" class="ql-input" type="email" data-i18n-placeholder="auth.placeholder.email" placeholder="email@example.com" autocomplete="email">
 
-        <button id="sendCodeBtn" class="primary-btn wide-btn" type="button" data-i18n="auth.sendCode">Send code</button>
+        <button id="sendCodeBtn" class="primary-btn wide-btn" type="button" data-i18n="auth.sendCode">Get code</button>
 
         <div id="codeBlock" class="code-block hidden">
           <label class="form-label" for="loginCode" data-i18n="auth.code">Code</label>
-          <input id="loginCode" class="ql-input code-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="000000">
-          <button id="verifyCodeBtn" class="primary-btn wide-btn" type="button" data-i18n="auth.verify">Verify and enter</button>
+        <input id="loginCode" class="ql-input code-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" data-i18n-placeholder="auth.placeholder.code" placeholder="6 digits">
+          <button id="verifyCodeBtn" class="primary-btn wide-btn" type="button" data-i18n="auth.verify">Verify code</button>
         </div>
 
         <p id="authMessage" class="soft-note"></p>
       </div>
 
       <div id="userPanel" class="auth-panel hidden">
-        <h1 data-i18n="auth.welcomeTitle">Welcome</h1>
-        <p class="lead" data-i18n="auth.welcomeLead">You are signed in. This session should stay after reload.</p>
-
-        <div class="user-card">
-          <div class="user-avatar">FD</div>
-          <div>
-            <div id="userName" class="user-name">User</div>
-            <div id="userEmail" class="user-email"></div>
-          </div>
-        </div>
-          <nav class="module-nav glass-soft" aria-label="FinDesk modules">
-            <button class="module-tab" type="button" data-module-tab="ontherun" data-i18n="nav.ontherun">На бегу</button>
-            <button class="module-tab" type="button" data-module-tab="captain" data-i18n="nav.captain">FinDesk</button>
-            <button class="module-tab" type="button" data-module-tab="money" data-i18n="nav.advanced">Advanced</button>
-            <button class="module-tab active" type="button" data-module-tab="ledger" data-i18n="nav.ledger">Учет</button>
-            <button class="module-tab" type="button" data-module-tab="premium" data-i18n="nav.premium">Premium</button>
-            <button class="module-tab" type="button" data-module-tab="reports" data-i18n="nav.reports">Отчеты</button>
-            <button class="module-tab" type="button" data-module-tab="groups" data-i18n="nav.groups">Группы</button>
-            <button class="module-tab" type="button" data-module-tab="business" data-i18n="nav.business">Бизнес</button>
-            <button class="module-tab" type="button" data-module-tab="settings" data-i18n="nav.settings">Настройки</button>
+          <nav class="module-nav module-nav-menu-only glass-soft" aria-label="FinDesk modules">
+            <div class="module-menu">
+              <button class="module-tab module-menu-toggle" type="button" data-module-menu-toggle aria-expanded="false">
+                <span>Меню</span>
+                <b data-module-menu-current>Живой отчет</b>
+              </button>
+              <div class="module-menu-panel hidden" data-module-menu-panel>
+                <section class="module-menu-group">
+                  <span>Работа</span>
+                  <button class="module-menu-item active" type="button" data-module-tab="ontherun">Живые отчеты</button>
+                  <button class="module-menu-item" type="button" data-module-tab="captain">Проверка отчетов</button>
+                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="overview">Деньги на руках</button>
+                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="advances">Подотчеты</button>
+                  <button class="module-menu-item" type="button" data-module-tab="ledger">Открытый учет</button>
+                </section>
+                <section class="module-menu-group">
+                  <span>Отчетность</span>
+                  <button class="module-menu-item" type="button" data-module-tab="reports">Сводка отчета</button>
+                  <button class="module-menu-item" type="button" data-module-tab="captain" data-module-focus="archive">Архив отчетов</button>
+                </section>
+                <section class="module-menu-group">
+                  <span>Аналитика</span>
+                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="ai">AI-анализ</button>
+                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="audit">AI-аудит</button>
+                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="overview">Статистика</button>
+                </section>
+                <section class="module-menu-group">
+                  <span>Управление</span>
+                  <button class="module-menu-item" type="button" data-module-tab="groups">Сотрудники и группы</button>
+                  <button class="module-menu-item" type="button" data-module-tab="business">Бизнес</button>
+                </section>
+                <section class="module-menu-group">
+                  <span>Система</span>
+                  <button class="module-menu-item" type="button" data-module-tab="premium">Premium</button>
+                  <button class="module-menu-item" type="button" data-module-tab="settings">Настройки</button>
+                </section>
+              </div>
+            </div>
           </nav>
 
-          <section class="mode-ladder glass-soft">
-            <div class="mode-ladder-head">
-              <h2 data-i18n="modes.title">Три рабочих слоя</h2>
-            </div>
-            <div class="mode-card-grid">
-              <button class="mode-card ontherun" type="button" data-mode-open="ontherun">
-                <span>01</span>
-                <b data-i18n="modes.ontherunTitle">На бегу</b>
-                <small data-i18n="modes.ontherunText">Минимум на экране: получил, потратил, осталось. Отправка только когда реальный остаток совпал.</small>
-              </button>
-              <button class="mode-card captain" type="button" data-mode-open="captain">
-                <span>02</span>
-                <b data-i18n="modes.captainTitle">FinDesk</b>
-                <small data-i18n="modes.captainText">Средний слой для менеджеров: чистые отчеты, сданные записи и контекст модерации.</small>
-              </button>
-              <button class="mode-card advanced" type="button" data-mode-open="money">
-                <span>03</span>
-                <b data-i18n="modes.advancedTitle">Advanced</b>
-                <small data-i18n="modes.advancedText">Слой организатора: группы, выданные деньги, модерация и расширенные инструменты.</small>
-              </button>
-            </div>
-          </section>
-
-          <div id="moduleLedger" class="ql-module active" data-module="ledger">
+          <div id="moduleLedger" class="ql-module hidden" data-module="ledger">
 
         <section class="ledger-stack">
           <div class="result-card glass-soft">
             <button id="ledgerResultBtn" class="result-button" type="button">
-              <span>Current balance</span>
+              <span id="ledgerBalanceLabel">Учетный баланс</span>
               <strong id="ledgerBalance">€0.00</strong>
             </button>
             <div class="mini-results">
-              <span>Income: <b id="ledgerIncome">€0.00</b></span>
-              <span>Expense: <b id="ledgerExpense">€0.00</b></span>
+              <span>Приход: <b id="ledgerIncome">€0.00</b></span>
+              <span>Расход: <b id="ledgerExpense">€0.00</b></span>
             </div>
 
-            <div id="reportPanel" class="report-panel hidden">
+              <div id="reportPanel" class="report-panel hidden">
+                <section class="report-final-card report-current-period-card">
+                  <div class="advance-panel-head">
+                    <h3>Текущий период</h3>
+                    <span>Открытый период · Excel / Google / фиксация</span>
+                  </div>
+                  <p class="soft-note tight-note">Показывает текущий открытый период: переходящий остаток из финального отчета и новые движения после закрытия.</p>
+                  <div class="report-actions">
+                    <button id="advancedExcelExportBtn" class="primary-btn wide-btn" type="button">Экспорт текущего периода</button>
+                    <button id="advancedFinalizeReportBtn" class="ghost-btn wide-btn" type="button">Зафиксировать отчет</button>
+                  </div>
+                  <p id="advancedFinalizeStatus" class="soft-note tight-note"></p>
+                </section>
+
+                <section class="report-history-panel" aria-labelledby="finalReportsTitle">
+                  <div class="advance-panel-head">
+                    <h3 id="finalReportsTitle">Закрытые финальные отчеты</h3>
+                    <span>Полный архив по report_id</span>
+                  </div>
+                  <div id="finalReportsList" class="final-reports-list">
+                    <p class="soft-note tight-note">Выберите группу, чтобы увидеть закрытые финальные отчеты.</p>
+                  </div>
+                  <div id="finalReportDetail" class="final-report-detail">
+                    <p class="soft-note tight-note">Откройте закрытый групповой отчет, чтобы увидеть пакет отчета и доказательства.</p>
+                  </div>
+                  <p id="finalReportStatus" class="soft-note tight-note"></p>
+                </section>
+
               <div class="report-tabs">
-                <button class="report-tab active" type="button" data-report-period="today">Today</button>
-                <button class="report-tab" type="button" data-report-period="month">Month</button>
-                <button class="report-tab" type="button" data-report-period="custom">Custom</button>
+                <button class="report-tab active" type="button" data-report-period="today">Сегодня</button>
+                <button class="report-tab" type="button" data-report-period="month">Месяц</button>
+                <button class="report-tab" type="button" data-report-period="custom">Период</button>
               </div>
 
               <div id="customPeriod" class="custom-period hidden">
@@ -135,83 +167,259 @@
                 <input id="reportTo" class="ql-input" type="date">
               </div>
 
-              <label class="form-label" for="remainingAmount">Remaining at period end</label>
-              <input id="remainingAmount" class="ql-input" type="text" inputmode="decimal" placeholder="Optional">
+              <label class="form-label" for="remainingAmount">Фактический остаток на конец периода</label>
+              <input id="remainingAmount" class="ql-input" type="text" inputmode="decimal" placeholder="Необязательно">
 
-              <button id="runReportBtn" class="ghost-btn wide-btn" type="button">Calculate report</button>
+              <div class="report-actions">
+                <button id="runReportBtn" class="ghost-btn wide-btn" type="button">Рассчитать сводку</button>
+                <button id="printReportBtn" class="primary-btn wide-btn" type="button">Печать / PDF</button>
+              </div>
 
               <div id="reportOutput" class="report-output">
-                <p class="soft-note">Choose a period and calculate.</p>
+                <p class="soft-note">Выберите период и рассчитайте сводку.</p>
               </div>
             </div>
           </div>
 
           <div class="ledger-feed-card glass-soft">
             <div class="feed-head">
-              <h2>Entries</h2>
-              <span id="ledgerCount">0 records</span>
+              <h2 id="ledgerFeedTitle">Открытый журнал</h2>
+              <span id="ledgerCount">0 записей</span>
             </div>
 
             <div class="scope-box">
               <div class="segmented">
-                <button type="button" class="seg active" data-scope-mode="personal">Personal</button>
-                <button type="button" class="seg" data-scope-mode="group">Group</button>
+                <button type="button" class="seg active" data-scope-mode="personal">Личный</button>
+                <button type="button" class="seg" data-scope-mode="group">Группа</button>
               </div>
               <select id="ledgerGroupSelect" class="ql-input group-scope-select hidden">
-                <option value="">Choose group</option>
+                <option value="">Выберите группу</option>
               </select>
               <p id="scopeMessage" class="soft-note"></p>
             </div>
             <div id="ledgerFeed" class="ledger-feed">
-              <p class="soft-note">No records yet. Add the first one below.</p>
+              <p class="soft-note">Записей пока нет. Добавьте первую ниже.</p>
             </div>
           </div>
 
           <div class="ledger-input-card glass-soft">
-            <h2>New entry</h2>
+            <h2>Новая запись</h2>
 
-            <div class="segmented" role="group" aria-label="Income or expense">
-              <button type="button" class="seg active" data-ledger-type="income">Income</button>
-              <button type="button" class="seg" data-ledger-type="expense">Expense</button>
+            <div class="segmented" role="group" aria-label="Приход или расход">
+              <button type="button" class="seg active" data-ledger-type="income">Приход</button>
+              <button type="button" class="seg" data-ledger-type="expense">Расход</button>
             </div>
 
-            <div class="segmented" role="group" aria-label="Cash or non-cash">
-              <button type="button" class="seg active" data-money-type="cash">Cash</button>
-              <button type="button" class="seg" data-money-type="noncash">Non-cash</button>
+            <div class="segmented" role="group" aria-label="Наличные или безнал">
+              <button type="button" class="seg active" data-money-type="cash">Наличные</button>
+              <button type="button" class="seg" data-money-type="noncash">Безнал</button>
             </div>
 
-            <label class="form-label" for="ledgerSection">Section</label>
+            <label class="form-label" for="ledgerSection" id="ledgerSectionLabel">Статья учета</label>
             <select id="ledgerSection" class="ql-input">
-              <option value="">No section</option>
+              <option value="">Без раздела</option>
             </select>
 
             <div class="section-create-row">
-              <input id="newSectionName" class="ql-input" type="text" placeholder="Example: Home, Work, Yacht, Trip…">
-              <button id="createSectionBtn" class="ghost-btn" type="button">+ Create section</button>
+              <input id="newSectionName" class="ql-input" type="text" placeholder="Например: касса, яхта, закупки, поездка">
+              <button id="createSectionBtn" class="ghost-btn" type="button">+ Создать раздел</button>
             </div>
-            <p class="section-help">Section is an accounting area. Details like fuel, provisions or service go into Purpose.</p>
+            <p class="section-help" id="ledgerSectionHelp">Статья нужна для расходов: продукты, топливо, ремонт, поездка. Детали пишутся в назначении.</p>
 
-            <label class="form-label" for="ledgerAmount">Amount</label>
+            <label class="form-label" for="ledgerAmount">Сумма</label>
             <input id="ledgerAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
 
-            <label class="form-label" for="ledgerPurpose">Purpose</label>
-            <input id="ledgerPurpose" class="ql-input" type="text" placeholder="Fuel, marina, cash received…">
+            <label class="form-label" for="ledgerPurpose">Назначение</label>
+            <input id="ledgerPurpose" class="ql-input" type="text" placeholder="Топливо, марина, поступление наличных">
 
             <label class="file-picker">
               <input id="ledgerFile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.txt">
-              <span>Choose photo / document</span>
-              <small id="ledgerFileName">No file selected</small>
+              <span>Фото / документ</span>
+              <small id="ledgerFileName">Файл не выбран</small>
             </label>
 
-            <button id="saveLedgerBtn" class="primary-btn wide-btn" type="button">Save entry</button>
+            <button id="saveLedgerBtn" class="primary-btn wide-btn" type="button">Сохранить запись</button>
             <p id="ledgerMessage" class="soft-note"></p>
           </div>
         </section>
           </div>
 
-          <div id="moduleOnTheGo" class="ql-module hidden" data-module="ontherun">
+          <div id="moduleOnTheGo" class="ql-module active" data-module="ontherun">
 
-            <section id="otrTapeDesk" class="otr-tape-desk glass-soft">
+            <section id="otrStreamGate" class="otr-stream-gate glass-soft hidden" aria-hidden="true">
+              <header class="otr-gate-header">
+                <button id="otrStreamGateBackBtn" class="otr-cards-round-btn otr-gate-back-btn" type="button" aria-label="Вернуться назад" title="Назад">‹</button>
+                <div class="otr-gate-brand">
+                  <strong>FinDesk</strong>
+                  <span>brkovic.ltd</span>
+                </div>
+                <details class="otr-gate-menu">
+                  <summary>Меню</summary>
+                  <div class="otr-gate-menu-panel">
+                    <section>
+                      <span>Работа</span>
+                      <button type="button" data-module-tab="ontherun">Живые отчеты</button>
+                      <button type="button" data-module-tab="captain">Проверка отчетов</button>
+                      <button type="button" data-module-tab="money" data-module-screen="overview">Деньги на руках</button>
+                      <button type="button" data-module-tab="money" data-module-screen="advances">Подотчеты</button>
+                    </section>
+                    <section>
+                      <span>Отчетность</span>
+                      <button type="button" data-module-tab="ledger">Открытый учет</button>
+                      <button type="button" data-module-tab="reports">Сводка отчета</button>
+                      <button type="button" data-module-tab="captain" data-module-focus="archive">Архив отчетов</button>
+                    </section>
+                    <section>
+                      <span>Аналитика</span>
+                      <button type="button" data-module-tab="money" data-module-screen="ai">AI-анализ</button>
+                      <button type="button" data-module-tab="money" data-module-screen="audit">AI-аудит</button>
+                    </section>
+                    <section>
+                      <span>Управление</span>
+                      <button type="button" data-module-tab="groups">Сотрудники и группы</button>
+                      <button type="button" data-module-tab="business">Бизнес</button>
+                      <button type="button" data-module-tab="premium">Premium</button>
+                      <button type="button" data-module-tab="settings">Настройки</button>
+                    </section>
+                  </div>
+                </details>
+              </header>
+              <div class="otr-stream-shell">
+                <div class="otr-stream-gate-head">
+                  <h2>Выберите отчет</h2>
+                </div>
+                <p class="soft-note">Выберите тип отчета. Наличные считают остаток на руках, банковская карта ведет отдельный расход от нуля.</p>
+                <div class="otr-stream-choices" role="list">
+                  <button class="otr-stream-choice cash" type="button" data-otr-stream-choice="cash" role="listitem">
+                    <span>Наличные</span>
+                    <small>приход, расход, остаток кассы</small>
+                  </button>
+                  <button class="otr-stream-choice card" type="button" data-otr-stream-choice="card" role="listitem">
+                    <span>Банковская карта</span>
+                    <small>только расход, отдельно от кассы</small>
+                  </button>
+                </div>
+              </div>
+              <footer class="otr-gate-footer">
+                <span>FinDesk by brkovic.ltd</span>
+                <small>All rights reserved.</small>
+              </footer>
+            </section>
+
+            <section id="otrSimpleCard" class="otr-simple-card glass-soft stream-cash">
+              <div class="otr-simple-head">
+                <button id="otrEditorBackBtn" class="otr-cards-round-btn otr-editor-back-btn" type="button" aria-label="Назад к карточкам">‹</button>
+                <div>
+                  <span id="otrSimpleStreamKicker" class="captain-kicker">Наличные</span>
+                  <h2>Записи</h2>
+                </div>
+                <div class="otr-editor-tools">
+                  <button id="otrStreamSwitchBtn" class="otr-stream-switch" type="button" aria-label="Сменить поток" title="Сменить поток">Нал</button>
+                  <div id="otrSimpleStatusPill" class="otr-simple-status-pill">Черновик</div>
+                  <div id="otrSimpleSyncStatus" class="otr-simple-sync-status is-saved" role="status" aria-live="polite">
+                    <span data-otr-sync-label>Сохранено</span>
+                    <button id="otrAutosaveRetryBtn" class="otr-sync-retry hidden" type="button">Повторить</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="otr-live-stack">
+                <section class="otr-live-block otr-live-money">
+                  <label id="otrAdminAmountLabel" class="form-label" for="otrAdminAmount">Дали</label>
+                  <input id="otrAdminAmount" class="ql-input otr-admin-amount" type="text" inputmode="decimal" placeholder="0.00" readonly aria-readonly="true">
+                  <p id="otrAdminAmountHelp" class="soft-note compact-note hidden">Информативное поле текущего отчета. Дополнительные приходы пишите строками со знаком +.</p>
+                </section>
+
+                <section class="otr-live-block otr-live-note">
+                  <label class="form-label" for="otrSimpleNotes">Записи</label>
+                  <button id="otrSimpleEditBtn" class="otr-note-edit-toggle" type="button" aria-label="Зафиксировать записи" title="Зафиксировать">✓</button>
+                  <div id="otrSimpleResult" class="otr-simple-result otr-note-metrics" aria-label="Было, движение и стало">
+                    <div><span>Было</span><b>€0.00</b></div>
+                    <div><span>Приход</span><b>€0.00</b></div>
+                    <div><span>Расход</span><b>€0.00</b></div>
+                    <div><span>Стало</span><b>€0.00</b></div>
+                  </div>
+                  <div id="otrQuickCaptureBar" class="otr-quick-capture-bar stream-cash" aria-label="Быстрая фиксация">
+                    <button class="otr-quick-capture-btn cash-only income" type="button" data-otr-quick-line="cash_in" aria-label="Добавить приход наличных" title="Добавить приход наличных">+ Получили</button>
+                    <button class="otr-quick-capture-btn cash-only expense" type="button" data-otr-quick-line="cash_out" aria-label="Добавить расход наличными" title="Добавить расход наличными">- Наличные</button>
+                    <button class="otr-quick-capture-btn card-only card" type="button" data-otr-quick-line="noncash_out" aria-label="Добавить расход с карты" title="Добавить расход с карты">- Карта</button>
+                    <button class="otr-quick-capture-btn advance cash-only" type="button" data-otr-quick-advance aria-label="Перейти к подотчетам" title="Выдать деньги сотруднику через подотчеты">Подотчет</button>
+                  </div>
+                  <div class="otr-notes-surface">
+                    <textarea id="otrSimpleNotes" class="ql-input otr-simple-notes" placeholder="-45 продукты&#10;-67 топливо&#10;+100 получил от руководителя"></textarea>
+                    <div class="otr-note-float-actions" aria-label="Доказательства">
+                      <button class="otr-note-float-btn attach" type="button" data-otr-attach="media" aria-label="Прикрепить файл" title="Прикрепить файл"><span aria-hidden="true">📎</span></button>
+                      <button class="otr-note-float-btn scan" type="button" data-otr-attach="scan" aria-label="Сканировать чек" title="Сканировать чек"><span aria-hidden="true">▣</span></button>
+                      <button class="otr-note-float-btn camera" type="button" data-otr-attach="camera" aria-label="Сфотографировать чек" title="Сфотографировать чек"><span aria-hidden="true">📷</span></button>
+                    </div>
+                  </div>
+                </section>
+
+                <div class="otr-live-side">
+                  <section class="otr-live-block otr-live-attach">
+                    <div class="otr-attach-panel" aria-label="Вложения живого отчета">
+                      <input id="otrSimpleFile" class="otr-attach-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.txt">
+                      <button class="otr-attach-btn" type="button" data-otr-attach="camera" aria-label="Камера" title="Камера">
+                        <span>Камера</span>
+                        <small>сфотографировать чек</small>
+                      </button>
+                      <button class="otr-attach-btn" type="button" data-otr-attach="scan" aria-label="Скан документа" title="Скан документа">
+                        <span>Скан</span>
+                        <small>документ / PDF</small>
+                      </button>
+                      <button class="otr-attach-btn" type="button" data-otr-attach="media" aria-label="Медиатека" title="Медиатека">
+                        <span>Медиатека</span>
+                        <small>выбрать фото или файл</small>
+                      </button>
+                      <div id="otrSimpleFileName" class="otr-attach-file">Без вложения</div>
+                      <div id="otrProofStateList" class="otr-proof-state-list" aria-live="polite">
+                        <span>Доказательства: нет</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="otr-live-block otr-live-summary">
+                    <div id="otrSimplePreview" class="otr-simple-preview">
+                      <p class="soft-note">Введите строки со знаком + или -.</p>
+                    </div>
+                  </section>
+
+                  <section class="otr-live-actions">
+                    <div class="otr-simple-actions">
+                      <button id="otrSimpleSaveBtn" class="primary-btn wide-btn" type="button" aria-label="Сохранить отчет" title="Сохранить отчет">Сохранить</button>
+                      <button id="otrOpenCardsBtn" class="ghost-btn wide-btn" type="button" aria-label="К списку живых отчетов" title="К списку живых отчетов">Список</button>
+                      <button id="otrSimpleSubmitBtn" class="ghost-btn wide-btn submit-soft-btn hidden" type="button" aria-label="Сдать в FinDesk" title="Сдать в FinDesk">FinDesk</button>
+                      <button id="otrSimpleDeleteBtn" class="ghost-btn wide-btn danger-soft-btn hidden" type="button" aria-label="Удалить карточку" title="Удалить карточку">Удалить</button>
+                    </div>
+
+                    <p id="otrSimpleStatus" class="soft-note"></p>
+                  </section>
+                </div>
+              </div>
+            </section>
+
+            <section id="otrReportCardsPanel" class="otr-report-cards-panel glass-soft hidden" aria-hidden="true">
+              <div class="otr-report-cards-head">
+                <div>
+                  <button id="otrCardsBackBtn" class="otr-cards-round-btn" type="button" aria-label="К выбору наличные или карта" title="К выбору потока">‹</button>
+                </div>
+                <div class="otr-cards-title">
+                  <span id="otrCardsCount">Журнал</span>
+                  <h3>Живые отчеты</h3>
+                </div>
+                <div class="otr-cards-toolbar">
+                  <button id="otrCardsFinDeskBtn" class="otr-cards-round-btn hidden" type="button" data-mode-open="captain" aria-label="Открыть FinDesk" title="Открыть FinDesk">FD</button>
+                  <button id="otrArchiveCardsBtn" class="ghost-btn small-btn" type="button" aria-label="Открыть архив живых отчетов" title="Архив">Архив</button>
+                  <button id="otrRefreshCardsBtn" class="ghost-btn small-btn" type="button">Обновить</button>
+                  <button id="otrNewCardBtn" class="otr-cards-round-btn primary" type="button" aria-label="Новая карточка">+</button>
+                </div>
+              </div>
+              <div id="otrReportCardsList" class="otr-report-cards-list">
+                <p class="soft-note">Загружаю карточки…</p>
+              </div>
+            </section>
+
+            <section id="otrTapeDesk" class="otr-tape-desk glass-soft hidden legacy-otr-panel">
               <div class="otr-tape-head">
                 <div>
                   <h2>On the Go</h2>
@@ -245,7 +453,7 @@
               </div>
             </section>
 
-            <section class="on-the-go-card glass-soft">
+            <section class="on-the-go-card glass-soft hidden legacy-otr-panel">
               <div class="feed-head">
                 <h2>On the Go</h2>
                 <span id="otrCount">0 to review</span>
@@ -353,54 +561,70 @@
             <section class="captain-card glass-soft">
               <div class="captain-hero">
                 <div>
-                  <span class="captain-kicker" data-i18n="captain.kicker">Средний слой</span>
-                  <h2 data-i18n="captain.title">Отчеты FinDesk</h2>
-                  <p class="soft-note tight-note" data-i18n="captain.lead">Этот слой связывает быстрые записи с проверкой менеджера до попадания данных в отчет группы.</p>
+                  <span class="captain-kicker">Проверка отчетов</span>
+                  <h2>Входящие отчеты</h2>
+                  <p class="soft-note tight-note">Проверка живых отчетов и подотчетов: принять, вернуть на исправление, включить в общий пакет или открыть архив.</p>
                 </div>
+                <button class="primary-btn captain-run-btn" type="button" data-mode-open="ontherun">Живой отчет</button>
+              </div>
+
+              <div class="captain-admin-bar">
+                <label class="form-label" for="captainGroupSelect">Рабочая группа</label>
+                <select id="captainGroupSelect" class="ql-input">
+                  <option value="">Выберите группу</option>
+                </select>
+                <div class="captain-admin-actions">
+                  <button id="captainJournalExportBtn" class="ghost-btn small-btn hidden" type="button">Журнал</button>
+                </div>
+                <p id="captainStatus" class="soft-note"></p>
               </div>
 
               <div class="captain-workflow">
-                <article class="captain-work-card active">
-                  <span>01</span>
-                  <h3 data-i18n="captain.currentTitle">Текущий отчет</h3>
-                  <p data-i18n="captain.currentText">Продолжить активный отчет “на бегу” и подготовить его к сдаче.</p>
-                  <div id="captainCurrentSummary" class="captain-live-panel">
-                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
-                  </div>
-                  <button class="ghost-btn wide-btn" type="button" data-mode-open="ontherun" data-i18n="captain.currentAction">Открыть “На бегу”</button>
-                </article>
-
                 <article class="captain-work-card review">
-                  <span>02</span>
-                  <h3 data-i18n="captain.reviewTitle">Сданные записи</h3>
-                  <p data-i18n="captain.reviewText">Рабочий вид менеджера для проверки отчетов перед включением в общие итоги.</p>
+                  <h3 data-i18n="captain.reviewTitle">Сданные отчеты</h3>
+                  <p data-i18n="captain.reviewText">Проверка отчетов назначенных исполнителей перед включением в общий отчет.</p>
                   <div id="captainSubmittedList" class="captain-live-panel captain-review-list">
                     <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
                   </div>
-                  <button class="ghost-btn wide-btn" type="button" data-mode-open="groups" data-i18n="captain.reviewAction">Открыть группы</button>
+                  <button class="ghost-btn wide-btn" type="button" data-module-tab="money" data-module-screen="advances">Все подотчеты</button>
                 </article>
 
                 <article class="captain-work-card export">
-                  <span>03</span>
-                  <h3 data-i18n="captain.exportTitle">Пакет отчета</h3>
-                  <p data-i18n="captain.exportText">Здесь будут сводки, печатные формы и Excel-выгрузки.</p>
+                  <h3 data-i18n="captain.exportTitle">Включено в отчет</h3>
+                  <p data-i18n="captain.exportText">Принятые отчеты, которые уже развернуты в групповой учет и попадут в Excel.</p>
                   <div id="captainReportPack" class="captain-live-panel">
-                    <p class="soft-note" data-i18n="captain.packSoon">Печатные формы и Excel будут собраны вокруг проверенного среднего слоя.</p>
+                    <p class="soft-note" data-i18n="captain.packSoon">Пока нет принятых отчетов.</p>
                   </div>
-                  <button class="ghost-btn wide-btn" type="button" data-mode-open="reports" data-i18n="captain.exportAction">Открыть отчеты</button>
+                  <button class="ghost-btn wide-btn" type="button" data-captain-open-included>Открыть список</button>
+                  <button class="ghost-btn wide-btn" type="button" data-captain-open-report>Сводка отчета</button>
+                </article>
+
+                <article class="captain-work-card archive">
+                  <h3>Общий архив</h3>
+                  <p>Закрытые живые отчеты, убранные с рабочих экранов. Расчеты и общий пакет не меняются.</p>
+                  <div id="captainArchivePack" class="captain-live-panel">
+                    <p class="soft-note">Архив выполненных записей пока пуст.</p>
+                  </div>
+                  <button class="ghost-btn wide-btn" type="button" data-captain-open-archive>Открыть архив</button>
                 </article>
               </div>
+
             </section>
           </div>
 
-          <div id="moduleMoney" class="ql-module hidden" data-module="money">
-            <section class="advance-card glass-soft">
-              <div class="feed-head">
+          <div id="moduleMoney" class="ql-module hidden" data-module="money" data-advanced-current-screen="overview">
+            <section class="advance-card advanced-card glass-soft">
+              <div class="advanced-hero">
                 <div>
-                  <h2 data-i18n="money.title">Advanced: деньги под отчет</h2>
-                  <p class="soft-note tight-note" data-i18n="money.lead">Выдача, сверка и принятие расходов в общий отчет группы.</p>
+                  <span class="captain-kicker">Деньги на руках</span>
+                  <h2>Касса и подотчеты</h2>
+                  <p class="soft-note tight-note">Физические деньги у администратора и сотрудников, выдача под отчет и контроль наличных остатков.</p>
                 </div>
-                <span id="advanceCount">0 строк</span>
+                <div class="advanced-hero-actions">
+                  <button class="primary-btn" type="button" data-mode-open="captain">Проверка</button>
+                  <button class="ghost-btn" type="button" data-mode-open="reports">Сводка</button>
+                  <button class="ghost-btn" type="button" data-mode-open="groups">Сотрудники</button>
+                </div>
               </div>
 
               <div class="advance-toolbar">
@@ -408,31 +632,150 @@
                 <select id="advanceGroupSelect" class="ql-input">
                   <option value="">Выберите группу</option>
                 </select>
+                <span id="advanceCount" class="advanced-count-pill">0 строк</span>
                 <p id="advanceStatus" class="soft-note"></p>
               </div>
 
-              <div id="advanceIssuePanel" class="advance-issue-panel hidden">
-                <div class="advance-panel-head">
-                  <h3 data-i18n="money.issueTitle">Выдать деньги</h3>
-                  <span data-i18n="money.issueScope">Advanced / администратор</span>
+              <div id="advancedPositionStrip" class="advanced-position-strip">
+                <div class="advanced-position-card before">
+                  <span>У меня</span>
+                  <b id="advancedBeforeAmount">€0.00</b>
+                  <small id="advancedBeforeMeta">фактическая касса</small>
                 </div>
-                <select id="advanceMemberSelect" class="ql-input">
-                  <option value="">Выберите сотрудника</option>
-                </select>
-                <input id="advanceTitle" class="ql-input" type="text" placeholder="Назначение / поездка / отчет">
-                <input id="advanceAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
-                <button id="advanceCreateBtn" class="primary-btn wide-btn" type="button">Выдать под отчет</button>
+                <div class="advanced-position-arrow">+</div>
+                <div class="advanced-position-card after">
+                  <span>У сотрудников</span>
+                  <b id="advancedAfterAmount">€0.00</b>
+                  <small id="advancedAfterMeta">открытые подотчеты</small>
+                </div>
+                <div class="advanced-position-card movement">
+                  <span>Физически всего</span>
+                  <b id="advancedMovementAmount">€0.00</b>
+                  <small id="advancedPeriodMeta">у меня + у сотрудников</small>
+                </div>
               </div>
 
-              <div id="advanceSummary" class="advance-summary">
-                <div><span>Выдано</span><b>€0.00</b></div>
-                <div><span>Потрачено</span><b>€0.00</b></div>
-                <div><span>Остаток</span><b>€0.00</b></div>
-                <div><span>Ожидает</span><b>0</b></div>
+              <nav class="advanced-screen-nav" aria-label="Advanced screens">
+                <button class="active" type="button" data-advanced-screen="overview">Деньги</button>
+                <button type="button" data-advanced-screen="advances">Подотчеты</button>
+                <button type="button" data-advanced-screen="ai">AI-анализ</button>
+                <button type="button" data-advanced-screen="audit">AI-аудит</button>
+              </nav>
+
+              <div id="advancedKpiGrid" class="advanced-kpi-grid is-active" data-advanced-screen-panel="overview">
+                <div><span>У меня фактически</span><b>€0.00</b><small>доступно сейчас</small></div>
+                <div><span>У сотрудников</span><b>€0.00</b><small>открытые подотчеты</small></div>
+                <div><span>Физически всего</span><b>€0.00</b><small>контроль наличных</small></div>
+                <div><span>На проверке</span><b>€0.00</b><small>ожидает решения</small></div>
               </div>
 
-              <div id="advanceList" class="advance-list">
-                <p class="soft-note">Выберите группу, чтобы увидеть деньги под отчет.</p>
+              <div class="advanced-command-grid is-active" data-advanced-screen-panel="overview">
+                <div id="advancedReceivePanel" class="advanced-receive-panel">
+                  <div class="advance-panel-head">
+                    <h3>Полученные средства</h3>
+                    <span>в основной учет</span>
+                  </div>
+                  <input id="advancedReceiveSource" class="ql-input" type="text" placeholder="От кого / основание">
+                  <div class="advanced-inline-money">
+                    <input id="advancedReceiveAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
+                    <select id="advancedReceiveMoneyType" class="ql-input">
+                      <option value="cash">Наличные</option>
+                      <option value="noncash">Безнал</option>
+                    </select>
+                  </div>
+                  <input id="advancedReceiveNote" class="ql-input" type="text" placeholder="Комментарий">
+                  <button id="advancedReceiveCreateBtn" class="primary-btn wide-btn" type="button">Добавить приход</button>
+                  <p id="advancedReceiveStatus" class="soft-note"></p>
+                  <div id="advancedReceivedFundsList" class="advanced-received-list">
+                    <p class="soft-note">Внесенные средства появятся здесь.</p>
+                  </div>
+                </div>
+
+                <div id="advanceIssuePanel" class="advance-issue-panel hidden">
+                  <div class="advance-panel-head">
+                    <h3>Выдать деньги</h3>
+                    <span>под отчет сотруднику</span>
+                  </div>
+                  <select id="advanceMemberSelect" class="ql-input">
+                    <option value="">Выберите сотрудника</option>
+                  </select>
+                  <input id="advanceTitle" class="ql-input" type="text" placeholder="Назначение / поездка / отчет">
+                  <input id="advanceAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
+                  <button id="advanceCreateBtn" class="primary-btn wide-btn" type="button">Выдать под отчет</button>
+                </div>
+              </div>
+
+              <div class="advanced-board-grid">
+                <section class="advanced-panel advanced-board-main" data-advanced-screen-panel="advances">
+                  <div class="advance-panel-head">
+                    <div>
+                      <h3>Деньги под отчет</h3>
+                      <p class="soft-note tight-note">Красная строка живет здесь, пока отчет не проверен и не раскрыт в реальные расходы.</p>
+                    </div>
+                  </div>
+
+                  <div id="advanceSummary" class="advance-summary">
+                    <div><span>Открыто выдано</span><b>€0.00</b></div>
+                    <div><span>В открытых расходах</span><b>€0.00</b></div>
+                    <div><span>На руках</span><b>€0.00</b></div>
+                    <div><span>Закрыто</span><b>€0.00</b></div>
+                  </div>
+
+                  <div id="advancedPipeline" class="advanced-pipeline">
+                    <p class="soft-note">Пайплайн появится после загрузки группы.</p>
+                  </div>
+
+                  <div id="advanceList" class="advance-list">
+                    <p class="soft-note">Выберите группу, чтобы увидеть деньги под отчет.</p>
+                  </div>
+                </section>
+
+                <aside class="advanced-side-stack">
+                  <section class="advanced-panel advanced-ai-panel" data-advanced-screen-panel="ai">
+                    <div class="advance-panel-head">
+                      <div>
+                        <h3>AI-анализ</h3>
+                        <p class="soft-note tight-note">Структурирует данные твоей учетной записи: сводка, риски, что проверить и как собрать отчет.</p>
+                      </div>
+                    </div>
+                    <div class="advanced-ai-controls">
+                      <select id="advancedAiPeriod" class="ql-input">
+                        <option value="month">Этот месяц</option>
+                        <option value="today">Сегодня</option>
+                      </select>
+                      <button id="advancedAiRunBtn" class="primary-btn wide-btn" type="button">AI-анализ</button>
+                    </div>
+                    <div id="advancedAiOutput" class="advanced-ai-output">
+                      <p class="soft-note">Нажмите “AI-анализ”, чтобы получить структуру отчета и список действий.</p>
+                    </div>
+                  </section>
+
+                  <section class="advanced-panel is-active" data-advanced-screen-panel="overview">
+                    <div class="advance-panel-head">
+                      <h3>Правила контроля</h3>
+                      <span>активно</span>
+                    </div>
+                    <div id="advancedRulesPanel" class="advanced-rules-panel"></div>
+                  </section>
+
+                  <section class="advanced-panel" data-advanced-screen-panel="audit">
+                    <div class="advance-panel-head">
+                      <h3>Аудит</h3>
+                      <span>последние действия</span>
+                    </div>
+                    <div id="advancedAuditPanel" class="advanced-audit-panel">
+                      <p class="soft-note">История появится после загрузки группы.</p>
+                    </div>
+                  </section>
+
+                  <section class="advanced-panel is-active" data-advanced-screen-panel="overview">
+                    <div class="advance-panel-head">
+                      <h3>Интеграции</h3>
+                      <span>контроль хранения</span>
+                    </div>
+                    <div id="advancedIntegrationPanel" class="advanced-integration-panel"></div>
+                  </section>
+                </aside>
               </div>
             </section>
           </div>
@@ -488,34 +831,39 @@
 
         <section class="group-card glass-soft">
           <div class="feed-head">
-            <h2>Groups</h2>
-            <span id="groupCount">0 groups</span>
+            <h2>Сотрудники и группы</h2>
+            <span id="groupCount">0 групп</span>
           </div>
 
           <div class="group-create">
-            <input id="groupName" class="ql-input" type="text" placeholder="Group name">
-            <button id="createGroupBtn" class="primary-btn wide-btn" type="button">Create group</button>
+            <input id="groupName" class="ql-input" type="text" placeholder="Название группы или проекта">
+            <button id="createGroupBtn" class="primary-btn wide-btn" type="button">Создать группу</button>
             <p id="groupMessage" class="soft-note"></p>
           </div>
 
           <div id="groupList" class="group-list">
-            <p class="soft-note">No groups yet.</p>
+            <p class="soft-note">Групп пока нет.</p>
           </div>
 
           <div id="groupDetails" class="group-details hidden">
             <div class="group-title-row">
-              <h2 id="activeGroupName">Group</h2>
-              <button id="renameGroupBtn" class="ghost-btn" type="button">Rename</button>
+              <h2 id="activeGroupName">Группа</h2>
+              <button id="renameGroupBtn" class="ghost-btn" type="button">Переименовать</button>
+              <button id="deleteActiveGroupBtn" class="ghost-btn danger-soft-btn hidden" type="button">Удалить группу</button>
             </div>
 
             <div class="invite-box">
-              <input id="inviteEmail" class="ql-input" type="email" placeholder="Employee email (optional)">
+              <div class="feed-head compact-head">
+                <h3>Приглашение</h3>
+                <span>доступ сотрудника</span>
+              </div>
+              <input id="inviteEmail" class="ql-input" type="email" placeholder="Email сотрудника (необязательно)">
               <select id="inviteAccessLevel" class="ql-input">
-                <option value="base">На бегу / Base</option>
-                <option value="manager">Средний / Manager</option>
-                <option value="advanced">Advanced / Admin</option>
+                <option value="base">Сотрудник · фиксация и самоконтроль</option>
+                <option value="manager">Менеджер · проверка отчетов</option>
+                <option value="advanced">Администратор · деньги и роли</option>
               </select>
-              <button id="createInviteBtn" class="primary-btn wide-btn" type="button">Create invite link</button>
+              <button id="createInviteBtn" class="primary-btn wide-btn" type="button">Создать ссылку</button>
 
               <div id="inviteActions" class="invite-actions hidden">
                 <input id="inviteUrl" class="ql-input" type="text" readonly>
@@ -525,24 +873,25 @@
                   <a id="shareWhatsapp" class="share-btn" href="#" target="_blank" rel="noopener">WhatsApp</a>
                   <a id="shareViber" class="share-btn" href="#" target="_blank" rel="noopener">Viber</a>
                   <a id="shareTelegram" class="share-btn" href="#" target="_blank" rel="noopener">Telegram</a>
-                  <button id="copyInviteBtn" class="share-btn" type="button">Copy</button>
+                  <button id="copyInviteBtn" class="share-btn" type="button">Копировать</button>
+                  <button id="clearInviteActionsBtn" class="share-btn share-close-btn" type="button">Закрыть</button>
                 </div>
               </div>
             </div>
 
             <div class="messages-box">
               <div class="feed-head">
-                <h2>Messages</h2>
+                <h2>Сообщения группы</h2>
                 <span id="messageCount">0</span>
               </div>
 
               <div id="messageList" class="message-list">
-                <p class="soft-note">No messages yet.</p>
+                <p class="soft-note">Сообщений пока нет.</p>
               </div>
 
               <div class="message-compose">
-                <input id="messageText" class="ql-input" type="text" placeholder="Write a message to the group…">
-                <button id="sendMessageBtn" class="primary-btn" type="button">Send</button>
+                <input id="messageText" class="ql-input" type="text" placeholder="Сообщение группе…">
+                <button id="sendMessageBtn" class="primary-btn" type="button">Отправить</button>
               </div>
 
               <p id="messageStatus" class="soft-note"></p>
@@ -550,7 +899,7 @@
 
             <div class="members-box">
               <div class="feed-head">
-                <h2>Members</h2>
+                <h2>Участники</h2>
                 <span id="memberCount">0</span>
               </div>
               <div id="memberList" class="member-list"></div>
@@ -753,10 +1102,6 @@
       </div>
     </section>
 
-    <footer class="ql-footer">
-      <button type="button" class="footer-link" data-open-install="auto" data-i18n="footer.install">Установить</button>
-      <button type="button" class="footer-link" data-open-donate data-i18n="footer.donate">Donate</button>
-    </footer>
   </main>
 
   <div id="installModal" class="modal hidden" aria-hidden="true">
@@ -779,14 +1124,80 @@
   <div id="ledgerDetailModal" class="modal hidden" aria-hidden="true">
     <div class="modal-card glass ledger-detail-modal-card">
       <button class="modal-close" type="button" data-close-ledger-detail>×</button>
-      <h3>Entry details</h3>
+      <h3>Детали записи</h3>
 
       <div id="ledgerDetailContent" class="ledger-detail-content">
-        <p class="soft-note">Loading entry…</p>
+        <p class="soft-note">Загружаю запись…</p>
       </div>
 
       <div class="ledger-detail-actions">
-        <button class="ghost-btn wide-btn" type="button" data-close-ledger-detail>Close</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-ledger-detail>Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="advancedExcelPreviewModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass captain-review-modal-card advanced-excel-modal-card">
+      <button class="modal-close" type="button" data-close-advanced-excel-preview>×</button>
+      <div class="captain-review-modal-head">
+        <div>
+          <span>Экспорт текущего периода</span>
+          <h3>Предпросмотр текущего периода</h3>
+        </div>
+        <b id="advancedExcelPreviewAmount">€0.00</b>
+      </div>
+      <div id="advancedExcelPreviewContent" class="captain-review-modal-records">
+        <p class="soft-note">Готовлю текущий период…</p>
+      </div>
+      <div class="captain-review-modal-actions">
+        <button id="advancedExcelDownloadBtn" class="primary-btn wide-btn" type="button">Скачать Excel текущего периода</button>
+        <button id="advancedGoogleSheetBtn" class="ghost-btn wide-btn" type="button">Открыть текущий период в Google Таблицах</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-advanced-excel-preview>Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="receiptScannerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass receipt-scanner-modal-card">
+      <button class="modal-close" type="button" data-close-receipt-scanner>×</button>
+      <div class="receipt-scanner-head">
+        <div>
+          <span>Доказательство</span>
+          <h3>Скан чека в PDF</h3>
+        </div>
+        <button id="receiptScannerPickBtn" class="ghost-btn small-btn" type="button">Фото</button>
+      </div>
+
+      <input id="receiptScannerSourceInput" class="hidden" type="file" accept="image/*" capture="environment">
+
+      <div id="receiptScannerStage" class="receipt-scanner-stage is-empty">
+        <canvas id="receiptScannerCanvas" width="320" height="420"></canvas>
+        <div id="receiptScannerOverlay" class="receipt-scanner-overlay" aria-hidden="true">
+          <button class="receipt-crop-handle tl" type="button" data-receipt-corner="tl" aria-label="Верхний левый угол"></button>
+          <button class="receipt-crop-handle tr" type="button" data-receipt-corner="tr" aria-label="Верхний правый угол"></button>
+          <button class="receipt-crop-handle br" type="button" data-receipt-corner="br" aria-label="Нижний правый угол"></button>
+          <button class="receipt-crop-handle bl" type="button" data-receipt-corner="bl" aria-label="Нижний левый угол"></button>
+        </div>
+        <p id="receiptScannerEmpty" class="soft-note">Сфотографируйте чек или выберите фото. Рамку можно поправить пальцем.</p>
+      </div>
+
+      <div class="receipt-scanner-controls">
+        <label class="receipt-scan-slider" for="receiptScannerCleanLevel">
+          <span>Очистка</span>
+          <input id="receiptScannerCleanLevel" type="range" min="0" max="100" value="42">
+        </label>
+        <label class="receipt-scan-toggle">
+          <input id="receiptScannerMono" type="checkbox" checked>
+          <span>Черно-белый чек</span>
+        </label>
+      </div>
+
+      <p id="receiptScannerStatus" class="soft-note compact-note">PDF будет прикреплен к текущему живому отчету.</p>
+
+      <div class="receipt-scanner-actions">
+        <button id="receiptScannerRetakeBtn" class="ghost-btn wide-btn" type="button">Переснять</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-receipt-scanner>Закрыть</button>
+        <button id="receiptScannerAttachBtn" class="primary-btn wide-btn" type="button">Прикрепить PDF</button>
       </div>
     </div>
   </div>
@@ -794,90 +1205,90 @@
   <div id="otrReviewModal" class="modal hidden" aria-hidden="true">
     <div class="modal-card glass otr-review-modal-card">
       <button class="modal-close" type="button" data-close-otr-review>×</button>
-      <h3>Review On the Go record</h3>
-      <p class="soft-note">This record is still not included in reports. Edit it now or keep it for later.</p>
+      <h3>Проверка строки живого отчета</h3>
+      <p class="soft-note">Эта строка еще не включена в учет. Проверьте ее сейчас или оставьте на потом.</p>
 
       <input id="otrReviewId" type="hidden">
 
-      <label class="form-label" for="otrReviewType">Type</label>
+      <label class="form-label" for="otrReviewType">Тип</label>
       <select id="otrReviewType" class="ql-input">
-        <option value="cash_in">Cash received</option>
-        <option value="cash_out">Cash spent</option>
-        <option value="noncash_out">Card / non-cash spent</option>
+        <option value="cash_in">Приход наличных</option>
+        <option value="cash_out">Расход наличных</option>
+        <option value="noncash_out">Расход с карты / безнал</option>
       </select>
 
-      <label class="form-label" for="otrReviewAmount">Amount</label>
-      <input id="otrReviewAmount" class="ql-input" type="text" inputmode="decimal" placeholder="Amount">
+      <label class="form-label" for="otrReviewAmount">Сумма</label>
+      <input id="otrReviewAmount" class="ql-input" type="text" inputmode="decimal" placeholder="Сумма">
 
-      <label class="form-label" for="otrReviewDescription">Note</label>
-      <input id="otrReviewDescription" class="ql-input" type="text" placeholder="Note / description">
+      <label class="form-label" for="otrReviewDescription">Примечание</label>
+      <input id="otrReviewDescription" class="ql-input" type="text" placeholder="Примечание / описание">
 
       <div class="otr-attachment-panel">
         <div class="otr-attachment-head">
-          <h4>Attachments</h4>
-          <span id="otrReviewAttachment">No attachment.</span>
+          <h4>Вложения</h4>
+          <span id="otrReviewAttachment">Вложений нет.</span>
         </div>
 
         <div id="otrReviewFiles" class="otr-review-files">
-          <p class="soft-note">No attachments.</p>
+          <p class="soft-note">Вложений нет.</p>
         </div>
 
         <label class="file-picker otr-review-upload">
           <input id="otrReviewFileInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.txt">
-          <span>Add / replace attachment</span>
-          <small id="otrReviewFileName">No file selected</small>
+          <span>Добавить / заменить вложение</span>
+          <small id="otrReviewFileName">Файл не выбран</small>
         </label>
 
-        <button id="uploadOtrReviewFileBtn" class="ghost-btn wide-btn otr-upload-compact-btn" type="button">Upload selected file</button>
+        <button id="uploadOtrReviewFileBtn" class="ghost-btn wide-btn otr-upload-compact-btn" type="button">Загрузить выбранный файл</button>
       </div>
 
       <div class="otr-convert-panel">
-        <h4>Move to Ledger</h4>
-        <p class="soft-note compact-note">Choose destination. Empty section means “On the Go”.</p>
+        <h4>Перенести в журнал учета</h4>
+        <p class="soft-note compact-note">Выберите место учета. Пустой раздел означает “Живой отчет”.</p>
 
-        <div class="segmented" role="group" aria-label="Convert scope">
-          <button id="otrConvertScopePersonal" class="seg active" type="button" data-otr-convert-scope="personal">Personal</button>
-          <button id="otrConvertScopeGroup" class="seg" type="button" data-otr-convert-scope="group">Group</button>
+        <div class="segmented" role="group" aria-label="Куда переносить">
+          <button id="otrConvertScopePersonal" class="seg active" type="button" data-otr-convert-scope="personal">Личный</button>
+          <button id="otrConvertScopeGroup" class="seg" type="button" data-otr-convert-scope="group">Группа</button>
         </div>
 
-        <label class="form-label hidden" id="otrConvertGroupLabel" for="otrConvertGroup">Group</label>
+        <label class="form-label hidden" id="otrConvertGroupLabel" for="otrConvertGroup">Группа</label>
         <select id="otrConvertGroup" class="ql-input hidden">
-          <option value="">Choose group</option>
+          <option value="">Выберите группу</option>
         </select>
 
-        <label class="form-label" for="otrConvertSection">Section</label>
+        <label class="form-label" for="otrConvertSection">Раздел учета</label>
         <select id="otrConvertSection" class="ql-input">
-          <option value="">On the Go default</option>
+          <option value="">Живой отчет по умолчанию</option>
         </select>
 
         <div class="business-grid-2">
           <label class="bd-field">
-            <span>Ledger type</span>
+            <span>Тип записи</span>
             <select id="otrConvertEntryType" class="ql-input">
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
+              <option value="income">Приход</option>
+              <option value="expense">Расход</option>
             </select>
           </label>
 
           <label class="bd-field">
-            <span>Money type</span>
+            <span>Тип денег</span>
             <select id="otrConvertMoneyType" class="ql-input">
-              <option value="cash">Cash</option>
-              <option value="noncash">Non-cash</option>
+              <option value="cash">Наличные</option>
+              <option value="noncash">Безнал</option>
             </select>
           </label>
         </div>
 
-        <label class="form-label" for="otrConvertPurpose">Purpose</label>
-        <input id="otrConvertPurpose" class="ql-input" type="text" placeholder="Purpose for Ledger">
+        <label class="form-label" for="otrConvertPurpose">Назначение</label>
+        <input id="otrConvertPurpose" class="ql-input" type="text" placeholder="Назначение для журнала">
 
-        <button id="convertOtrToLedgerBtn" class="primary-btn wide-btn" type="button">Convert to Ledger</button>
+        <button id="convertOtrToLedgerBtn" class="primary-btn wide-btn" type="button">Перенести в журнал</button>
       </div>
 
       <div class="otr-review-actions">
-        <button id="saveOtrReviewBtn" class="ghost-btn wide-btn" type="button">Save pending changes</button>
-        <button id="archiveOtrBtn" class="ghost-btn wide-btn danger-soft" type="button">Archive pending record</button>
-        <button class="ghost-btn wide-btn" type="button" data-close-otr-review>Keep for later</button>
+        <button id="saveOtrReviewBtn" class="ghost-btn wide-btn" type="button">Сохранить правки</button>
+        <button id="archiveOtrBtn" class="ghost-btn wide-btn danger-soft" type="button">Убрать в архив</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-otr-review>Оставить на потом</button>
       </div>
 
       <p id="otrReviewStatus" class="soft-note"></p>
@@ -902,9 +1313,116 @@
       <div class="otr-session-modal-actions">
         <button id="otrActivateSessionBtn" class="primary-btn wide-btn" type="button">Activate this session</button>
         <button id="otrArchiveSessionBtn" class="ghost-btn wide-btn danger-soft" type="button">Archive session</button>
-        <button class="ghost-btn wide-btn" type="button" data-close-otr-session>Close</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-otr-session>Закрыть</button>
       </div>
       <p id="otrSessionModalStatus" class="soft-note"></p>
+    </div>
+  </div>
+
+  <div id="otrCardModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass otr-card-modal-card">
+      <button class="modal-close" type="button" data-close-otr-card>×</button>
+      <div class="otr-card-modal-head">
+        <div>
+          <span id="otrCardKicker">Карточка отчета</span>
+          <h3 id="otrCardTitle">Живой отчет</h3>
+        </div>
+      </div>
+      <div id="otrCardMetrics" class="otr-card-metrics">
+        <div><span>Было</span><b>€0.00</b></div>
+        <div><span>Остаток</span><b>€0.00</b></div>
+      </div>
+      <p id="otrCardMeta" class="soft-note"></p>
+      <div id="otrCardRecords" class="otr-card-records">
+        <p class="soft-note">Загрузка карточки…</p>
+      </div>
+      <div class="otr-card-modal-actions">
+        <button id="otrCardUnsubmitBtn" class="primary-btn wide-btn" type="button">Перейти к исправлению</button>
+        <button id="otrCardUnincludeBtn" class="primary-btn wide-btn hidden" type="button">Вернуть в FinDesk</button>
+      </div>
+      <p id="otrCardStatus" class="soft-note"></p>
+    </div>
+  </div>
+
+  <div id="proofViewerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass proof-viewer-card">
+      <button class="modal-close" type="button" data-close-proof-viewer>×</button>
+      <div class="proof-viewer-head">
+        <div>
+          <span>Доказательство</span>
+          <h3 id="proofViewerTitle">Файл</h3>
+        </div>
+        <a id="proofViewerOpenLink" class="ghost-btn small-btn" href="#" target="_blank" rel="noopener">Открыть</a>
+      </div>
+      <div id="proofViewerBody" class="proof-viewer-body">
+        <p class="soft-note">Загрузка файла…</p>
+      </div>
+      <p id="proofViewerMeta" class="soft-note compact-note"></p>
+    </div>
+  </div>
+
+  <div id="captainReviewModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass captain-review-modal-card">
+      <button class="modal-close" type="button" data-close-captain-review>×</button>
+      <div class="captain-review-modal-head">
+        <div>
+          <span id="captainReviewKicker">FinDesk</span>
+          <h3 id="captainReviewTitle">Отчет исполнителя</h3>
+        </div>
+        <b id="captainReviewAmount">€0.00</b>
+      </div>
+      <p id="captainReviewMeta" class="soft-note"></p>
+      <div id="captainReviewRecords" class="captain-review-modal-records">
+        <p class="soft-note">Загрузка отчета…</p>
+      </div>
+      <div class="captain-review-modal-actions">
+        <button id="captainReviewAcceptBtn" class="primary-btn wide-btn" type="button">Включить в отчет</button>
+        <button id="captainReviewReturnBtn" class="ghost-btn wide-btn danger-soft-btn" type="button">Вернуть на правку</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-captain-review>Закрыть</button>
+      </div>
+      <p id="captainReviewStatus" class="soft-note"></p>
+    </div>
+  </div>
+
+  <div id="captainIncludedModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass captain-review-modal-card">
+      <button class="modal-close" type="button" data-close-captain-included>×</button>
+      <div class="captain-review-modal-head">
+        <div>
+          <span>FinDesk</span>
+          <h3>Включено в отчет</h3>
+        </div>
+        <b id="captainIncludedCount">0</b>
+      </div>
+      <p class="soft-note">Рабочий пакет для проверки, печати и подготовки итогового отчета. Архив живого журнала его не меняет.</p>
+      <div id="captainIncludedList" class="captain-review-modal-records">
+        <p class="soft-note">Пока нет включенных карточек.</p>
+      </div>
+      <div class="captain-review-modal-actions">
+        <button class="primary-btn wide-btn" type="button" data-captain-open-report>Открыть отчеты</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-captain-included>Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="captainArchiveModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card glass captain-review-modal-card">
+      <button class="modal-close" type="button" data-close-captain-archive>×</button>
+      <div class="captain-review-modal-head">
+        <div>
+          <span>Общий архив</span>
+          <h3>Живые отчеты группы</h3>
+        </div>
+        <b id="captainArchiveCount">0</b>
+      </div>
+      <p class="soft-note">Все живые отчеты группы разложены по сотрудникам: черновики, сданные, включенные и архивные карточки.</p>
+      <div id="captainArchiveList" class="captain-review-modal-records">
+        <p class="soft-note">Живые отчеты группы пока не загружены.</p>
+      </div>
+      <div class="captain-review-modal-actions">
+        <button id="captainArchiveJournalExportBtn" class="ghost-btn wide-btn" type="button">Скачать журнал</button>
+        <button class="ghost-btn wide-btn" type="button" data-close-captain-archive>Закрыть</button>
+      </div>
     </div>
   </div>
 
@@ -921,9 +1439,9 @@
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260520-09"></script>
+  <script src="/assets/i18n.js?v=20260528-records-scroll1"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260520-09"></script>
+  <script src="/assets/app.js?v=20260528-records-scroll1"></script>
 </body>
 </html>

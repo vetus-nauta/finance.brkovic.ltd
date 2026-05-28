@@ -1,7 +1,7 @@
 # Handoff: On-The-Go Intermediate Cards Page
 
-Date: 2026-05-21  
-Project: `/home/alexey/GitHub/finance.brkovic.ltd`  
+Date: 2026-05-21
+Project: `/home/alexey/GitHub/finance.brkovic.ltd`
 Local URL now used for testing: `http://127.0.0.1:18889/reset-local.php`
 
 ## Start Here Instead
@@ -34,6 +34,12 @@ Create a normal intermediate page for "На бегу" based on the user's origin
 
 These are the visual/interaction references supplied by the user. They were copied into the repo for the next chat:
 
+There was no separate local handoff for iPhone Notes algorithms before 2026-05-21. The only local references were the two screenshots below. The behavioral handoff created from those references is:
+
+```text
+docs/IPHONE_NOTES_UX_ALGORITHMS_2026-05-21.md
+```
+
 ### Notes List Reference
 
 ![iPhone Notes list reference](assets/iphone-notes-reference-list.png)
@@ -61,7 +67,7 @@ Original downloaded zip was:
 
 Temporary extraction was:
 
-`/tmp/iphone-notes-ref-27253/IMG_3038.PNG`  
+`/tmp/iphone-notes-ref-27253/IMG_3038.PNG`
 `/tmp/iphone-notes-ref-27253/IMG_3039.PNG`
 
 ## Current State
@@ -100,7 +106,7 @@ Current behavioral state after last patch:
 
 ## Important Concept
 
-Do not treat "На бегу" as one endless editor.
+Do not treat "На бегу" / "Живой отчет" as one endless editor.
 
 The user wants the mobile app split into two screens:
 
@@ -108,6 +114,25 @@ The user wants the mobile app split into two screens:
 2. Editor/detail screen: like the right column/open note, where the current selected report is edited.
 
 This is the exact meaning of "one desktop screen split into two mobile screens."
+
+Accounting boundary:
+
+- Admin "Живой отчет" is the administrator's own operational report and its base comes from the Advanced/group cash position.
+- "Подотчеты" are employee reports against issued accountable money. They are separate live-report tapes created by `advance_create` and linked through `cash_advances.on_the_go_tape_id`.
+- Opening an employee podotchet must open that exact tape with its original rows and issued amount. Saving it must preserve the issued amount from Advanced.
+- The common report is assembled later from the admin's own live report plus submitted/accepted employee podotchets for the selected period.
+
+## Device Layout Rule
+
+This is a project-level requirement, not a one-off CSS tweak.
+
+Build and preserve three layout paths:
+
+- **Mobile (`max-width: 700px`)**: primary field workflow. It should feel like iPhone Notes: list screen and opened note/report screen, large tap targets, minimal text, camera/scanner/media actions.
+- **Tablet (`701px` through `1099px`)**: wider operational workspace. It can use two internal columns in the editor, but must still keep the list/detail mental model.
+- **Desktop (`1100px+`)**: professional centered work canvas or split layout. Do not stretch the live report across the full browser width.
+
+Reason: this product is used in motion. Nobody runs around stores with a laptop. The mobile interaction is the canonical "Живой отчет" experience; tablet and desktop adapt from it rather than flattening it.
 
 ## Proposed Implementation Direction
 
@@ -149,7 +174,7 @@ Expected mobile flow:
 - Admin has `FinDesk` transition and approval/submission action.
 - No duplicate "open/open" buttons.
 - No duplicate first FinDesk current-report column if the intermediate page replaces it.
-- Mobile layout is first-class; desktop/tablet can keep denser split layout.
+- Mobile, tablet and desktop each have explicit layout behavior.
 - Do not add explanatory marketing text inside the app.
 - Keep the UI premium/light/iOS-glass, but prioritize structure before polish.
 

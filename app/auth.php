@@ -5,6 +5,8 @@ require_once __DIR__ . '/db.php';
 function ql_json(array $data, int $status = 200): void
 {
     http_response_code($status);
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -134,9 +136,9 @@ function ql_send_auth_email(string $email, string $code): array
         return ['ok' => true, 'method' => 'log'];
     }
 
-    $subject = 'FinDesk code: ' . $code;
+    $subject = 'Your FinDesk sign-in code: ' . $code;
     $message = "Your FinDesk sign-in code is: {$code}\n\n" .
-        "Enter this 6-digit code in the authorization window.\n" .
+        "Enter this 6-digit code in the FinDesk sign-in form.\n" .
         "The code expires in 10 minutes.\n\n" .
         "If you did not request this code, you can ignore this email.\n";
 
@@ -160,6 +162,20 @@ function ql_send_auth_email(string $email, string $code): array
     return ['ok' => (bool)$sent, 'method' => 'mail'];
 }
 
+function ql_is_local_dev_context(): bool
+{
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    $addr = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    $config = function_exists('ql_config') ? ql_config() : [];
+    $appUrl = strtolower((string)($config['app_url'] ?? ''));
+
+    return in_array($addr, ['127.0.0.1', '::1'], true)
+        || str_contains($host, '127.0.0.1')
+        || str_contains($host, 'localhost')
+        || str_contains($appUrl, '127.0.0.1')
+        || str_contains($appUrl, 'localhost');
+}
+
 function ql_normalize_email(string $email): string
 {
     return strtolower(trim($email));
@@ -173,6 +189,113 @@ function ql_client_ip(): string
 function ql_user_agent(): string
 {
     return $_SERVER['HTTP_USER_AGENT'] ?? '';
+}
+
+function ql_audit_write(?int $userId, string $action, ?string $entityType = null, ?int $entityId = null, array $details = []): bool
+{
+    try {
+        $stmt = ql_db()->prepare("
+            INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $userId,
+            $action,
+            $entityType,
+            $entityId,
+            $details ? json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+            ql_client_ip(),
+            ql_user_agent()
+        ]);
+
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function ql_audit_list(array $input = []): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $groupId = (int)($input['group_id'] ?? 0);
+    $limit = (int)($input['limit'] ?? 40);
+
+    if ($limit < 1 || $limit > 100) {
+        $limit = 40;
+    }
+
+    $where = 'al.user_id = ?';
+    $params = [$userId];
+    $scope = null;
+
+    if ($groupId > 0) {
+        if (!function_exists('ql_group_membership')) {
+            return ['ok' => false, 'error' => 'group_module_missing'];
+        }
+
+        $scope = ql_group_membership($groupId, $userId);
+        if (!$scope) {
+            return ['ok' => false, 'error' => 'not_group_member'];
+        }
+
+        $permissions = $scope['permissions'] ?? [];
+        if (!is_array($permissions)) {
+            $permissions = [];
+        }
+
+        $accessLevel = (string)($scope['access_level'] ?? 'base');
+        $canViewGroup = ($scope['role'] ?? '') === 'admin'
+            || in_array($accessLevel, ['manager', 'advanced'], true)
+            || !empty($permissions['can_moderate'])
+            || !empty($permissions['can_view_group_reports'])
+            || !empty($permissions['can_manage_money']);
+
+        $where = "CAST(JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.group_id')) AS UNSIGNED) = ?";
+        $params = [$groupId];
+
+        if (!$canViewGroup) {
+            $where .= ' AND al.user_id = ?';
+            $params[] = $userId;
+        }
+    }
+
+    $sql = "
+        SELECT
+            al.id,
+            al.user_id,
+            al.action,
+            al.entity_type,
+            al.entity_id,
+            al.details,
+            al.created_at,
+            u.email,
+            COALESCE(u.display_name, u.email) AS user_display_name
+        FROM audit_log al
+        LEFT JOIN users u ON u.id = al.user_id
+        WHERE {$where}
+        ORDER BY al.created_at DESC, al.id DESC
+        LIMIT {$limit}
+    ";
+
+    $stmt = ql_db()->prepare($sql);
+    $stmt->execute($params);
+    $items = $stmt->fetchAll();
+
+    foreach ($items as &$item) {
+        $details = json_decode((string)($item['details'] ?? ''), true);
+        $item['details'] = is_array($details) ? $details : [];
+    }
+
+    return [
+        'ok' => true,
+        'scope' => [
+            'mode' => $groupId > 0 ? 'group' : 'personal',
+            'group_id' => $groupId ?: null,
+            'access_level' => $scope['access_level'] ?? null,
+        ],
+        'items' => $items
+    ];
 }
 
 function ql_cookie_name(): string
@@ -211,16 +334,24 @@ function ql_issue_code(string $email): array
             'error' => 'email_send_failed',
             'mail_method' => $send['method'] ?? 'unknown',
             'mail_error' => $send['error'] ?? null,
-            'dev_message' => 'Code written to storage/logs/auth_codes.log'
+            'dev_message' => 'The sign-in code was saved locally.'
         ];
     }
 
-    return [
+    $response = [
         'ok' => true,
         'email_sent' => true,
         'mail_method' => $send['method'] ?? 'unknown',
-        'dev_message' => 'Code sent by email and written to storage/logs/auth_codes.log'
+        'dev_message' => 'The sign-in code was sent by email and saved locally.'
     ];
+
+    if (($send['method'] ?? '') === 'log' && ql_is_local_dev_context()) {
+        $response['email_sent'] = false;
+        $response['dev_code'] = $code;
+        $response['dev_message'] = 'Local sign-in code. Mail delivery is logged locally.';
+    }
+
+    return $response;
 }
 
 function ql_verify_code(string $email, string $code): array

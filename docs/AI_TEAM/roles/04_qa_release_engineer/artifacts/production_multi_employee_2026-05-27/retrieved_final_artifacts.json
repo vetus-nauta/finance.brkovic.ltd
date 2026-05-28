@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "group_id": 8,
+  "report_id": 66,
+  "user_id": "18",
+  "totals": {
+    "income": 1000,
+    "expense": 284,
+    "cash_expense": 284,
+    "noncash_expense": 0,
+    "admin_cash_left": 532,
+    "employee_cash_left": 184,
+    "cash_balance": 716,
+    "balance": 716
+  },
+  "summary": {
+    "received_money": 1000,
+    "physical_cash_spent": 284,
+    "card_noncash_spent": 0,
+    "admin_cash_left": 532,
+    "accountable_money_left": 184,
+    "returned_cash": 0,
+    "discrepancy": 0,
+    "carryover": {
+      "admin_cash_left": 532,
+      "employee_cash_left": 184,
+      "cash_balance": 716,
+      "balance": 716
+    },
+    "cash_balance": 716,
+    "balance": 716
+  },
+  "counts": {
+    "participants": 1,
+    "captures": 4,
+    "money_rows": 13,
+    "proofs": 0,
+    "accountable": 3,
+    "audit_refs": 12
+  },
+  "exports": {
+    "final_excel": {
+      "status": 200,
+      "type": "application/vnd.ms-excel; charset=utf-8",
+      "bytes": 50031,
+      "path": "docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_multi_employee_2026-05-27/final_group_report.xls"
+    },
+    "current_excel": {
+      "status": 200,
+      "type": "application/vnd.ms-excel; charset=utf-8",
+      "bytes": 8013,
+      "path": "docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/production_multi_employee_2026-05-27/current_group_report.xls"
+    }
+  }
+}

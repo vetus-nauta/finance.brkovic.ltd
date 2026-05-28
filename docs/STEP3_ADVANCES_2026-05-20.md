@@ -12,6 +12,12 @@ money issued to an employee is not a group expense yet
 
 It becomes group expense rows only after the employee submits the pocket report and a manager/admin accepts it.
 
+Terminology clarification:
+
+- These employee pocket reports are "подотчеты".
+- A podotchet is not the administrator's own live report. It is an employee tape linked to `cash_advances.on_the_go_tape_id`.
+- The issued amount is owned by Advanced/cash advance data. Mobile "Живой отчет" may edit rows, attachments and submission state, but must not replace the issued base amount with the administrator's current cash balance.
+
 ## Product Flow
 
 ```text
