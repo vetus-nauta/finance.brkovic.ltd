@@ -1,5 +1,100 @@
 # Frontend UX Engineer Status
 
+## Latest Status 2026-05-28 FinDesk Board Rebuild
+
+Role: Frontend/UX Engineer FinDesk
+Task: rebuild the FinDesk board from scattered review blocks into administrator/employee cards.
+Status: IMPLEMENTED locally; authenticated browser visual QA pending.
+
+Evidence:
+
+- `docs/AI_TEAM/48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md`
+
+Result:
+
+- Main nav now shows `Живой отчет`, `FinDesk`, and one `Детали` menu.
+- `#moduleCaptain` now has a sticky cash strip, administrator report card, child cards, employee cards, participant strip, and compact archive block.
+- Submitted employee cards have orange highlight/glow.
+- Existing approve/return/open/archive/finalize actions are reused; no new backend formula path was added.
+- Asset version is `20260528-findesk-board1`.
+
+Verification:
+
+- `node --check public/assets/app.js`: PASS.
+- `node --check public/assets/i18n.js`: PASS.
+- `node --check public/service-worker.js`: PASS.
+- `git diff --check -- public/app.php public/assets/app.js public/assets/app.css public/service-worker.js`: PASS.
+- local `/app.php`: HTTP 200.
+
+Next owner: QA Release Engineer for authenticated mobile/tablet/desktop check.
+
+## Latest Status 2026-05-28 Fast Entry UX + Browser Back
+
+Role: Frontend/UX Engineer FinDesk
+Task: simplify fast-entry screen and fix browser Back app-step behavior.
+Status: IMPLEMENTED locally; browser visual QA pending.
+
+Evidence:
+
+- `docs/AI_TEAM/47_FAST_ENTRY_UX_BACK_LOCAL_2026-05-28.md`
+
+Result:
+
+- Fast entry no longer shows the decorative lower-right pseudo-card.
+- `Нал` was replaced with `Наличные`.
+- Edit/finish control no longer sits over the amount metrics.
+- `Фото`, `Скан`, and `Файл` controls are text buttons instead of emoji/symbol buttons.
+- Saved proof access button was added for photos/scans/PDF through the existing card/proof viewer flow.
+- Expense preview scroll is hidden in editor mode.
+- Browser Back now has app-step state for module tabs, Advanced sub-screens, and key On-the-Go transitions.
+
+Verification:
+
+- `node --check public/assets/app.js`: PASS.
+- local `app.php` HTTP HEAD: PASS.
+- HTML smoke for fast-entry labels/button: PASS.
+- `git diff --check -- public/app.php public/assets/app.js public/assets/app.css`: PASS.
+
+Next owner: QA Release Engineer for mobile visual/back/proof-viewer check.
+
+## Latest Status 2026-05-28 Open Items Sprint Frontend/PWA Slice
+
+Role: Frontend/UX Engineer FinDesk
+Task: package export UI, language fallback state, scanner camera fallback copy, and asset/cache bump.
+Status: IMPLEMENTED locally; production deploy pending.
+
+Changed files:
+
+- `public/app.php`
+- `public/assets/app.js`
+- `public/assets/i18n.js`
+- `public/service-worker.js`
+- `docs/AI_TEAM/45_OPEN_ITEMS_SPRINT_LOCAL_2026-05-28.md`
+- `docs/AI_TEAM/46_OPEN_ITEMS_SPRINT_DEPLOY_BLOCKED_2026-05-28.md`
+
+Result:
+
+- Closed report package view has `Скачать пакет JSON`.
+- Legacy report fallback view has `Скачать старый снимок JSON`.
+- `QL_LANGUAGE_STATE` exposes unsupported-language fallback to English.
+- Scanner modal states the browser/PWA camera boundary and re-applies `capture=environment`.
+- Asset/service-worker version is `20260528-open-sprint1`.
+
+Verification:
+
+- `node --check public/assets/app.js`: PASS.
+- `node --check public/assets/i18n.js`: PASS.
+- `node --check public/service-worker.js`: PASS.
+- language fallback VM smoke for `fr-FR`: PASS.
+- `git diff --check`: PASS.
+
+Blocker:
+
+- real iPhone/Android PWA camera behavior still needs physical device evidence before scanner is called device-ready.
+- production upload is blocked in this shell by missing FTP/DB-gate environment variables.
+
+Next owner: Project Director / Deploy Owner, then QA Release Engineer.
+
 ## Latest Status 2026-05-28 Frontend Residuals Before Deploy Package
 
 Role: Frontend/UX Engineer FinDesk

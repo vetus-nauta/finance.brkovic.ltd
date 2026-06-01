@@ -1,5 +1,94 @@
 # QA Release Engineer Status
 
+## Latest Status 2026-05-28 - FinDesk Board Rebuild QA Card
+
+Role: QA Release Engineer FinDesk
+
+Task: verify rebuilt FinDesk board after local frontend patch.
+
+Status: QUEUED; syntax/HTTP smoke passed, authenticated browser flow pending.
+
+Evidence:
+
+- `docs/AI_TEAM/48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md`
+
+Passed locally:
+
+- `node --check public/assets/app.js`
+- `node --check public/assets/i18n.js`
+- `node --check public/service-worker.js`
+- `git diff --check -- public/app.php public/assets/app.js public/assets/app.css public/service-worker.js`
+- `/app.php` returned `200`
+- `current_user` returned valid JSON
+
+Required QA:
+
+- mobile `390x844`, tablet `820x1180`, desktop `1440x900`;
+- top cash strip does not cover controls and shows admin/employee cash;
+- submitted employee fast report glows orange;
+- approve attaches employee report as child card;
+- return restores employee report to editable fast-entry state;
+- `Создать и утвердить отчет` creates final report and active cards leave the working board;
+- archive and final report package remain accessible;
+- browser Back still moves one app step.
+
+Blocker:
+
+- Browser automation is unavailable in this shell (`playwright` and Chromium are absent), so visual and authenticated flow QA must be manual or run in the existing production QA harness.
+
+## Latest Status 2026-05-28 - Fast Entry UX QA Card
+
+Role: QA Release Engineer FinDesk
+
+Task: verify fast-entry UX cleanup and browser Back behavior after local patch.
+
+Status: QUEUED; local syntax/HTTP checks already passed by Project Director.
+
+Evidence:
+
+- `docs/AI_TEAM/47_FAST_ENTRY_UX_BACK_LOCAL_2026-05-28.md`
+
+Required checks:
+
+- mobile `390x844`: no final amount overlap by edit/finish control;
+- no lower-right decorative pseudo-card on fast-entry editor;
+- `Фото`, `Скан`, `Файл`, `Наличные`, and saved-files button fit without text clipping;
+- saved image/PDF proof opens from `Открыть сохраненные файлы`;
+- browser Back moves one app step back across editor/cards/module transitions.
+
+Next owner: QA Release Engineer when browser automation or manual device check is available.
+
+## Latest Status 2026-05-28 - Open Items Sprint Local Verification
+
+Role: QA Release Engineer FinDesk
+
+Task: local verification for open-items sprint candidate `20260528-open-sprint1`.
+
+Status: PASS for local syntax/API/fallback checks; production smoke pending.
+
+Evidence:
+
+- `docs/AI_TEAM/45_OPEN_ITEMS_SPRINT_LOCAL_2026-05-28.md`
+- `docs/AI_TEAM/46_OPEN_ITEMS_SPRINT_DEPLOY_BLOCKED_2026-05-28.md`
+
+Result:
+
+- JS/service-worker syntax checks passed.
+- local `app.php` and `current_user` HTTP checks passed.
+- local message context smoke passed.
+- invalid message context failed closed with `invalid_message_context`.
+- local package end-to-end smoke passed: linked message entered `package.messages.report_context` and JSON package export returned attachment for `report_id=587`.
+- unsupported language `fr-FR` fell back to English with `fallback_applied=true`.
+
+Limitations:
+
+- PHP CLI is unavailable.
+- Real-device scanner/PWA camera behavior is not checked by this local pass.
+- Full package JSON export is production-smoked after deploy with an authenticated final report fixture.
+- Production smoke is blocked in this shell until FTP/DB-gate deploy variables are available.
+
+Next owner: Project Director / Deploy Owner.
+
 ## Latest Status 2026-05-28 - Recheck P0 Live Report Records Page After Frontend UX Fix
 
 Role: QA Release Engineer FinDesk

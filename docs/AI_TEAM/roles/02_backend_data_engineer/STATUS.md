@@ -1,5 +1,63 @@
 # Backend Data Engineer Status
 
+## Latest Status 2026-05-28: FinDesk Board Rebuild Data Mapping
+
+Role: Backend/Data Engineer FinDesk
+Task: map existing backend/API for rebuilt FinDesk board.
+Status: DONE; no backend runtime change required in this sprint.
+
+Evidence pointer:
+
+- `docs/AI_TEAM/48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md`
+
+Data contract:
+
+- Top cash strip: `ledger_balance {group_id}`.
+- Incoming live reports: `on_the_go_card_list {group_id, submitted_only:1, exclude_advances:1}`.
+- Incoming accountable reports: `advance_list {group_id}`.
+- Approve/return live reports: `on_the_go_card_include`, `on_the_go_card_unsubmit`.
+- Approve/return advances: `advance_accept`, `advance_return`, `advance_unaccept`.
+- Final summary report: `ledger_group_finalize_report`.
+
+Blocker:
+
+- none in backend mapping; authenticated QA must prove the rebuilt screen calls the endpoints correctly.
+
+Next owner: Frontend/UX Engineer and QA Release Engineer.
+
+## Latest Status 2026-05-28: Open Items Sprint Backend Slice
+
+Role: Backend/Data Engineer FinDesk
+Task: first-class message context links, package JSON export, and legacy package fallback.
+Status: IMPLEMENTED locally; production deploy pending.
+
+Evidence pointer:
+
+- `docs/AI_TEAM/45_OPEN_ITEMS_SPRINT_LOCAL_2026-05-28.md`
+- `docs/AI_TEAM/46_OPEN_ITEMS_SPRINT_DEPLOY_BLOCKED_2026-05-28.md`
+
+Result:
+
+- `group_messages` schema now supports `report_id`, `tape_id`, `capture_id`, and `advance_id`.
+- Message API validates context ids against the selected group and returns `context_links`.
+- Final report package builder includes direct linked group messages when present before finalization.
+- New download action `ledger_group_final_report_package_export` exports full package JSON or legacy snapshot JSON fallback.
+
+Verification:
+
+- local `current_user` HTTP load passed;
+- local message context API smoke passed;
+- local package end-to-end smoke passed for linked message inclusion and JSON export;
+- `git diff --check` passed;
+- PHP CLI remains unavailable in this shell.
+
+Blocker:
+
+- production requires DB apply of `deploy/messages_foundation.sql` after backup/preflight.
+- production deploy is currently blocked in this shell by missing FTP/DB-gate environment variables.
+
+Next owner: Project Director / Deploy Owner.
+
 ## Latest Status 2026-05-28: Candidate 34 DB Deploy Preflight
 
 Role: Backend/Data Engineer + Database Migration Owner FinDesk

@@ -723,15 +723,38 @@
     return aliases[short] || (dictionaries[short] ? short : 'en');
   }
 
+  function isSupportedLanguage(value) {
+    const raw = String(value || '').trim().toLowerCase().replace('_', '-');
+    if (!raw) return false;
+    if (dictionaries[raw] || aliases[raw]) return true;
+    const short = raw.split('-')[0];
+    return !!(dictionaries[short] || aliases[short]);
+  }
+
+  function systemLanguageRaw() {
+    const languages = navigator.languages && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language || 'en'];
+    return languages[0] || 'en';
+  }
+
+  function languageState() {
+    const raw = systemLanguageRaw();
+    return {
+      language: currentLanguage,
+      system_language_raw: raw,
+      system_language_normalized: normalizeLanguage(raw),
+      fallback_applied: !isSupportedLanguage(raw),
+      fallback_language: 'en',
+      supported_languages: Object.keys(dictionaries)
+    };
+  }
+
   function detectLanguage() {
     const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
     if (saved) return normalizeLanguage(saved);
 
-    const languages = navigator.languages && navigator.languages.length
-      ? navigator.languages
-      : [navigator.language || 'en'];
-
-    return normalizeLanguage(languages[0]);
+    return normalizeLanguage(systemLanguageRaw());
   }
 
   let currentLanguage = detectLanguage();
@@ -774,13 +797,15 @@
     });
 
     document.querySelectorAll('[data-detected-language]').forEach(function(node) {
-      const systemLanguage = normalizeLanguage((navigator.languages && navigator.languages[0]) || navigator.language || 'en');
+      const systemLanguage = normalizeLanguage(systemLanguageRaw());
       node.textContent = languageNames[systemLanguage] || languageNames.en;
     });
 
     syncSelects();
     syncLanguagePrompt();
-    const detail = {language: currentLanguage};
+    const detail = languageState();
+    window.QL_LANGUAGE_STATE = detail;
+    window.QL_DETECTED_LANGUAGE = currentLanguage;
     window.dispatchEvent(new CustomEvent('findesk:languagechange', {detail}));
     window.dispatchEvent(new CustomEvent('captainfin:languagechange', {detail}));
   }
@@ -807,11 +832,13 @@
 
   window.QL_LANGUAGES = Object.keys(dictionaries);
   window.QL_DETECTED_LANGUAGE = currentLanguage;
+  window.QL_LANGUAGE_STATE = languageState();
   window.CF_I18N = {
     languageNames,
     t,
     apply: applyTranslations,
     getLanguage: function() { return currentLanguage; },
+    getLanguageState: languageState,
     setLanguage
   };
   window.cfT = t;

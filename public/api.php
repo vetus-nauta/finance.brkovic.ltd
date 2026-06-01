@@ -268,6 +268,11 @@ try {
         exit;
     }
 
+    if ($action === 'ledger_group_final_report_package_export') {
+        ql_ledger_group_final_report_package_export_download();
+        exit;
+    }
+
     if ($action === 'ledger_group_final_report_google_sheet') {
         ql_json(ql_ledger_group_final_report_google_sheet(ql_input()));
     }

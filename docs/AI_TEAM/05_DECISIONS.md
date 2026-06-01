@@ -1,5 +1,39 @@
 # Decisions Log
 
+## 2026-06-02: Director Handoff And Production Boundary
+
+Decision: make `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md` the current start handoff for the next Project Director.
+
+Reason:
+
+- the previous director handoff and `00_START_HERE.md` still pointed to May baselines;
+- production frontend has moved to `20260601-findesk-mobilefit2`;
+- the repository also contains local backend/open-items candidate work that must not be confused with a completed production DB rollout.
+
+Control:
+
+- the office entry point is `docs/AI_TEAM/OFFICE_DASHBOARD.html`;
+- the correct production host is `https://finance.brkovic.ltd/app.php`;
+- the correct production FTP path is `finance.brkovic.ltd/public`;
+- do not deploy this project to another host or subdirectory;
+- frontend `mobilefit2` is confirmed live;
+- backend DB migration/package-export/message-context rollout remains a separate deploy candidate until backup, DB preflight, migration, smoke, and deploy report are completed.
+
+## 2026-05-28: FinDesk Board Rebuild Boundary
+
+Decision: rebuild the FinDesk board in the existing `#moduleCaptain` surface and reuse current financial APIs instead of adding a new calculation layer.
+
+Reason:
+
+- CEO requested interface consolidation, not a formula rewrite;
+- existing endpoints already provide the required states: `ledger_balance`, `on_the_go_card_list`, `advance_list`, `on_the_go_card_include/unsubmit`, `advance_accept/return`, and `ledger_group_finalize_report`;
+- immutable final report/package behavior must remain untouched.
+
+Boundary:
+
+- `20 cards` is a UI working-list limit in this sprint, not physical deletion of financial logs;
+- destructive retention behavior requires a separate product/audit decision.
+
 ## 2026-05-23: AI Team Office
 
 Decision: create `docs/AI_TEAM/` as the visible office for specialist AI chats.
@@ -1530,3 +1564,75 @@ Control:
 - no proof storage change;
 - no financial formula change;
 - temporary DB-gate was not used.
+
+## 2026-05-28: Open Items Sprint Candidate
+
+Decision: package the remaining known open items as a limited sprint candidate `20260528-open-sprint1`.
+
+Reason:
+
+- after `records-scroll1`, no current production P0 remained for the core money loop;
+- the remaining items were known and bounded: real-device scanner/PWA camera gate, language/PWA fallback audit, legacy package fallback, first-class message links, and package-wide archive export;
+- several items can be improved locally without changing financial formulas or reopening approved MVP gates.
+
+Implemented locally:
+
+- `group_messages` gets first-class optional context columns: `report_id`, `tape_id`, `capture_id`, `advance_id`;
+- group messages API returns `context_links` and validates context ids against the selected group;
+- new final report packages include direct linked messages when links exist before finalization;
+- new action `ledger_group_final_report_package_export` downloads a JSON package export, with legacy snapshot JSON fallback when `report_package` is missing;
+- language/PWA state now exposes `QL_LANGUAGE_STATE` and unsupported system language fallback is explicit English;
+- scanner modal copy and input setup now state and preserve the browser/PWA camera boundary;
+- app asset and service-worker versions are bumped to `20260528-open-sprint1`.
+
+Control:
+
+- this sprint does not claim real-device scanner readiness;
+- JSON package export is the first package-wide export, not a ZIP proof-binary bundle;
+- production upload must use a selected bundle and apply `deploy/messages_foundation.sql` after backup/preflight;
+- production smoke must prove asset version, language markers, direct message context, package message inclusion, and JSON export;
+- full dirty-tree upload remains disallowed.
+
+## 2026-05-28: Open Items Sprint Deploy Attempt Blocked
+
+Decision: keep `20260528-open-sprint1` as a local production candidate, but do not claim production deployment from the current shell.
+
+Reason:
+
+- local implementation and local smoke passed after the local `messages_foundation.sql` migration, including package end-to-end export for `report_id=587`;
+- the current shell has no `FINDESK_FTP_HOST`, `FINDESK_FTP_USER`, `FINDESK_FTP_PASS`, `FINDESK_FTP_ROOT`, or `FINDESK_DB_GATE_URL`;
+- without FTP variables, production backup/upload/DB-gate apply/smoke cannot be executed safely.
+
+Control:
+
+- deploy report: `docs/AI_TEAM/46_OPEN_ITEMS_SPRINT_DEPLOY_BLOCKED_2026-05-28.md`;
+- no production file upload was executed in this attempt;
+- no production DB change was executed in this attempt;
+- next deploy must start with FTP backup and DB-gate preflight, then apply `deploy/messages_foundation.sql`.
+
+## 2026-05-28: Fast Entry Must Be Calm, Not ERP
+
+Decision: accept the Google Drive UI handoff as the next large UX direction and start with a narrow local fast-entry cleanup.
+
+Reason:
+
+- the product problem is now interface exposure, not missing backend capability;
+- daily users need a lightweight operational entry surface;
+- report consolidation, balances, merge/export, archive, and admin detail belong on a separate administrator report screen.
+
+Local first slice:
+
+- report: `docs/AI_TEAM/47_FAST_ENTRY_UX_BACK_LOCAL_2026-05-28.md`;
+- fast-entry proof controls are modernized to `Фото`, `Скан`, `Файл`;
+- saved proof access is exposed from the fast-entry card;
+- `Нал` is replaced with `Наличные`;
+- edit/finish no longer overlaps amount metrics;
+- decorative lower-right pseudo-card is disabled;
+- fixed expense preview scroll is hidden in editor mode;
+- browser Back receives app-step history for key navigation transitions.
+
+Control:
+
+- no backend/API/storage/report formula change in this slice;
+- browser visual QA remains required before production routing;
+- this slice is a first cleanup, not the full two-level UI redesign.

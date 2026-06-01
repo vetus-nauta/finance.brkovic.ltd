@@ -32,6 +32,134 @@ function ql_message_can_use_group_messages(?array $membership): bool
         || !empty($permissions['can_manage_members']);
 }
 
+function ql_message_table_columns(): array
+{
+    static $columns = null;
+    if ($columns !== null) {
+        return $columns;
+    }
+
+    $columns = [
+        'report_id' => function_exists('ql_group_table_has_column') && ql_group_table_has_column('group_messages', 'report_id'),
+        'tape_id' => function_exists('ql_group_table_has_column') && ql_group_table_has_column('group_messages', 'tape_id'),
+        'capture_id' => function_exists('ql_group_table_has_column') && ql_group_table_has_column('group_messages', 'capture_id'),
+        'advance_id' => function_exists('ql_group_table_has_column') && ql_group_table_has_column('group_messages', 'advance_id'),
+    ];
+
+    return $columns;
+}
+
+function ql_message_context_select(string $alias = 'gm'): string
+{
+    $columns = ql_message_table_columns();
+    $parts = [];
+    foreach (['report_id', 'tape_id', 'capture_id', 'advance_id'] as $column) {
+        $parts[] = !empty($columns[$column])
+            ? "{$alias}.{$column}"
+            : "NULL AS {$column}";
+    }
+
+    return implode(",\n            ", $parts);
+}
+
+function ql_message_validate_context_ref(string $type, int $id, int $groupId): bool
+{
+    if ($id <= 0) {
+        return true;
+    }
+
+    try {
+        if ($type === 'report_id') {
+            $stmt = ql_db()->prepare("
+                SELECT COUNT(*)
+                FROM audit_log
+                WHERE id = ?
+                  AND action = 'ledger_group_report_finalized'
+                  AND entity_type = 'group'
+                  AND entity_id = ?
+            ");
+            $stmt->execute([$id, $groupId]);
+            return (int)$stmt->fetchColumn() > 0;
+        }
+
+        if ($type === 'tape_id') {
+            $stmt = ql_db()->prepare("
+                SELECT COUNT(*)
+                FROM on_the_go_tapes
+                WHERE id = ?
+                  AND group_id = ?
+            ");
+            $stmt->execute([$id, $groupId]);
+            return (int)$stmt->fetchColumn() > 0;
+        }
+
+        if ($type === 'capture_id') {
+            $stmt = ql_db()->prepare("
+                SELECT COUNT(*)
+                FROM on_the_go_captures c
+                JOIN on_the_go_tapes t ON t.id = c.tape_id
+                WHERE c.id = ?
+                  AND t.group_id = ?
+            ");
+            $stmt->execute([$id, $groupId]);
+            return (int)$stmt->fetchColumn() > 0;
+        }
+
+        if ($type === 'advance_id') {
+            $stmt = ql_db()->prepare("
+                SELECT COUNT(*)
+                FROM cash_advances
+                WHERE id = ?
+                  AND group_id = ?
+            ");
+            $stmt->execute([$id, $groupId]);
+            return (int)$stmt->fetchColumn() > 0;
+        }
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return false;
+}
+
+function ql_message_context_for_group(int $groupId, array $input): array
+{
+    $context = [];
+    foreach (['report_id', 'tape_id', 'capture_id', 'advance_id'] as $key) {
+        $value = (int)($input[$key] ?? 0);
+        if ($value <= 0) {
+            continue;
+        }
+        if (!ql_message_validate_context_ref($key, $value, $groupId)) {
+            return ['ok' => false, 'error' => 'invalid_message_context', 'field' => $key];
+        }
+        $context[$key] = $value;
+    }
+
+    return ['ok' => true, 'context' => $context];
+}
+
+function ql_message_public_row(?array $row): ?array
+{
+    if (!$row) {
+        return null;
+    }
+
+    foreach (['id', 'group_id', 'sender_user_id', 'report_id', 'tape_id', 'capture_id', 'advance_id', 'is_read'] as $key) {
+        if (array_key_exists($key, $row) && $row[$key] !== null) {
+            $row[$key] = (int)$row[$key];
+        }
+    }
+    $row['context_links'] = [
+        'report_id' => (int)($row['report_id'] ?? 0),
+        'tape_id' => (int)($row['tape_id'] ?? 0),
+        'capture_id' => (int)($row['capture_id'] ?? 0),
+        'advance_id' => (int)($row['advance_id'] ?? 0),
+    ];
+
+    return $row;
+}
+
 function ql_message_send(array $input): array
 {
     $user = ql_require_user();
@@ -59,11 +187,30 @@ function ql_message_send(array $input): array
         return ['ok' => false, 'error' => 'message_too_long'];
     }
 
+    $contextResult = ql_message_context_for_group($groupId, $input);
+    if (empty($contextResult['ok'])) {
+        return $contextResult;
+    }
+    $context = $contextResult['context'] ?? [];
+    $availableColumns = ql_message_table_columns();
+
+    $insertColumns = ['group_id', 'sender_user_id', 'message_text', 'message_type'];
+    $placeholders = ['?', '?', '?', '?'];
+    $params = [$groupId, (int)$user['id'], $text, 'text'];
+    foreach (['report_id', 'tape_id', 'capture_id', 'advance_id'] as $key) {
+        if (empty($availableColumns[$key])) {
+            continue;
+        }
+        $insertColumns[] = $key;
+        $placeholders[] = '?';
+        $params[] = $context[$key] ?? null;
+    }
+
     $stmt = ql_db()->prepare("
-        INSERT INTO group_messages (group_id, sender_user_id, message_text, message_type)
-        VALUES (?, ?, ?, 'text')
+        INSERT INTO group_messages (" . implode(', ', $insertColumns) . ")
+        VALUES (" . implode(', ', $placeholders) . ")
     ");
-    $stmt->execute([$groupId, (int)$user['id'], $text]);
+    $stmt->execute($params);
 
     $messageId = (int)ql_db()->lastInsertId();
 
@@ -81,6 +228,7 @@ function ql_message_send(array $input): array
 
 function ql_message_get(int $messageId, int $userId): ?array
 {
+    $contextSelect = ql_message_context_select('gm');
     $stmt = ql_db()->prepare("
         SELECT
             gm.id,
@@ -88,6 +236,7 @@ function ql_message_get(int $messageId, int $userId): ?array
             gm.sender_user_id,
             gm.message_text,
             gm.message_type,
+            {$contextSelect},
             gm.created_at,
             COALESCE(mem.display_name, u.display_name, u.email) AS sender_name,
             u.email AS sender_email,
@@ -103,7 +252,7 @@ function ql_message_get(int $messageId, int $userId): ?array
     $stmt->execute([$userId, $messageId]);
 
     $row = $stmt->fetch();
-    return $row ?: null;
+    return ql_message_public_row($row ?: null);
 }
 
 function ql_message_list(array $input): array
@@ -129,6 +278,7 @@ function ql_message_list(array $input): array
         return ['ok' => false, 'error' => 'access_denied'];
     }
 
+    $contextSelect = ql_message_context_select('gm');
     $stmt = ql_db()->prepare("
         SELECT
             gm.id,
@@ -136,6 +286,7 @@ function ql_message_list(array $input): array
             gm.sender_user_id,
             gm.message_text,
             gm.message_type,
+            {$contextSelect},
             gm.created_at,
             COALESCE(mem.display_name, u.display_name, u.email) AS sender_name,
             u.email AS sender_email,
@@ -151,7 +302,7 @@ function ql_message_list(array $input): array
     ");
     $stmt->execute([(int)$user['id'], $groupId]);
 
-    $messages = array_reverse($stmt->fetchAll());
+    $messages = array_map('ql_message_public_row', array_reverse($stmt->fetchAll()));
 
     return ['ok' => true, 'messages' => $messages];
 }
@@ -160,6 +311,7 @@ function ql_message_unread(array $input = []): array
 {
     $user = ql_require_user();
 
+    $contextSelect = ql_message_context_select('gm');
     $stmt = ql_db()->prepare("
         SELECT
             gm.id,
@@ -169,6 +321,7 @@ function ql_message_unread(array $input = []): array
             COALESCE(mem.display_name, u.display_name, u.email) AS sender_name,
             u.email AS sender_email,
             gm.message_text,
+            {$contextSelect},
             gm.created_at
             ,
             current_member.role AS member_role_for_scope,
@@ -203,7 +356,7 @@ function ql_message_unread(array $input = []): array
             continue;
         }
         unset($row['member_role_for_scope'], $row['member_access_level_for_scope'], $row['member_permissions_json_for_scope']);
-        $messages[] = $row;
+        $messages[] = ql_message_public_row($row);
     }
 
     return [

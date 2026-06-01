@@ -1,5 +1,28 @@
 # Product Finance Architect Status
 
+## Latest Status 2026-05-28 - FinDesk Board Rebuild Product Boundary
+
+Role: Product Finance Architect FinDesk
+Task: formalize product rules for rebuilt FinDesk board.
+Status: DONE; implementation handed to Frontend/UX on existing architecture.
+
+Evidence pointer:
+
+- `docs/AI_TEAM/48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md`
+
+Decision:
+
+- FinDesk board is the administrator review/synthesis surface, not the fast-entry editor.
+- Administrator card, employee cards, top cash strip, child reports, approve/return, and final summary report are in scope.
+- `20 cards` is a working-list UX limit; it is not approved as destructive deletion.
+- Cash and card/noncash must remain separated; card spend must not reduce physical cash.
+
+Blocker:
+
+- Full product acceptance still requires authenticated browser QA of the approve/return/finalize path.
+
+Next owner: QA Release Engineer.
+
 ## Latest Status 2026-05-28 - Pre-Deploy Residual Classification
 
 Role: Product Finance Architect

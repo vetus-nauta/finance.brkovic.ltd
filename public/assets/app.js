@@ -1239,7 +1239,16 @@ function qlFinalPackageAccountableSection(accountable) {
 function qlFinalPackageMessagesSection(messages) {
   const reportContext = qlFinalPackageArray(messages.report_context);
   const generalRefs = qlFinalPackageArray(messages.general_group_refs);
-  const schemaNote = messages.schema_note ? 'Связанные с отчетом сообщения восстановлены из аудита. Общий чат группы показан отдельно, потому что его строки пока не имеют прямой привязки к report_id.' : '';
+  const schemaNote = messages.schema_note || 'Прямых ссылок сообщений на report_id/tape_id/capture_id/advance_id в этом пакете нет; общий чат группы ниже не считается доказательством отчета.';
+  const contextLabel = function(item) {
+    const links = [];
+    if (Number(item.report_id || 0)) links.push('report_id=' + Number(item.report_id));
+    if (Number(item.tape_id || 0)) links.push('tape_id=' + Number(item.tape_id));
+    if (Number(item.capture_id || 0)) links.push('capture_id=' + Number(item.capture_id));
+    if (Number(item.advance_id || 0)) links.push('advance_id=' + Number(item.advance_id));
+    if (Number(item.audit_id || 0)) links.push('audit_id=' + Number(item.audit_id));
+    return links.join(' · ');
+  };
 
   return `
     <section class="final-package-section">
@@ -1247,15 +1256,16 @@ function qlFinalPackageMessagesSection(messages) {
         <h4>Сообщения по отчету</h4>
         <span>Отдельно от общего чата</span>
       </div>
-      <p class="final-package-note">${escapeHtml(schemaNote || 'Привязанные к отчету события восстановлены из аудита; общий чат группы ниже не считается прямым доказательством отчета.')}</p>
-      <div class="final-package-subhead">События проверки из аудита</div>
+      <p class="final-package-note">${escapeHtml(schemaNote)}</p>
+      <div class="final-package-subhead">Прямые сообщения и события проверки</div>
       ${reportContext.length ? `
         <div class="final-package-message-list">
           ${reportContext.map(function(item) {
+            const context = contextLabel(item);
             return `
               <div class="final-package-message">
                 <b>${escapeHtml(qlFinalPackageLabel(item.event || item.message_type || item.action || 'Событие отчета', 'Событие отчета'))}</b>
-                <small>${escapeHtml(qlFinalReportDate(item.created_at))} · ${escapeHtml(item.actor_name || item.user_name || item.user_email || item.user_id || 'Система')}</small>
+                <small>${escapeHtml(qlFinalReportDate(item.created_at))} · ${escapeHtml(item.sender_name || item.sender_email || item.actor_name || item.user_name || item.user_email || item.user_id || 'Система')}${context ? ' · ' + escapeHtml(context) : ''}</small>
                 ${item.text ? '<p>' + escapeHtml(item.text) + '</p>' : ''}
                 ${item.details ? '<p>' + escapeHtml(typeof item.details === 'string' ? item.details : JSON.stringify(item.details)) + '</p>' : ''}
               </div>
@@ -1330,10 +1340,11 @@ function qlRenderFinalReportPackage(report, packageData) {
       </div>
       <div class="report-actions final-package-actions">
         <button class="primary-btn wide-btn" type="button" data-final-report-print="${escapeHtml(reportId)}">Печать / PDF закрытого отчета</button>
+        <button class="ghost-btn wide-btn" type="button" data-final-report-package-export="${escapeHtml(reportId)}">Скачать пакет JSON</button>
         <button class="ghost-btn wide-btn" type="button" data-final-report-excel="${escapeHtml(reportId)}">Краткая таблица: Excel</button>
         <button class="ghost-btn wide-btn" type="button" data-final-report-google="${escapeHtml(reportId)}">Краткая таблица: Google</button>
       </div>
-      <p class="final-package-note">Печать страницы включает пакет отчета. Excel/Google сейчас выгружают краткую таблицу финального отчета, а не полный архивный пакет.</p>
+      <p class="final-package-note">JSON скачивает весь сохраненный пакет отчета с индексом proof links. Excel/Google остаются краткими таблицами финального отчета.</p>
       ${qlFinalPackageSummarySection(summary)}
       ${qlFinalPackageParticipantsSection(participants, proofMap)}
       ${qlFinalPackageCapturesSection(captures, proofMap)}
@@ -1376,6 +1387,7 @@ function qlRenderFinalReportDetail(report, snapshot, options) {
       ${qlFinalReportMetric('Баланс', totals.balance)}
     </div>
     <div class="report-actions final-report-actions">
+      <button class="primary-btn wide-btn" type="button" data-final-report-package-export="${escapeHtml(reportId)}">Скачать старый снимок JSON</button>
       <button class="primary-btn wide-btn" type="button" data-final-report-excel="${escapeHtml(reportId)}">Краткая таблица: Excel</button>
       <button class="ghost-btn wide-btn" type="button" data-final-report-google="${escapeHtml(reportId)}">Краткая таблица: Google</button>
     </div>
@@ -1473,6 +1485,12 @@ function qlDownloadFinalReportExcel(reportId) {
   if (!reportId) return;
   qlCloseTransientPanels();
   window.location.href = '/api.php?action=ledger_group_final_report_excel&report_id=' + encodeURIComponent(String(reportId));
+}
+
+function qlDownloadFinalReportPackageExport(reportId) {
+  if (!reportId) return;
+  qlCloseTransientPanels();
+  window.location.href = '/api.php?action=ledger_group_final_report_package_export&report_id=' + encodeURIComponent(String(reportId));
 }
 
 async function qlOpenFinalReportGoogleSheet(reportId) {
@@ -1636,6 +1654,7 @@ document.addEventListener('click', function(event) {
   const printReport = event.target.closest('#printReportBtn');
   const finalReportOpen = event.target.closest('[data-final-report-open]');
   const finalReportPrint = event.target.closest('[data-final-report-print]');
+  const finalReportPackageExport = event.target.closest('[data-final-report-package-export]');
   const finalReportExcel = event.target.closest('[data-final-report-excel]');
   const finalReportGoogle = event.target.closest('[data-final-report-google]');
 
@@ -1650,6 +1669,9 @@ document.addEventListener('click', function(event) {
   if (finalReportPrint) {
     qlCloseTransientPanels();
     qlPrintFinalReportPackage();
+  }
+  if (finalReportPackageExport) {
+    qlDownloadFinalReportPackageExport(finalReportPackageExport.getAttribute('data-final-report-package-export'));
   }
   if (finalReportExcel) {
     qlCloseTransientPanels();
@@ -2096,8 +2118,9 @@ qlRenderUser = function(user) {
     if (!qlRestoreModuleState()) {
       const activeModule = document.querySelector('.ql-module[data-module].active');
       const fallbackModule = activeModule ? activeModule.getAttribute('data-module') : 'ontherun';
-      qlSetModule(fallbackModule);
+      qlSetModule(fallbackModule, {history: 'replace'});
     }
+    qlReplaceBrowserHistoryFromCurrentState();
   }, 80);
 };
 
@@ -3171,6 +3194,71 @@ function qlUseActiveGroupForLedger() {
 
 const QL_MODULE_STATE_KEY = 'ql_module_state_v1';
 const QL_MODULE_STATE_ALLOWED = ['ontherun', 'ledger', 'reports', 'captain', 'money', 'groups', 'business', 'premium', 'settings'];
+let qlBrowserHistoryReady = false;
+let qlBrowserHistoryApplying = false;
+
+function qlBrowserHistorySupported() {
+  return !!(window.history && typeof window.history.pushState === 'function' && typeof window.history.replaceState === 'function');
+}
+
+function qlBuildBrowserState(moduleName, options) {
+  const opts = options || {};
+  const requested = QL_MODULE_STATE_ALLOWED.includes(String(moduleName || '')) ? String(moduleName) : 'ontherun';
+  const state = {
+    findesk_app: true,
+    module: requested,
+    screen: opts.screen ? String(opts.screen) : '',
+    focus: opts.focus ? String(opts.focus) : '',
+    scope_mode: qlLedgerScopeMode === 'group' ? 'group' : 'personal',
+    scope_group_id: qlResolveActiveGroupId() || 0,
+    ts: Date.now()
+  };
+
+  if (requested === 'ontherun') {
+    state.ontherun_screen = opts.ontherun_screen || opts.screen || (
+      document.body.classList.contains('otr-editor-open')
+        ? 'editor'
+        : (document.body.classList.contains('otr-cards-open')
+          ? 'cards'
+          : (document.body.classList.contains('otr-stream-gate-open') ? 'stream_gate' : ''))
+    );
+    state.stream_type = opts.stream_type || (typeof window.qlOtrSimpleCurrentStream === 'function' ? String(window.qlOtrSimpleCurrentStream() || '') : '');
+    state.tape_id = Number(opts.tape_id || opts.tapeId || window.qlOtrActiveTapeId || 0);
+    state.archived_only = opts.archivedOnly || opts.archived_only ? 1 : 0;
+  }
+
+  return state;
+}
+
+function qlWriteBrowserState(moduleName, options, mode) {
+  if (!qlBrowserHistorySupported() || qlBrowserHistoryApplying) return;
+  const state = qlBuildBrowserState(moduleName, options || {});
+  const method = mode === 'replace' || !qlBrowserHistoryReady ? 'replaceState' : (mode === 'push' ? 'pushState' : '');
+  if (!method) return;
+  window.history[method](state, '', '/app.php');
+  qlBrowserHistoryReady = true;
+}
+
+function qlReplaceBrowserHistoryFromCurrentState() {
+  if (!qlBrowserHistorySupported()) return;
+  const state = qlLoadModuleState() || qlBuildBrowserState('ontherun', {screen: 'editor'});
+  if (!state.findesk_app) state.findesk_app = true;
+  window.history.replaceState(state, '', '/app.php');
+  qlBrowserHistoryReady = true;
+}
+
+window.addEventListener('popstate', function(event) {
+  const state = event.state;
+  if (!state || state.findesk_app !== true) return;
+  qlBrowserHistoryApplying = true;
+  try {
+    qlApplyModuleState(state);
+  } finally {
+    setTimeout(function() {
+      qlBrowserHistoryApplying = false;
+    }, 80);
+  }
+});
 
 function qlSaveModuleState(moduleName, options) {
   if (!window.localStorage) return;
@@ -3392,6 +3480,10 @@ function qlSetModule(moduleName, options) {
     screen: requestedScreen,
     focus: options.focus || ''
   });
+  qlWriteBrowserState(requested, {
+    screen: requestedScreen,
+    focus: options.focus || ''
+  }, options.history || '');
 }
 
 document.addEventListener('click', function(event) {
@@ -3401,7 +3493,8 @@ document.addEventListener('click', function(event) {
   qlSetModule(tab.getAttribute('data-module-tab') || 'ledger', {
     screen: tab.getAttribute('data-module-screen') || '',
     focus: tab.getAttribute('data-module-focus') || '',
-    label: tab.textContent ? tab.textContent.trim() : ''
+    label: tab.textContent ? tab.textContent.trim() : '',
+    history: 'push'
   });
 
   const panel = tab.closest('[data-module-menu-panel]');
@@ -3476,7 +3569,7 @@ document.addEventListener('click', function(event) {
   const mode = event.target.closest('[data-mode-open]');
   if (!mode) return;
 
-  qlSetModule(mode.getAttribute('data-mode-open') || 'ledger');
+  qlSetModule(mode.getAttribute('data-mode-open') || 'ledger', {history: 'push'});
 });
 
 window.qlSetModule = qlSetModule;
@@ -3756,8 +3849,9 @@ function qlAdvancedRenderCashSplit(balance, stats) {
   if (arrow) arrow.textContent = '+';
 }
 
-function qlAdvancedSetScreen(screen) {
+function qlAdvancedSetScreen(screen, options) {
   const target = screen || 'overview';
+  const opts = options || {};
   const module = document.getElementById('moduleMoney');
   if (module) {
     module.setAttribute('data-advanced-current-screen', target);
@@ -3770,6 +3864,10 @@ function qlAdvancedSetScreen(screen) {
   document.querySelectorAll('[data-advanced-screen-panel]').forEach(function(panel) {
     panel.classList.toggle('is-active', panel.getAttribute('data-advanced-screen-panel') === target);
   });
+  if (opts.history) {
+    qlSaveModuleState('money', {screen: target});
+    qlWriteBrowserState('money', {screen: target}, opts.history);
+  }
 }
 
 function qlAdvancedRenderPanels(balanceSummary, reportData, balanceData) {
@@ -4974,7 +5072,7 @@ document.addEventListener('click', function(event) {
   if (finalizeReport) qlAdvancedFinalizeReport();
   if (closeExcelPreview) qlAdvancedCloseExcelPreview();
   if (ai) qlAdvancedRunAi();
-  if (screen) qlAdvancedSetScreen(screen.getAttribute('data-advanced-screen'));
+  if (screen) qlAdvancedSetScreen(screen.getAttribute('data-advanced-screen'), {history: 'push'});
   if (submit) qlAdvanceSubmit(submit.getAttribute('data-advance-submit'));
   if (accept) qlAdvanceAccept(accept.getAttribute('data-advance-accept'));
   if (ret) qlAdvanceReturn(ret.getAttribute('data-advance-return'));
@@ -7337,6 +7435,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   }
 
   async function qlLoadCaptainFin() {
+    if (document.getElementById('captainCardView')) return;
     if (captainLoading) return;
     captainLoading = true;
 
@@ -7405,6 +7504,10 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   let captainCurrentReviewId = null;
   let captainCurrentReviewStatus = '';
   let captainLoading = false;
+  let captainLedgerData = null;
+  let captainFinalizing = false;
+  let captainParticipantRows = [];
+  let captainActiveCard = {type: 'board', id: ''};
 
   function captainStatus(message) {
     const el = document.getElementById('captainStatus');
@@ -7424,6 +7527,41 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (type === 'cash_out') return 'Расход наличными';
     if (type === 'noncash_out') return 'Расход безнал';
     return 'Запись';
+  }
+
+  function firstNumber() {
+    for (let i = 0; i < arguments.length; i++) {
+      const value = Number(arguments[i]);
+      if (Number.isFinite(value)) return value;
+    }
+    return 0;
+  }
+
+  function reportOwnerId(report) {
+    return String(report && (report.user_id || report.owner_user_id || report.assigned_to_user_id || '')) || '';
+  }
+
+  function reportOwnerName(report) {
+    return report && (report.user_display_name || report.assigned_to_display_name || report.email || report.assigned_to_email) || 'Участник';
+  }
+
+  function advanceOwnerId(advance) {
+    return String(advance && (advance.assigned_to_user_id || advance.user_id || '')) || '';
+  }
+
+  function advanceOwnerName(advance) {
+    return advance && (advance.assigned_to_display_name || advance.assigned_to_email || 'Участник') || 'Участник';
+  }
+
+  function currentUserId() {
+    return qlCurrentUser && qlCurrentUser.id ? String(qlCurrentUser.id) : '';
+  }
+
+  function participantInitials(name) {
+    const clean = String(name || 'У').trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'У';
+    return parts.slice(0, 2).map(function(part) { return part.charAt(0).toUpperCase(); }).join('');
   }
 
   function reportStream(report) {
@@ -7522,6 +7660,155 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     select.value = captainGroupId ? String(captainGroupId) : '';
   }
 
+  function renderCaptainBalances(ledgerData) {
+    const adminEl = document.getElementById('captainAdminCashLeft');
+    const employeeEl = document.getElementById('captainEmployeeCashLeft');
+    const amountEl = document.getElementById('captainAdminReportAmount');
+    const summary = ledgerData && ledgerData.ok && ledgerData.summary ? ledgerData.summary : {};
+    const adminCash = firstNumber(
+      summary.available_cash_balance,
+      summary.cash_balance,
+      summary.available_balance,
+      summary.balance
+    );
+    const employeeCash = firstNumber(summary.accountable_cash_left_open, 0);
+
+    if (adminEl) adminEl.textContent = money(adminCash);
+    if (employeeEl) employeeEl.textContent = money(employeeCash);
+    if (amountEl && !amountEl.dataset.liveAmount) amountEl.textContent = money(adminCash);
+  }
+
+  function captainAdminCashValue() {
+    const summary = captainLedgerData && captainLedgerData.ok && captainLedgerData.summary ? captainLedgerData.summary : {};
+    return firstNumber(
+      summary.available_cash_balance,
+      summary.cash_balance,
+      summary.available_balance,
+      summary.balance
+    );
+  }
+
+  function captainRowStatusClass(row) {
+    if (!row) return '';
+    if (row.submitted > 0) return 'is-submitted';
+    if (row.included > 0) return 'is-included';
+    if (row.assigned > 0) return 'is-assigned';
+    return 'is-passive';
+  }
+
+  function captainRowStatusDots(row) {
+    const dots = [];
+    if (row && row.submitted > 0) dots.push('<span class="captain-card-dot orange" title="Отчет сдан"></span>');
+    if (row && row.assigned > 0 && row.submitted <= 0 && row.included <= 0) dots.push('<span class="captain-card-dot red" title="Деньги на руках"></span>');
+    if (row && row.included > 0 && row.submitted <= 0) dots.push('<span class="captain-card-dot green" title="Проверено"></span>');
+    return dots.length ? '<span class="captain-card-dots">' + dots.join('') + '</span>' : '';
+  }
+
+  function renderCaptainBoard(rows) {
+    const box = document.getElementById('captainSubmittedList');
+    if (!box) return;
+    const adminCash = captainAdminCashValue();
+    const participantButtons = (rows || []).filter(function(row) {
+      return row.id !== currentUserId();
+    }).slice(0, 8).map(function(row) {
+      return `
+        <button class="captain-card-button person ${captainRowStatusClass(row)}" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(row.id)}">
+          <span><b>${escapeHtml(row.name)}</b></span>
+          <strong>${money(row.left)}</strong>
+          ${captainRowStatusDots(row)}
+        </button>
+      `;
+    }).join('');
+    const redLamp = '<span class="captain-ref-lamp red"></span>';
+
+    box.innerHTML = `
+      <section class="captain-ref-work">
+        <div class="captain-ref-top">
+          <div>
+            <h2>Входящие отчеты</h2>
+            <p>Проверка живых отчетов, подотчетов и сбор общего пакета.</p>
+          </div>
+          <button class="captain-ref-pill" type="button" data-mode-open="ontherun">${redLamp} Живой отчет</button>
+        </div>
+
+        <div class="captain-ref-switchboard">
+          <button class="captain-ref-card main-card" type="button" data-captain-open-card="admin" data-captain-card-id="admin">
+            <span class="card-title">Администратор</span>
+            <span class="card-sub">${money(adminCash)}</span>
+            <span class="captain-ref-lamp red floating-lamp"></span>
+          </button>
+        </div>
+
+        <div class="captain-ref-subtitle"><strong>Карточки сотрудников</strong><span></span></div>
+
+        <div class="captain-ref-tree people-tree">
+          <div class="captain-ref-subgrid people-grid">
+            ${participantButtons || '<p class="soft-note">Карточек сотрудников пока нет.</p>'}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function closeCaptainCardView() {
+    captainActiveCard = {type: 'board', id: ''};
+    renderCaptainCardView();
+  }
+
+  function openCaptainCardView(type, id) {
+    captainActiveCard = {type: type || 'participant', id: String(id || '')};
+    renderCaptainCardView();
+  }
+
+  function renderCaptainCardView() {
+    const home = document.getElementById('captainBoardHome');
+    const view = document.getElementById('captainCardView');
+    const adminWork = document.getElementById('captainAdminWork');
+    const participantWork = document.getElementById('captainParticipantWork');
+    const details = document.getElementById('captainDetailsPanel');
+    const module = document.getElementById('moduleCaptain');
+    const title = document.getElementById('captainCardViewTitle');
+    const kicker = document.getElementById('captainCardViewKicker');
+    const amount = document.getElementById('captainCardViewAmount');
+    if (!home || !view) return;
+
+    const isOpen = captainActiveCard && captainActiveCard.type && captainActiveCard.type !== 'board';
+    home.classList.toggle('hidden', isOpen);
+    view.classList.toggle('hidden', !isOpen);
+    if (details) details.classList.toggle('hidden', isOpen);
+    if (module) {
+      module.querySelectorAll('.captain-ref-brand, .captain-balance-strip, .captain-admin-bar').forEach(function(el) {
+        el.classList.toggle('hidden', isOpen);
+      });
+    }
+    if (!isOpen) return;
+
+    const isAdmin = captainActiveCard.type === 'admin';
+    const row = !isAdmin ? captainParticipantRows.find(function(item) {
+      return String(item.id) === String(captainActiveCard.id);
+    }) : null;
+
+    if (adminWork) adminWork.classList.toggle('hidden', !isAdmin);
+    if (participantWork) participantWork.classList.toggle('hidden', isAdmin);
+
+    if (isAdmin) {
+      if (kicker) kicker.textContent = 'Карточка администратора';
+      if (title) title.textContent = 'Администратор';
+      if (amount) amount.textContent = money(captainAdminCashValue());
+      return;
+    }
+
+    if (!row) {
+      closeCaptainCardView();
+      return;
+    }
+
+    if (kicker) kicker.textContent = row.submitted > 0 ? 'Отчет сдан' : row.included > 0 ? 'Проверено' : 'Карточка сотрудника';
+    if (title) title.textContent = row.name || 'Участник';
+    if (amount) amount.textContent = money(row.left);
+    if (participantWork) participantWork.innerHTML = renderEmployeeCard(row);
+  }
+
   function renderCurrentReport(data, ledgerData) {
     const box = document.getElementById('captainCurrentSummary');
     if (!box) return;
@@ -7569,19 +7856,242 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       ${submitAction}
       <button class="ghost-btn wide-btn danger-soft-btn" type="button" data-otr-card-delete="${escapeHtml(tape.id || '')}">Удалить</button>
     ` : submitAction;
+    const amountEl = document.getElementById('captainAdminReportAmount');
+    if (amountEl) {
+      amountEl.dataset.liveAmount = '1';
+      amountEl.textContent = money(left);
+    }
 
     box.innerHTML = `
-      <div class="captain-current-head">
-        <span>Черновик из “Живого отчета”</span>
-        <b>${records ? 'Готов к сдаче' : 'Пусто'}</b>
+      <div class="captain-current-head captain-admin-current-head">
+        <span>Быстрая запись администратора</span>
+        <b>${records ? 'Готова к сдаче' : 'Ожидает строк'}</b>
       </div>
       <div class="captain-mini-metrics">
-        <div><span>База</span><b>${money(base + extraIncome)}</b></div>
+        <div><span>Общий остаток</span><b>${money(base + extraIncome)}</b></div>
         <div><span>Потрачено</span><b>${money(spent)}</b></div>
         <div><span>Остаток</span><b>${money(left)}</b></div>
       </div>
       <div class="captain-current-actions">${cardActions}</div>
     `;
+  }
+
+  function memberByUserId(userId) {
+    const id = String(userId || '');
+    return captainMembers.find(function(member) {
+      return String(member.user_id || '') === id;
+    }) || null;
+  }
+
+  function participantRows(submittedOtr, submittedAdvances, includedOtr, acceptedAdvances, assignedAdvances) {
+    const rows = new Map();
+
+    function ensure(id, name, email, role) {
+      const key = String(id || name || email || ('row-' + rows.size));
+      if (!rows.has(key)) {
+        rows.set(key, {
+          id: key,
+          name: name || 'Участник',
+          email: email || '',
+          role: role || '',
+          submitted: 0,
+          included: 0,
+          assigned: 0,
+          received: 0,
+          left: 0,
+          latest: null,
+          latestType: ''
+        });
+      }
+      return rows.get(key);
+    }
+
+    (captainMembers || []).forEach(function(member) {
+      ensure(
+        member.user_id,
+        member.display_name || member.email || 'Участник',
+        member.email || '',
+        member.access_level || member.role || ''
+      );
+    });
+
+    (submittedOtr || []).forEach(function(report) {
+      const s = report.summary || {};
+      const row = ensure(reportOwnerId(report), reportOwnerName(report), report.email || '', '');
+      row.submitted++;
+      row.received += firstNumber(report.cash_received, s.before_amount, s.cash_in, 0);
+      row.left += firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0);
+      row.latest = report;
+      row.latestType = 'otr-submitted';
+    });
+
+    (submittedAdvances || []).forEach(function(advance) {
+      const s = advance.summary || {};
+      const row = ensure(advanceOwnerId(advance), advanceOwnerName(advance), advance.assigned_to_email || '', '');
+      row.submitted++;
+      row.received += firstNumber(advance.amount, s.cash_in, 0);
+      row.left += firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0);
+      row.latest = advance;
+      row.latestType = 'advance-submitted';
+    });
+
+    (includedOtr || []).forEach(function(report) {
+      const s = report.summary || {};
+      const row = ensure(reportOwnerId(report), reportOwnerName(report), report.email || '', '');
+      row.included++;
+      row.received += firstNumber(report.cash_received, s.before_amount, s.cash_in, 0);
+      row.left += firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0);
+      if (!row.latest) {
+        row.latest = report;
+        row.latestType = 'otr-included';
+      }
+    });
+
+    (acceptedAdvances || []).forEach(function(advance) {
+      const s = advance.summary || {};
+      const row = ensure(advanceOwnerId(advance), advanceOwnerName(advance), advance.assigned_to_email || '', '');
+      row.included++;
+      row.received += firstNumber(advance.amount, s.cash_in, 0);
+      row.left += firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0);
+      if (!row.latest) {
+        row.latest = advance;
+        row.latestType = 'advance-accepted';
+      }
+    });
+
+    (assignedAdvances || []).forEach(function(advance) {
+      const s = advance.summary || {};
+      const row = ensure(advanceOwnerId(advance), advanceOwnerName(advance), advance.assigned_to_email || '', '');
+      row.assigned++;
+      row.received += firstNumber(advance.amount, s.cash_in, 0);
+      row.left += firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0);
+      if (!row.latest) {
+        row.latest = advance;
+        row.latestType = 'advance-open';
+      }
+    });
+
+    return Array.from(rows.values()).sort(function(a, b) {
+      if ((a.id === currentUserId()) !== (b.id === currentUserId())) return a.id === currentUserId() ? -1 : 1;
+      if ((a.submitted > 0) !== (b.submitted > 0)) return a.submitted > 0 ? -1 : 1;
+      if ((a.included > 0) !== (b.included > 0)) return a.included > 0 ? -1 : 1;
+      return a.name.localeCompare(b.name, 'ru');
+    });
+  }
+
+  function renderParticipantStrip(rows) {
+    const box = document.getElementById('captainParticipantStrip');
+    if (!box) return;
+    if (!rows.length) {
+      box.innerHTML = '<p class="soft-note">В группе пока нет участников.</p>';
+      return;
+    }
+
+    box.innerHTML = rows.slice(0, 12).map(function(row) {
+      const own = row.id === currentUserId();
+      const active = row.submitted > 0;
+      const done = !active && row.included > 0;
+      return `
+        <span class="captain-participant-chip ${own ? 'is-admin' : ''} ${active ? 'is-submitted' : ''} ${done ? 'is-included' : ''}">
+          <i>${escapeHtml(participantInitials(own ? 'Администратор' : row.name))}</i>
+          <b>${escapeHtml(own ? 'Администратор' : row.name)}</b>
+        </span>
+      `;
+    }).join('');
+  }
+
+  function liveReportActions(report, included) {
+    const id = escapeHtml(report.id || report.tape_id || '');
+    if (!id) return '';
+    const canReturn = report.can_return !== false;
+    if (included) {
+      return `
+        <button class="ghost-btn" type="button" data-captain-open-otr-card="${id}">Открыть</button>
+        <button class="ghost-btn danger-soft-btn" type="button" data-otr-card-uninclude="${id}">Вернуть в проверку</button>
+      `;
+    }
+    return `
+      <button class="ghost-btn" type="button" data-captain-open-otr-card="${id}">Открыть</button>
+      <button class="primary-btn" type="button" data-otr-card-include="${id}">Утвердить</button>
+      ${canReturn ? '<button class="ghost-btn danger-soft-btn" type="button" data-otr-card-unsubmit="' + id + '">Вернуть</button>' : ''}
+    `;
+  }
+
+  function advanceActions(advance, accepted) {
+    const id = escapeHtml(advance.id || '');
+    if (!id) return '';
+    if (accepted) {
+      return `
+        <button class="ghost-btn" type="button" data-captain-open-review="${id}">Открыть</button>
+        <button class="ghost-btn danger-soft-btn" type="button" data-captain-unaccept="${id}">Вернуть</button>
+      `;
+    }
+    return `
+      <button class="ghost-btn" type="button" data-captain-open-review="${id}">Открыть</button>
+      <button class="primary-btn" type="button" data-captain-accept="${id}">Утвердить</button>
+      <button class="ghost-btn danger-soft-btn" type="button" data-captain-return="${id}">Вернуть</button>
+    `;
+  }
+
+  function renderEmployeeCard(row) {
+    const isOwn = row.id === currentUserId();
+    const latest = row.latest || {};
+    const type = row.latestType || '';
+    const submitted = row.submitted > 0;
+    const included = row.included > 0 && !submitted;
+    const passive = !submitted && !included && row.assigned <= 0;
+    const title = isOwn ? 'Администратор' : row.name;
+    let actions = '';
+    if (type === 'otr-submitted') actions = liveReportActions(latest, false);
+    if (type === 'otr-included') actions = liveReportActions(latest, true);
+    if (type === 'advance-submitted') actions = advanceActions(latest, false);
+    if (type === 'advance-accepted') actions = advanceActions(latest, true);
+    if (type === 'advance-open' && latest.id) actions = '<button class="ghost-btn" type="button" data-captain-open-review="' + escapeHtml(latest.id) + '">Открыть</button>';
+
+    return `
+      <article class="captain-employee-card ${submitted ? 'is-submitted' : ''} ${included ? 'is-included' : ''} ${passive ? 'is-passive' : ''} ${isOwn ? 'is-admin' : ''}">
+        <div class="captain-employee-head">
+          <span class="captain-employee-avatar">${escapeHtml(participantInitials(title))}</span>
+          <div>
+            <b>${escapeHtml(title)}</b>
+            <small>${escapeHtml(submitted ? 'Сдано на проверку' : included ? 'Проверен' : row.assigned > 0 ? 'Деньги на руках' : 'Пассивен')}</small>
+          </div>
+        </div>
+        <div class="captain-employee-money">
+          <span>Принял <b>${money(row.received)}</b></span>
+          <span>Остаток <b>${money(row.left)}</b></span>
+        </div>
+        ${actions ? '<div class="captain-row-actions">' + actions + '</div>' : ''}
+      </article>
+    `;
+  }
+
+  function renderCaptainChildReports(includedOtr, acceptedAdvances) {
+    const rows = [];
+    (includedOtr || []).forEach(function(report) {
+      const s = report.summary || {};
+      rows.push(`
+        <article class="captain-child-card">
+          <span>Дочерний отчет · Проверен</span>
+          <b>${escapeHtml(reportOwnerName(report))}</b>
+          <small>Принял ${money(firstNumber(report.cash_received, s.before_amount, s.cash_in, 0))} · остаток ${money(firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0))}</small>
+        </article>
+      `);
+    });
+    (acceptedAdvances || []).forEach(function(advance) {
+      const s = advance.summary || {};
+      rows.push(`
+        <article class="captain-child-card">
+          <span>Подотчет · Проверен</span>
+          <b>${escapeHtml(advanceOwnerName(advance))}</b>
+          <small>Принял ${money(firstNumber(advance.amount, s.cash_in, 0))} · остаток ${money(firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0))}</small>
+        </article>
+      `);
+    });
+
+    return rows.length
+      ? rows.slice(0, 8).join('')
+      : '<p class="soft-note">После утверждения отчеты сотрудников прикрепятся сюда как дочерние карточки.</p>';
   }
 
   function renderCaptainMembers() {
@@ -8000,13 +8510,13 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const accepted = captainAdvances.filter(function(row) {
       return ['accepted', 'closed'].includes(row.status || '');
     });
+    const participants = participantRows(submittedOtr, submitted, includedOtr, accepted, assigned);
 
     if (submittedBox) {
-      const reviewRows = submittedOtr.slice(0, 8).map(renderOtrSubmittedRow).concat(submitted.slice(0, 8).map(renderAdvanceRow));
-      submittedBox.innerHTML = reviewRows.length
-        ? reviewRows.join('')
-        : '<p class="soft-note">Сданных отчетов на проверку пока нет.</p>';
+      captainParticipantRows = participants;
+      renderCaptainBoard(participants);
     }
+    renderCaptainCardView();
 
     if (assignedBox) {
       const assignedRows = assigned.slice(0, 8).map(renderAdvanceRow);
@@ -8016,7 +8526,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     }
 
     if (acceptedBox) {
-      acceptedBox.innerHTML = renderIncludedPackSummary(includedOtr, accepted);
+      acceptedBox.innerHTML = renderCaptainChildReports(includedOtr, accepted);
     }
 
     if (archiveBox) {
@@ -8139,8 +8649,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         qlApi('on_the_go_tape_list', ledgerPayload),
         qlApi('ledger_balance', ledgerPayload)
       ]);
+      captainLedgerData = results[1] || null;
+      renderCaptainBalances(captainLedgerData);
       renderCurrentReport(results[0], results[1]);
 
+      await loadCaptainMembers();
       await loadCaptainAdvances();
       await loadCaptainOtrReports();
       await loadCaptainOtrArchive();
@@ -8543,6 +9056,64 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
   }
 
+  async function finalizeCaptainReport() {
+    if (captainFinalizing) return;
+    if (!captainGroupId) {
+      captainStatus('Сначала выберите группу.');
+      return;
+    }
+    const group = selectedGroup();
+    if (!groupCanManage(group)) {
+      captainStatus('Создать сводный отчет может администратор группы.');
+      return;
+    }
+
+    const includedOtr = (captainOtrReports || []).filter(function(row) {
+      return row.card_state === 'included' && !row.ui_archived;
+    });
+    const accepted = captainAdvances.filter(function(row) {
+      return ['accepted', 'closed'].includes(row.status || '');
+    });
+    const total = includedOtr.length + accepted.length;
+    const ok = confirm(total
+      ? 'Создать и утвердить сводный отчет? Финансовые суммы будут зафиксированы, а включенные быстрые карточки уйдут в архив.'
+      : 'В рабочем пакете нет дочерних карточек. Все равно проверить фиксацию сводного отчета?');
+    if (!ok) return;
+
+    captainFinalizing = true;
+    captainStatus('Фиксирую сводный отчет...');
+    const data = await qlApi('ledger_group_finalize_report', {group_id: Number(captainGroupId)});
+    captainFinalizing = false;
+
+    if (!data.ok) {
+      captainStatus('Не удалось зафиксировать отчет: ' + (data.message || data.error || 'unknown'));
+      return;
+    }
+
+    captainStatus(Number(data.finalized || 0)
+      ? 'Сводный отчет создан. Карточек закрыто: ' + Number(data.finalized || 0) + '.'
+      : 'Нет включенных быстрых карточек для закрытия.');
+    await loadCaptainAdminDesk();
+    if (typeof qlLoadFinalReports === 'function') qlLoadFinalReports();
+    if (typeof qlLoadLedger === 'function') qlLoadLedger();
+    if (typeof window.qlOtrSimpleLoad === 'function') window.qlOtrSimpleLoad({force: true});
+  }
+
+  function printCaptainReport() {
+    if (!captainGroupId) {
+      captainStatus('Сначала выберите группу.');
+      return;
+    }
+    openCaptainGroupReport();
+    setTimeout(function() {
+      try {
+        window.print();
+      } catch (error) {
+        captainStatus('Печать недоступна в этом браузере.');
+      }
+    }, 320);
+  }
+
   function openCaptainGroupReport() {
     if (!captainGroupId) {
       captainStatus('Сначала выберите группу.');
@@ -8607,6 +9178,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       captainGroupId = group.value ? Number(group.value) : null;
       window.qlCaptainActiveGroupId = captainGroupId;
       qlAdvanceGroupId = captainGroupId;
+      captainActiveCard = {type: 'board', id: ''};
       loadCaptainAdminDesk();
     }
 
@@ -8616,6 +9188,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   });
 
   document.addEventListener('click', function(event) {
+    const openCard = event.target.closest('[data-captain-open-card]');
+    const closeCard = event.target.closest('#captainCardBackBtn');
     const createGroup = event.target.closest('#captainCreateGroupBtn');
     const invite = event.target.closest('#captainCreateInviteBtn');
     const issue = event.target.closest('#captainIssueCreateBtn');
@@ -8623,6 +9197,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const included = event.target.closest('[data-captain-open-included]');
     const archive = event.target.closest('[data-captain-open-archive]');
     const journal = event.target.closest('#captainJournalExportBtn, #captainArchiveJournalExportBtn');
+    const finalize = event.target.closest('[data-captain-finalize-report]');
+    const print = event.target.closest('[data-captain-print]');
     const openReview = event.target.closest('[data-captain-open-review]');
     const accept = event.target.closest('[data-captain-accept]');
     const ret = event.target.closest('[data-captain-return]');
@@ -8630,6 +9206,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const returnCash = event.target.closest('[data-captain-return-cash]');
     const cancel = event.target.closest('[data-captain-cancel]');
 
+    if (openCard) {
+      openCaptainCardView(openCard.getAttribute('data-captain-open-card'), openCard.getAttribute('data-captain-card-id'));
+      return;
+    }
+    if (closeCard) {
+      closeCaptainCardView();
+      return;
+    }
     if (createGroup) createCaptainGroup();
     if (invite) createCaptainInvite();
     if (issue) issueCaptainAdvance();
@@ -8641,6 +9225,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (included) openCaptainIncludedModal();
     if (archive) openCaptainArchiveModal();
     if (journal) exportCaptainJournal();
+    if (finalize) finalizeCaptainReport();
+    if (print) printCaptainReport();
     if (openReview) openCaptainReview(openReview.getAttribute('data-captain-open-review'));
     if (accept) acceptCaptainAdvance(accept.getAttribute('data-captain-accept'));
     if (ret) returnCaptainAdvance(ret.getAttribute('data-captain-return'));
@@ -8734,6 +9320,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   let simpleAutosaveBusy = false;
   let simpleAutosaveQueued = false;
   let simpleLastAutosaveSignature = '';
+  let simpleUiBusy = false;
   let simplePendingOperationId = '';
   let simplePendingOperationSignature = '';
   let simpleScannerFile = null;
@@ -8820,6 +9407,48 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     return Number(row && row.capture_id || 0);
   }
 
+  function isValidSimpleProofRetryContext(context, state) {
+    if (!context || typeof context !== 'object') return false;
+    const targetCapture = simpleProofRetryTargetCaptureId(state, context);
+    if (targetCapture <= 0) return false;
+
+    const contextDraftId = String(context.client_draft_id || '');
+    const currentDraftId = String(simpleClientDraftId || '');
+    if (contextDraftId && currentDraftId && contextDraftId !== currentDraftId) return false;
+
+    const contextStream = normalizeSimpleStream(context.stream_type || '');
+    const currentStream = normalizeSimpleStream(simpleCurrentStream);
+    if (contextStream && contextStream !== currentStream) return false;
+
+    const contextTapeId = Number(context.tape_id || 0);
+    const currentTapeId = Number(qlOtrActiveTapeId || simpleOpenedCardId || 0);
+    if (contextTapeId > 0 && currentTapeId > 0 && contextTapeId !== currentTapeId) return false;
+
+    const contextSessionId = Number(context.session_id || 0);
+    const currentSessionId = Number(simpleSessionId || 0);
+    if (contextSessionId > 0 && currentSessionId > 0 && contextSessionId !== currentSessionId) return false;
+
+    const contextDraftRowId = Number(context.draft_id || 0);
+    const currentDraftRowId = Number(simpleDraftId || 0);
+    if (contextDraftRowId > 0 && currentDraftRowId > 0 && contextDraftRowId !== currentDraftRowId) return false;
+
+    const contextSignature = context.draft_signature || '';
+    if (contextSignature && contextSignature !== simpleDraftSignature()) return false;
+    return true;
+  }
+
+  function getSimpleProofRetryContext(state) {
+    const context = simpleProofRetryContext || readSimpleProofRetryContext();
+    if (!isValidSimpleProofRetryContext(context, state)) {
+      clearSimpleProofRetryContext();
+      return null;
+    }
+    if (context && !simpleProofRetryContext) {
+      simpleProofRetryContext = context;
+    }
+    return context;
+  }
+
   function isUnresolvedSimpleProofState(row) {
     const status = simpleProofStateStatus(row);
     return status !== 'uploaded' && status !== '';
@@ -8868,7 +9497,9 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   }
 
   function hasSimpleProofRetryTarget() {
-    return simpleProofRetryTargetCaptureId(findSimpleRetryProofState(), simpleProofRetryContext || readSimpleProofRetryContext()) > 0;
+    const state = findSimpleRetryProofState();
+    const context = getSimpleProofRetryContext(state);
+    return Boolean(state) && simpleProofRetryTargetCaptureId(state, context) > 0;
   }
 
   function rememberSimpleProofRetryContext(extra) {
@@ -8886,6 +9517,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       tape_id: Number(data.tape_id || qlOtrActiveTapeId || simpleOpenedCardId || (existing && existing.tape_id) || 0),
       session_id: Number(data.session_id || simpleSessionId || (existing && existing.session_id) || 0),
       group_id: Number(data.group_id || (group && group.id) || (existing && existing.group_id) || 0),
+      draft_signature: data.draft_signature || simpleDraftSignature(),
       capture_id: captureId
     });
     if (captureIds.length) {
@@ -8900,12 +9532,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   }
 
   function restoreSimpleProofRetryContextFromState() {
+    const state = findSimpleRetryProofState();
     const stored = readSimpleProofRetryContext();
-    if (stored && (!simpleClientDraftId || String(stored.client_draft_id) === String(simpleClientDraftId))) {
+    if (stored && isValidSimpleProofRetryContext(stored, state)) {
       simpleProofRetryContext = stored;
+    } else if (stored) {
+      clearSimpleProofRetryContext();
     }
 
-    const state = findSimpleRetryProofState();
     const captureId = simpleProofStateCaptureId(state);
     if (state && captureId > 0) {
       const status = simpleProofStateStatus(state);
@@ -8920,7 +9554,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         client_draft_id: simpleClientDraftId,
         tape_id: Number((stored && stored.tape_id) || qlOtrActiveTapeId || simpleOpenedCardId || 0),
         session_id: Number((stored && stored.session_id) || simpleSessionId || 0),
-        stream_type: (stored && stored.stream_type) || simpleCurrentStream
+        stream_type: (stored && stored.stream_type) || simpleCurrentStream,
+        draft_signature: simpleDraftSignature()
       });
     }
 
@@ -9052,6 +9687,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     if (!rows.length) {
       box.innerHTML = '<span>Доказательства: нет</span>';
+      syncSimpleProofsButton();
       return;
     }
 
@@ -9069,6 +9705,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         </div>
       `;
 	    }).join('');
+	    syncSimpleProofsButton();
 	  }
 
 	  function getSimpleSelectedProofFile(fileInput) {
@@ -9107,7 +9744,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 	    simpleScannerBundleId = (metadata && metadata.proof_bundle_id) || simpleScannerBundleId || simpleToken('scan');
 	    restoreSimpleProofRetryContextFromState();
 	    const retryState = findSimpleRetryProofState();
-	    const retryContext = simpleProofRetryContext || readSimpleProofRetryContext();
+	    const retryContext = getSimpleProofRetryContext(retryState);
 	    const retryCaptureId = simpleProofRetryTargetCaptureId(retryState, retryContext);
 	    simpleSelectedUploadId = (retryState && retryState.client_upload_id)
 	      || (retryContext && retryContext.client_upload_id)
@@ -9424,7 +10061,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     await refreshSimpleProofStates();
     const state = findSimpleRetryProofState();
-    const storedContext = simpleProofRetryContext || readSimpleProofRetryContext();
+    const storedContext = getSimpleProofRetryContext(state);
     const captureId = simpleProofRetryTargetCaptureId(state, storedContext);
     if (!captureId) {
       setSimpleSyncState('retry_needed', 'Нужно сохранить строку перед фото');
@@ -9521,7 +10158,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       : {
           type,
           label: 'Наличные',
-          short: 'Нал',
+          short: 'Наличные',
           title: 'Живой отчет',
           amountLabel: 'Дали',
           amountHelp: 'Сумма на руках для этого отчета. Дополнительные приходы пишите строками со знаком +.',
@@ -9584,7 +10221,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     document.body.classList.remove('otr-stream-gate-open');
   }
 
-  function showStreamGate() {
+  function showStreamGate(options) {
+    const opts = options || {};
     const gate = document.getElementById('otrStreamGate');
     if (gate) {
       gate.classList.remove('hidden');
@@ -9601,9 +10239,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (typeof qlSaveModuleState === 'function') {
       qlSaveModuleState('ontherun', {screen: 'stream_gate', stream_type: simpleCurrentStream});
     }
+    qlWriteBrowserState('ontherun', {screen: 'stream_gate', stream_type: simpleCurrentStream}, opts.history || '');
   }
 
-  function showSimpleEditor() {
+  function showSimpleEditor(options) {
+    const opts = options || {};
     hideStreamGate();
     const card = document.getElementById('otrSimpleCard');
     if (card) {
@@ -9618,6 +10258,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         tape_id: Number(simpleOpenedCardId || qlOtrActiveTapeId || 0)
       });
     }
+    qlWriteBrowserState('ontherun', {
+      screen: 'editor',
+      stream_type: simpleCurrentStream,
+      tape_id: Number(simpleOpenedCardId || qlOtrActiveTapeId || 0)
+    }, opts.history || '');
   }
 
   function hideSimpleEditor() {
@@ -9657,6 +10302,96 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     if (submit) submit.classList.toggle('hidden', !canSubmit);
     if (del) del.classList.toggle('hidden', !canDelete);
+    syncSimpleProofsButton();
+  }
+
+  function simpleCurrentProofCardId() {
+    const shellCardId = Number(document.getElementById('otrSimpleCard')?.dataset?.otrOpenCardId || 0);
+    return shellCardId
+      || Number(simpleOpenedCardId || 0)
+      || Number(simpleCurrentCard && (simpleCurrentCard.id || simpleCurrentCard.tape_id) || 0)
+      || Number(qlOtrActiveTapeId || 0);
+  }
+
+  function simpleCurrentProofFilesCount() {
+    const summary = simpleCurrentCard && (simpleCurrentCard.card_summary || simpleCurrentCard.summary)
+      ? (simpleCurrentCard.card_summary || simpleCurrentCard.summary)
+      : {};
+    return Number(summary.files_count || 0) || 0;
+  }
+
+  function simpleHasSavedProofs() {
+    const cardFiles = simpleCurrentProofFilesCount();
+    return cardFiles > 0;
+  }
+
+  function syncSimpleProofsButton() {
+    const button = document.getElementById('otrSimpleProofsBtn');
+    if (!button) return;
+    const cardId = simpleCurrentProofCardId();
+    const show = cardId > 0 && simpleHasSavedProofs();
+    button.classList.toggle('hidden', !show);
+    button.disabled = !show;
+  }
+
+  function toggleSimpleUiBusyState(busy) {
+    simpleUiBusy = !!busy;
+    const ids = [
+      'otrSimpleSaveBtn',
+      'otrSimpleEditBtn',
+      'otrSimpleSubmitBtn',
+      'otrSimpleDeleteBtn',
+      'otrAutosaveRetryBtn',
+      'otrSimpleProofsBtn',
+      'otrCardsBackBtn',
+      'otrEditorBackBtn',
+      'otrSimpleProofStateRefresh'
+    ];
+    ids.forEach(function(id) {
+      const element = document.getElementById(id);
+      if (!element) return;
+      element.disabled = simpleUiBusy && !element.classList.contains('persistent-action');
+    });
+  }
+
+  async function withSimpleUiBusy(action) {
+    if (typeof action !== 'function') return;
+    if (simpleUiBusy) return;
+    toggleSimpleUiBusyState(true);
+    try {
+      return await action();
+    } finally {
+      toggleSimpleUiBusyState(false);
+    }
+  }
+
+  async function withSimpleActionBusy(button, action, options) {
+    if (typeof action !== 'function') return;
+    const buttonEl = typeof button === 'string' ? document.getElementById(button) : button;
+    const opts = options || {};
+    const wasBusy = !!simpleUiBusy;
+    const busyLabel = opts.label || '';
+    const restoreText = buttonEl ? buttonEl.textContent || '' : '';
+
+    if (buttonEl && !wasBusy) {
+      if (busyLabel) buttonEl.textContent = busyLabel;
+      buttonEl.classList.add('is-busy');
+      buttonEl.setAttribute('aria-busy', 'true');
+      buttonEl.dataset.qlSimpleBusyText = restoreText;
+    }
+
+    try {
+      return await withSimpleUiBusy(action);
+    } finally {
+      if (buttonEl && !wasBusy) {
+        buttonEl.textContent = buttonEl.dataset.qlSimpleBusyText || restoreText || '';
+        buttonEl.classList.remove('is-busy');
+        buttonEl.removeAttribute('aria-busy');
+        if (typeof buttonEl.dataset !== 'undefined') {
+          buttonEl.removeAttribute('data-ql-simple-busy-text');
+        }
+      }
+    }
   }
 
   function setSimpleEditMode(enabled) {
@@ -9675,7 +10410,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (edit) {
       edit.classList.remove('hidden');
       edit.classList.toggle('is-fixing', simpleEditMode);
-      edit.textContent = simpleEditMode ? '✓' : '✎';
+      edit.textContent = simpleEditMode ? 'Готово' : 'Редактировать';
       edit.setAttribute('aria-label', simpleEditMode ? 'Зафиксировать записи' : 'Начать редактирование');
       edit.setAttribute('title', simpleEditMode ? 'Зафиксировать' : 'Редактировать');
     }
@@ -9685,12 +10420,13 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     });
   }
 
-  async function returnToCards() {
+  async function returnToCards(options) {
+    const opts = options || {};
     if (simpleDirty) {
       await autosaveSimpleDraft({force: true, silent: true});
     }
     if (typeof window.qlOpenOtrReportCards === 'function') {
-      await window.qlOpenOtrReportCards();
+      await window.qlOpenOtrReportCards({history: opts.history || ''});
     } else {
       hideSimpleEditor();
     }
@@ -10072,9 +10808,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 	    if (!simpleEditMode) return;
 	    const els = receiptScannerEls();
 	    if (!els.modal) return;
+	    if (els.input) {
+	      els.input.setAttribute('accept', 'image/*');
+	      els.input.setAttribute('capture', 'environment');
+	    }
 	    els.modal.classList.remove('hidden');
 	    els.modal.setAttribute('aria-hidden', 'false');
 	    document.body.classList.add('modal-open');
+	    receiptScannerStatus('Камера откроется, если браузер/PWA разрешает capture; иначе выберите фото из файлов.');
 	    setTimeout(function() {
 	      renderReceiptScanner();
 	      if (options && options.pick && els.input) els.input.click();
@@ -10468,9 +11209,55 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     }).join('\n');
   }
 
+  async function simpleActiveSessionIdFromCard(tapeId, streamType) {
+    if (!tapeId) return 0;
+    const targetStream = normalizeSimpleStream(streamType || simpleCurrentStream);
+    try {
+      const data = await qlApi('on_the_go_session_list', {tape_id: tapeId});
+      if (!data.ok || !Array.isArray(data.sessions)) {
+        return 0;
+      }
+
+      const active = data.sessions.find(function(session) {
+        return String(session.status || '').toLowerCase() === 'active'
+          && String(session.session_type || '').toLowerCase() === targetStream;
+      });
+      if (active && active.id) {
+        return Number(active.id);
+      }
+
+      const activeAny = data.sessions.find(function(session) {
+        return String(session.status || '').toLowerCase() === 'active';
+      });
+      if (activeAny && activeAny.id) {
+        return Number(activeAny.id);
+      }
+    } catch (error) {}
+
+    return 0;
+  }
+
   async function applySimpleCardDetail(detailData, options) {
     const opts = options || {};
     const activeTape = detailData.card || {};
+    const streamType = normalizeSimpleStream(activeTape.stream_type || simpleCurrentStream || 'cash');
+    const detailItems = Array.isArray(detailData.items) ? detailData.items : [];
+    const activeSessionId = Number(await simpleActiveSessionIdFromCard(activeTape.id || activeTape.tape_id || 0, streamType));
+    const activeItems = activeSessionId > 0
+      ? detailItems.filter(function(item) {
+          return Number(item.session_id || 0) === activeSessionId;
+        })
+      : detailItems;
+    if (activeSessionId > 0) {
+      simpleSessionId = activeSessionId;
+    }
+    const detailFilesCount = detailItems.reduce(function(total, item) {
+      return total + Number(item && item.files_count || 0);
+    }, 0);
+    activeTape.files_count = Number(activeTape.files_count || detailFilesCount || 0);
+    activeTape.summary = Object.assign({}, activeTape.summary || {}, {
+      files_count: Number((activeTape.summary && activeTape.summary.files_count) || detailFilesCount || activeTape.files_count || 0)
+    });
     const openedId = Number(activeTape.id || activeTape.tape_id || opts.tape_id || opts.tapeId || 0);
     if (openedId > 0) {
       simpleOpenedCardId = openedId;
@@ -10480,7 +11267,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     simpleCurrentCard = activeTape;
     simpleReplaceTape = true;
-    setSimpleStream(activeTape.stream_type || simpleCurrentStream || 'cash', {chosen: true});
+    setSimpleStream(streamType, {chosen: true});
 
     const isAdminMode = simpleIsAdminMode();
     setSimpleAdminModeCopy(isAdminMode);
@@ -10492,7 +11279,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     const notes = document.getElementById('otrSimpleNotes');
     if (notes && (opts.force || !simpleDirty)) {
-      notes.value = signedTextFromCaptures(detailData.items || [], simpleCurrentStream);
+      notes.value = signedTextFromCaptures(activeItems, streamType);
     }
 
     renderSimpleResult();
@@ -10558,13 +11345,24 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         const detailData = await qlApi('on_the_go_card_detail', {id: activeId});
         if (detailData.ok) {
           activeTape = detailData.card || activeTape;
-          setSimpleStream(activeTape.stream_type || simpleCurrentStream, {chosen: true});
+          const activeStream = normalizeSimpleStream(activeTape.stream_type || simpleCurrentStream || 'cash');
+          setSimpleStream(activeStream, {chosen: true});
+          const detailItems = Array.isArray(detailData.items) ? detailData.items : [];
+          const activeSessionId = Number(await simpleActiveSessionIdFromCard(activeTape.id || activeTape.tape_id || activeId, activeStream));
+          if (activeSessionId > 0) {
+            simpleSessionId = activeSessionId;
+          }
+          const activeItems = activeSessionId > 0
+            ? detailItems.filter(function(item) {
+                return Number(item.session_id || 0) === activeSessionId;
+              })
+            : detailItems;
           simpleOpenedCardId = Number(activeTape && (activeTape.id || activeTape.tape_id) || activeId || 0);
           loadedFromCard = true;
           simpleReplaceTape = true;
           const notes = document.getElementById('otrSimpleNotes');
           if (notes && (options && options.force || !simpleDirty)) {
-            notes.value = signedTextFromCaptures(detailData.items || [], simpleCurrentStream);
+            notes.value = signedTextFromCaptures(activeItems, activeStream);
           }
         }
       }
@@ -10859,7 +11657,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (selected) {
       restoreSimpleProofRetryContextFromState();
       const retryState = findSimpleRetryProofState();
-      const retryContext = simpleProofRetryContext || readSimpleProofRetryContext();
+      const retryContext = getSimpleProofRetryContext(retryState);
       const retryCaptureId = simpleProofRetryTargetCaptureId(retryState, retryContext);
       simpleSelectedUploadId = (retryState && retryState.client_upload_id)
         || (retryContext && retryContext.client_upload_id)
@@ -10929,7 +11727,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 	    if (event.target.closest('#receiptScannerPickBtn') || event.target.closest('#receiptScannerRetakeBtn')) {
 	      event.preventDefault();
 	      const input = document.getElementById('receiptScannerSourceInput');
-	      if (input) input.click();
+	      if (input) {
+	        input.setAttribute('accept', 'image/*');
+	        input.setAttribute('capture', 'environment');
+	        input.click();
+	      }
 	      return;
 	    }
 	    if (event.target.closest('#receiptScannerAttachBtn')) {
@@ -10976,7 +11778,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       hideStreamGate();
       const recovered = await recoverStoredSimpleFieldDraft(nextStream, {force: true});
       if (recovered) {
-        showSimpleEditor();
+        showSimpleEditor({history: 'push'});
         return;
       }
       simpleClientDraftId = '';
@@ -10992,15 +11794,15 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       await loadSimpleOnTheGo({force: true, stream_type: nextStream});
       await autosaveSimpleDraft({force: true, silent: true});
       if (typeof window.qlOpenOtrReportCards === 'function') {
-        await window.qlOpenOtrReportCards();
+        await window.qlOpenOtrReportCards({history: 'push'});
       } else {
-        showSimpleEditor();
+        showSimpleEditor({history: 'push'});
       }
       return;
     }
     if (event.target.closest('#otrStreamSwitchBtn')) {
       event.preventDefault();
-      showStreamGate();
+      showStreamGate({history: 'push'});
       return;
     }
     const quickLine = event.target.closest('[data-otr-quick-line]');
@@ -11046,59 +11848,122 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       input.click();
       return;
     }
-	    if (event.target.closest('#otrSimpleSaveBtn')) {
-	      event.preventDefault();
-	      const fileInput = document.getElementById('otrSimpleFile');
-	      if (getSimpleSelectedProofFile(fileInput) && hasSimpleProofRetryTarget()) {
-	        await retrySimpleProofUpload();
-	        return;
-	      }
-      await saveSimpleOnTheGo();
+    if (event.target.closest('#otrSimpleSaveBtn')) {
+      event.preventDefault();
+      const saveButton = event.target.closest('#otrSimpleSaveBtn');
+      const fileInput = document.getElementById('otrSimpleFile');
+      const retryMode = getSimpleSelectedProofFile(fileInput) && hasSimpleProofRetryTarget();
+      const actionLabel = retryMode ? 'Повторяю фото…' : 'Сохраняю…';
+      await withSimpleActionBusy(saveButton, async function() {
+        const fileInput = document.getElementById('otrSimpleFile');
+        if (getSimpleSelectedProofFile(fileInput) && hasSimpleProofRetryTarget()) {
+          await retrySimpleProofUpload();
+          return;
+        }
+        await saveSimpleOnTheGo();
+      }, {label: actionLabel});
       return;
     }
-	    if (event.target.closest('#otrAutosaveRetryBtn')) {
-	      event.preventDefault();
-	      const fileInput = document.getElementById('otrSimpleFile');
-	      if (getSimpleSelectedProofFile(fileInput)) {
-	        await retrySimpleProofUpload();
-	      } else if (hasSimpleProofRetryTarget()) {
-        setSimpleSyncState('retry_needed', 'Выберите фото для повтора');
-        simpleStatus('Выберите фото еще раз, затем повторите отправку. Денежная строка уже сохранена.');
-      } else {
+    if (event.target.closest('#otrAutosaveRetryBtn')) {
+      event.preventDefault();
+      const retryButton = event.target.closest('#otrAutosaveRetryBtn');
+      await withSimpleActionBusy(retryButton, async function() {
+        const fileInput = document.getElementById('otrSimpleFile');
+        if (getSimpleSelectedProofFile(fileInput)) {
+          await retrySimpleProofUpload();
+          return;
+        }
+        if (hasSimpleProofRetryTarget()) {
+          setSimpleSyncState('retry_needed', 'Выберите фото для повтора');
+          simpleStatus('Выберите фото еще раз, затем повторите отправку. Денежная строка уже сохранена.');
+          return;
+        }
         await autosaveSimpleDraft({force: true});
+      }, {label: 'Повторяю фото…'});
+      return;
+    }
+    if (event.target.closest('#otrSimpleProofsBtn')) {
+      event.preventDefault();
+      const cardId = simpleCurrentProofCardId();
+      const proofsButton = event.target.closest('#otrSimpleProofsBtn');
+      if (!cardId || typeof window.qlOpenOtrReportCard !== 'function') {
+        simpleStatus('Сохраненные файлы появятся после сохранения записи.');
+        return;
       }
+      await withSimpleActionBusy(proofsButton, async function() {
+        await window.qlOpenOtrReportCard(cardId, {viewFiles: true, history: 'push'});
+      }, {label: 'Открываю вложения…'});
       return;
     }
     if (event.target.closest('#otrSimpleEditBtn')) {
       event.preventDefault();
-	      if (simpleEditMode) {
-	        const fileInput = document.getElementById('otrSimpleFile');
-	        if (getSimpleSelectedProofFile(fileInput) && hasSimpleProofRetryTarget()) {
-	          await retrySimpleProofUpload();
-	          return;
-	        }
-        await saveSimpleOnTheGo({stayInEditor: true});
-        return;
-      }
-      setSimpleEditMode(true);
-      const notes = document.getElementById('otrSimpleNotes');
-      if (notes) notes.focus();
-      simpleStatus('Редактирование включено.');
+      const editButton = event.target.closest('#otrSimpleEditBtn');
+      await withSimpleActionBusy(editButton, async function() {
+        if (simpleEditMode) {
+          const fileInput = document.getElementById('otrSimpleFile');
+          if (getSimpleSelectedProofFile(fileInput) && hasSimpleProofRetryTarget()) {
+            await retrySimpleProofUpload();
+            return;
+          }
+          await saveSimpleOnTheGo({stayInEditor: true});
+          return;
+        }
+        setSimpleEditMode(true);
+        const notes = document.getElementById('otrSimpleNotes');
+        if (notes) notes.focus();
+        simpleStatus('Редактирование включено.');
+      }, {label: 'Фиксирую…'});
       return;
     }
     if (event.target.closest('#otrOpenCardsBtn')) {
       event.preventDefault();
-      returnToCards();
+      await withSimpleUiBusy(async function() {
+        await returnToCards({history: 'push'});
+      });
+      return;
     }
     if (event.target.closest('#otrEditorBackBtn')) {
       event.preventDefault();
-      returnToCards();
+      await withSimpleUiBusy(async function() {
+        await returnToCards();
+      });
+      return;
     }
     if (event.target.closest('#otrSimpleSubmitBtn')) {
       event.preventDefault();
       if (typeof window.qlSubmitOtrReportCard === 'function') {
         const submitButton = event.target.closest('#otrSimpleSubmitBtn');
-        const deleteButton = document.getElementById('otrSimpleDeleteBtn');
+        await withSimpleActionBusy(submitButton, async function() {
+          const submitButton = event.target.closest('#otrSimpleSubmitBtn');
+          const deleteButton = document.getElementById('otrSimpleDeleteBtn');
+          const targetCardId = Number(
+            document.getElementById('otrSimpleCard')?.dataset?.otrOpenCardId
+            || simpleOpenedCardId
+            || (simpleCurrentCard && (simpleCurrentCard.id || simpleCurrentCard.tape_id))
+            || qlOtrActiveTapeId
+            || 0
+          );
+          if (submitButton) submitButton.disabled = true;
+          if (deleteButton) {
+            deleteButton.disabled = true;
+            deleteButton.classList.add('hidden');
+          }
+          const result = await window.qlSubmitOtrReportCard(targetCardId);
+          if (result && result.ok) {
+            if (typeof window.qlOpenOtrReportCards === 'function') {
+              window.qlOpenOtrReportCards();
+            }
+            return;
+          }
+          if (submitButton) submitButton.disabled = false;
+          syncSimpleEditorActions(simpleCurrentCard);
+        }, {label: 'Сдаю в FinDesk…'});
+      }
+      return;
+    }
+    if (event.target.closest('#otrSimpleDeleteBtn')) {
+      event.preventDefault();
+      await withSimpleUiBusy(async function() {
         const targetCardId = Number(
           document.getElementById('otrSimpleCard')?.dataset?.otrOpenCardId
           || simpleOpenedCardId
@@ -11106,44 +11971,21 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           || qlOtrActiveTapeId
           || 0
         );
-        if (submitButton) submitButton.disabled = true;
-        if (deleteButton) {
-          deleteButton.disabled = true;
-          deleteButton.classList.add('hidden');
-        }
-        const result = await window.qlSubmitOtrReportCard(targetCardId);
-        if (result && result.ok) {
-          if (typeof window.qlOpenOtrReportCards === 'function') window.qlOpenOtrReportCards();
+        simpleDirty = false;
+        if (!targetCardId) {
+          simpleStatus('Не вижу открытую карточку для удаления. Вернитесь в список и откройте ее еще раз.');
           return;
         }
-        if (submitButton) submitButton.disabled = false;
-        syncSimpleEditorActions(simpleCurrentCard);
-      }
-      return;
-    }
-    if (event.target.closest('#otrSimpleDeleteBtn')) {
-      event.preventDefault();
-      const targetCardId = Number(
-        document.getElementById('otrSimpleCard')?.dataset?.otrOpenCardId
-        || simpleOpenedCardId
-        || (simpleCurrentCard && (simpleCurrentCard.id || simpleCurrentCard.tape_id))
-        || qlOtrActiveTapeId
-        || 0
-      );
-      simpleDirty = false;
-      if (!targetCardId) {
-        simpleStatus('Не вижу открытую карточку для удаления. Вернитесь в список и откройте ее еще раз.');
-        return;
-      }
-      if (typeof window.qlDeleteOtrReportCard === 'function') {
-        const button = event.target.closest('#otrSimpleDeleteBtn');
-        if (button) button.disabled = true;
-        try {
-          await window.qlDeleteOtrReportCard(targetCardId);
-        } finally {
-          if (button) button.disabled = false;
+        if (typeof window.qlDeleteOtrReportCard === 'function') {
+          const button = event.target.closest('#otrSimpleDeleteBtn');
+          if (button) button.disabled = true;
+          try {
+            await window.qlDeleteOtrReportCard(targetCardId);
+          } finally {
+            if (button) button.disabled = false;
+          }
         }
-      }
+      });
       return;
     }
   });
@@ -11467,7 +12309,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (create) create.classList.toggle('hidden', reportCardsArchiveMode);
   }
 
-  function openCardsPanel() {
+  function openCardsPanel(options) {
+    const opts = options || {};
     const panel = document.getElementById('otrReportCardsPanel');
     if (!panel) return;
     if (typeof window.qlOtrSimpleHideStreamGate === 'function') {
@@ -11491,6 +12334,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         archivedOnly: reportCardsArchiveMode
       });
     }
+    qlWriteBrowserState('ontherun', {
+      screen: 'cards',
+      stream_type: currentStream(),
+      archivedOnly: reportCardsArchiveMode
+    }, opts.history || '');
   }
 
   function closeCardsPanel() {
@@ -11895,7 +12743,32 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     });
   }
 
-  async function openCard(id) {
+  async function openCardFirstSavedProof(detailCard) {
+    const records = document.getElementById('otrCardRecords');
+    const items = Array.isArray(detailCard && detailCard.items) ? detailCard.items : [];
+    const hasProofRows = items.some(function(item) {
+      return Number(item.files_count || 0) > 0;
+    });
+    if (!hasProofRows || !records) {
+      return false;
+    }
+
+    const deadline = Date.now() + 1200;
+    while (Date.now() < deadline) {
+      const button = records.querySelector('button[data-otr-proof-view]');
+      if (button) {
+        button.click();
+        return true;
+      }
+      await new Promise(function(resolve) {
+        setTimeout(resolve, 120);
+      });
+    }
+    return false;
+  }
+
+  async function openCard(id, options) {
+    const opts = options || {};
     currentCardId = Number(id || 0);
     if (!currentCardId) return;
 
@@ -11910,14 +12783,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       window.qlOtrSimpleChooseStream(detailCard.stream_type, {chosen: true});
     }
     const detailState = String(detailCard.card_state || '').toLowerCase();
-    if (detailCard.can_edit && detailState !== 'submitted' && detailState !== 'included') {
+    if (detailCard.can_edit && detailState !== 'submitted' && detailState !== 'included' && !opts.viewFiles) {
       qlOtrActiveTapeId = currentCardId;
       window.qlOtrActiveTapeId = currentCardId;
       const shell = document.getElementById('otrSimpleCard');
       if (shell) shell.dataset.otrOpenCardId = String(currentCardId);
       closeCardsPanel();
       closeCardModal();
-      if (typeof window.qlShowOtrSimpleEditor === 'function') window.qlShowOtrSimpleEditor();
+      if (typeof window.qlShowOtrSimpleEditor === 'function') window.qlShowOtrSimpleEditor({history: opts.history || ''});
       if (typeof window.qlOtrSimpleOpenCardDetail === 'function') {
         await window.qlOtrSimpleOpenCardDetail(data, {force: true, tape_id: currentCardId, viewOnly: true});
       } else if (typeof window.qlOtrSimpleLoad === 'function') {
@@ -11929,6 +12802,15 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     openCardModalShell();
     renderCardModal(data);
+    if (opts.viewFiles) {
+      const opened = await openCardFirstSavedProof(detailCard);
+      if (!opened) {
+        cardStatus('Вложения для этой записи пока не сохранены.');
+      }
+    }
+    if (opts.history) {
+      qlWriteBrowserState('ontherun', {screen: 'cards', stream_type: currentStream(), archivedOnly: reportCardsArchiveMode}, opts.history);
+    }
   }
 
   async function refreshAll() {
@@ -12234,7 +13116,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           }
         });
       }
-      openCard(open.getAttribute('data-otr-card-open') || open.getAttribute('data-captain-open-otr-card'));
+      openCard(open.getAttribute('data-otr-card-open') || open.getAttribute('data-captain-open-otr-card'), {history: 'push'});
       return;
     }
     if (submit) {
@@ -12362,7 +13244,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       window.qlOtrSimpleShowStreamGate();
       return;
     }
-    openCardsPanel();
+    openCardsPanel({history: opts.history || ''});
     await loadCards({archivedOnly: !!opts.archivedOnly});
   };
   window.qlHighlightOtrReportCard = highlightReportCard;

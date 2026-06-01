@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260528-v135';
+const CACHE_NAME = 'findesk-20260601-findesk-mobilefit2';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

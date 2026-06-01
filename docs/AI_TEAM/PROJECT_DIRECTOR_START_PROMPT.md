@@ -20,8 +20,8 @@ php scripts/local-smoke.php http://127.0.0.1:18889
 Если smoke не подключается, не делай вывод о поломке кода: сначала проверь, запущен ли локальный сервер на 127.0.0.1:18889.
 
 Обязательно прочитай:
-docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-05-26.md
 docs/AI_TEAM/00_START_HERE.md
+docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md
 docs/AI_TEAM/01_PRODUCT_COMPASS.md
 docs/AI_TEAM/02_CURRENT_STATE.md
 docs/AI_TEAM/03_WORKFLOW_RULES.md
@@ -30,6 +30,9 @@ docs/AI_TEAM/CHAT_LINKS.md
 docs/AI_TEAM/05_DECISIONS.md
 docs/AI_TEAM/PROJECT_DIRECTOR_TASK_CARD_RULES.md
 docs/AI_TEAM/SHORT_REPORT_TEMPLATE.md
+
+Офис:
+docs/AI_TEAM/OFFICE_DASHBOARD.html
 
 Затем проверь кабинеты:
 docs/AI_TEAM/roles/01_product_finance_architect/

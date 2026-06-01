@@ -2275,11 +2275,12 @@ function ql_on_the_go_signed_sync(array $input): array
                 FROM on_the_go_captures
                 WHERE user_id = ?
                   AND tape_id = ?
+                  AND (session_id = ? OR session_id IS NULL)
                   AND review_status <> 'archived'
                   AND {$captureWhere}
                 ORDER BY created_at ASC, id ASC
             ");
-            $existingStmt->execute([$userId, $tapeId]);
+            $existingStmt->execute([$userId, $tapeId, $sessionId]);
 
             $existingByKey = [];
             foreach ($existingStmt->fetchAll() as $row) {
@@ -2300,6 +2301,7 @@ function ql_on_the_go_signed_sync(array $input): array
                     updated_at = NOW()
                 WHERE id = ?
                   AND user_id = ?
+                  AND (session_id = ? OR session_id IS NULL)
                 LIMIT 1
             ");
 
@@ -2315,6 +2317,7 @@ function ql_on_the_go_signed_sync(array $input): array
                         $description,
                         $existingId,
                         $userId,
+                        $sessionId,
                     ]);
                     $syncedCount++;
                     continue;
@@ -2350,9 +2353,10 @@ function ql_on_the_go_signed_sync(array $input): array
                         updated_at = NOW()
                     WHERE user_id = ?
                       AND tape_id = ?
+                      AND (session_id = ? OR session_id IS NULL)
                       AND id IN ({$placeholders})
                 ");
-                $archive->execute(array_merge([$userId, $tapeId], $unusedIds));
+                $archive->execute(array_merge([$userId, $tapeId, $sessionId], $unusedIds));
             }
         } else {
             $stmt = $db->prepare("
@@ -2382,8 +2386,8 @@ function ql_on_the_go_signed_sync(array $input): array
             }
         }
 
-        $summary = ql_on_the_go_card_summary($tapeId);
-        if ($startNext && (int)($summary['records_count'] ?? 0) > 0) {
+        $runningSummary = ql_on_the_go_tape_summary($tapeId);
+        if ($startNext && (int)($runningSummary['records_count'] ?? 0) > 0) {
             $effectiveGroupId = $groupId;
             if ($effectiveGroupId <= 0) {
                 $lookup = $db->prepare("SELECT group_id FROM on_the_go_tapes WHERE id = ? AND user_id = ? LIMIT 1");
@@ -2406,7 +2410,7 @@ function ql_on_the_go_signed_sync(array $input): array
                 $nextTapeId = ql_on_the_go_seed_next_tape(
                     $userId,
                     $effectiveGroupId,
-                    $streamType === 'card' ? 0.0 : round((float)($summary['after_amount'] ?? 0), 2),
+                    $streamType === 'card' ? 0.0 : round((float)($runningSummary['cash_left'] ?? 0), 2),
                     $tapeId,
                     $streamType
                 );

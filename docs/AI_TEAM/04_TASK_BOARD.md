@@ -1,5 +1,52 @@
 # AI Team Task Board
 
+## Director Sync 2026-06-02 - Handoff And GitHub
+
+Status: ready for GitHub sync.
+
+Latest start handoff:
+
+- `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md`
+
+Office:
+
+- `docs/AI_TEAM/OFFICE_DASHBOARD.html`
+
+Production frontend:
+
+- correct host: `https://finance.brkovic.ltd/app.php`;
+- latest asset version: `20260601-findesk-mobilefit2`;
+- uploaded files: `public/app.php`, `public/assets/app.css`, `public/assets/app.js`, `public/service-worker.js`;
+- production HTTP checks passed for app shell, CSS asset, and service worker;
+- Playwright mobile start-screen smoke passed after top brand-pill correction.
+
+Important boundary:
+
+- local backend/open-items candidate from reports `45-46` is in source, but production DB migration/package-export rollout must not be treated as deployed until a separate backup, DB preflight, migration, smoke, and deploy report are completed.
+- physical scanner/PWA camera readiness remains open until real-device evidence exists.
+- authenticated production QA after login is still needed for the final `mobilefit2` FinDesk screen.
+
+## Director Sprint 2026-05-28 - FinDesk Board Rebuild
+
+Status: local implementation complete; QA/browser pass pending.
+
+Evidence:
+
+- `docs/AI_TEAM/48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md`
+
+Done locally:
+
+- FinDesk board rebuilt around administrator card, child reports, employee cards, and top cash strip.
+- Other modules moved under one `Детали` menu while keeping `Живой отчет` and `FinDesk` as first-level actions.
+- Employee submitted cards render as orange-highlighted working cards.
+- Approve/return/finalize buttons reuse existing API/actions; financial formulas and backend architecture were not changed.
+
+Pending:
+
+- authenticated browser QA on mobile/tablet/desktop;
+- production deploy package and post-deploy smoke;
+- no physical deletion for the `20 cards` rule until retention policy is confirmed.
+
 ## Intake 2026-05-26
 
 - Project Director accepted the 2026-05-26 handoff.
@@ -328,6 +375,18 @@ Next steps:
 - Hotfix report: `docs/AI_TEAM/44_RECORDS_SCROLL_HOTFIX_PRODUCTION_2026-05-28.md`.
 - Production smoke passed: run `prod-records-scroll-20260528164351`; mobile list `clientHeight=621`, `scrollHeight=3183`, `scrollTop=2562`; desktop `scrollTop=3180`.
 - Temporary DB-gate was not used and stayed `404`.
+- Project Director opened and completed a local sprint for the remaining open items.
+- Local sprint report: `docs/AI_TEAM/45_OPEN_ITEMS_SPRINT_LOCAL_2026-05-28.md`.
+- Local asset candidate: `20260528-open-sprint1`.
+- Implemented locally: first-class group message context fields (`report_id`, `tape_id`, `capture_id`, `advance_id`), package JSON export, legacy snapshot JSON fallback, explicit language fallback state, scanner capture fallback copy/hardening.
+- Local verification passed: `node --check public/assets/app.js`, `node --check public/assets/i18n.js`, `node --check public/service-worker.js`, Python deploy helper compile, local `current_user`, local `app.php`, `git diff --check`, local message context smoke, package end-to-end smoke (`report_id=587`), and language fallback VM smoke.
+- Production deploy attempt is blocked in the current shell because FTP/DB-gate environment variables are absent; report: `docs/AI_TEAM/46_OPEN_ITEMS_SPRINT_DEPLOY_BLOCKED_2026-05-28.md`.
+- Production deploy remains next for selected bundle only once deploy variables are available; real-device scanner/PWA camera gate remains open until physical device evidence exists.
+- CEO opened the UI simplification handoff from Google Drive: fast entry must feel like a calm operational notebook, with admin/report complexity separated.
+- First local frontend patch for fast-entry complaints and browser Back behavior is complete.
+- Local report: `docs/AI_TEAM/47_FAST_ENTRY_UX_BACK_LOCAL_2026-05-28.md`.
+- Changed locally: modern `Фото/Скан/Файл` controls, saved proof access button, `Наличные` label, no edit-over-amount overlap, no lower-right pseudo-card, hidden fixed expense preview, app-step browser history.
+- QA visual/manual check remains required before production routing.
 - Optional QA browser visual matrix on production when browser automation is available.
 - Post-MVP/Advanced tasks remain P1/P2 below.
 

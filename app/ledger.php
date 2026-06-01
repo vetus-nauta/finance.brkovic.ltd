@@ -2156,7 +2156,106 @@ function ql_ledger_group_final_report_audit_refs(int $groupId, array $cardIds, s
     return $refs;
 }
 
-function ql_ledger_group_final_report_messages_snapshot(int $groupId, array $auditRefs, string $finalizedAt): array
+function ql_ledger_table_has_column(string $table, string $column): bool
+{
+    if (function_exists('ql_group_table_has_column')) {
+        return ql_group_table_has_column($table, $column);
+    }
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        return false;
+    }
+
+    try {
+        $stmt = ql_db()->prepare("
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+        ");
+        $stmt->execute([$table, $column]);
+        return (int)$stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function ql_ledger_message_context_columns(): array
+{
+    static $columns = null;
+    if ($columns !== null) {
+        return $columns;
+    }
+
+    $columns = [
+        'report_id' => ql_ledger_table_has_column('group_messages', 'report_id'),
+        'tape_id' => ql_ledger_table_has_column('group_messages', 'tape_id'),
+        'capture_id' => ql_ledger_table_has_column('group_messages', 'capture_id'),
+        'advance_id' => ql_ledger_table_has_column('group_messages', 'advance_id'),
+    ];
+
+    return $columns;
+}
+
+function ql_ledger_context_message_select(string $alias = 'gm'): string
+{
+    $columns = ql_ledger_message_context_columns();
+    $parts = [];
+    foreach (['report_id', 'tape_id', 'capture_id', 'advance_id'] as $column) {
+        $parts[] = !empty($columns[$column])
+            ? "{$alias}.{$column}"
+            : "NULL AS {$column}";
+    }
+
+    return implode(",\n            ", $parts);
+}
+
+function ql_ledger_group_final_report_direct_message_conditions(
+    int $reportId,
+    array $cardIds,
+    array $captureIds,
+    array $advanceIds,
+    array &$params
+): array {
+    $columns = ql_ledger_message_context_columns();
+    $conditions = [];
+
+    if (!empty($columns['report_id']) && $reportId > 0) {
+        $conditions[] = 'gm.report_id = ?';
+        $params[] = $reportId;
+    }
+
+    $sets = [
+        'tape_id' => $cardIds,
+        'capture_id' => $captureIds,
+        'advance_id' => $advanceIds,
+    ];
+    foreach ($sets as $column => $ids) {
+        if (empty($columns[$column])) {
+            continue;
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn($id) => $id > 0)));
+        if (!$ids) {
+            continue;
+        }
+        $conditions[] = 'gm.' . $column . ' IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        foreach ($ids as $id) {
+            $params[] = $id;
+        }
+    }
+
+    return $conditions;
+}
+
+function ql_ledger_group_final_report_messages_snapshot(
+    int $reportId,
+    int $groupId,
+    array $auditRefs,
+    string $finalizedAt,
+    array $cardIds = [],
+    array $captureIds = [],
+    array $advanceIds = []
+): array
 {
     $reportContext = [];
     foreach ($auditRefs as $ref) {
@@ -2190,13 +2289,69 @@ function ql_ledger_group_final_report_messages_snapshot(int $groupId, array $aud
         }
     }
 
+    $directMessageIds = [];
+    $contextParams = [];
+    $contextConditions = ql_ledger_group_final_report_direct_message_conditions(
+        $reportId,
+        $cardIds,
+        $captureIds,
+        $advanceIds,
+        $contextParams
+    );
+    if ($contextConditions) {
+        $contextSelect = ql_ledger_context_message_select('gm');
+        $stmt = ql_db()->prepare("
+            SELECT
+                gm.id,
+                gm.sender_user_id,
+                gm.message_text,
+                gm.message_type,
+                {$contextSelect},
+                gm.created_at,
+                u.email AS sender_email,
+                COALESCE(mem.display_name, u.display_name, u.email) AS sender_name
+            FROM group_messages gm
+            JOIN users u ON u.id = gm.sender_user_id
+            LEFT JOIN group_members mem ON mem.group_id = gm.group_id AND mem.user_id = gm.sender_user_id
+            WHERE gm.group_id = ?
+              AND gm.deleted_at IS NULL
+              AND gm.created_at <= ?
+              AND (" . implode(' OR ', $contextConditions) . ")
+            ORDER BY gm.created_at ASC, gm.id ASC
+            LIMIT 100
+        ");
+        $stmt->execute(array_merge([$groupId, $finalizedAt ?: date('Y-m-d H:i:s')], $contextParams));
+        foreach ($stmt->fetchAll() as $row) {
+            $messageId = (int)$row['id'];
+            $directMessageIds[$messageId] = true;
+            $reportContext[] = [
+                'id' => 'message-' . $messageId,
+                'source_type' => 'group_message',
+                'context' => 'direct_report_message',
+                'message_id' => $messageId,
+                'report_id' => (int)($row['report_id'] ?? 0),
+                'tape_id' => (int)($row['tape_id'] ?? 0),
+                'capture_id' => (int)($row['capture_id'] ?? 0),
+                'advance_id' => (int)($row['advance_id'] ?? 0),
+                'sender_user_id' => (int)$row['sender_user_id'],
+                'sender_name' => (string)($row['sender_name'] ?? ''),
+                'sender_email' => (string)($row['sender_email'] ?? ''),
+                'message_type' => (string)($row['message_type'] ?? 'text'),
+                'text' => (string)($row['message_text'] ?? ''),
+                'created_at' => (string)$row['created_at'],
+            ];
+        }
+    }
+
     $groupMessages = [];
+    $contextSelect = ql_ledger_context_message_select('gm');
     $stmt = ql_db()->prepare("
         SELECT
             gm.id,
             gm.sender_user_id,
             gm.message_text,
             gm.message_type,
+            {$contextSelect},
             gm.created_at,
             u.email AS sender_email,
             COALESCE(mem.display_name, u.display_name, u.email) AS sender_name
@@ -2211,10 +2366,17 @@ function ql_ledger_group_final_report_messages_snapshot(int $groupId, array $aud
     ");
     $stmt->execute([$groupId, $finalizedAt ?: date('Y-m-d H:i:s')]);
     foreach (array_reverse($stmt->fetchAll()) as $row) {
+        if (isset($directMessageIds[(int)$row['id']])) {
+            continue;
+        }
         $groupMessages[] = [
             'id' => (int)$row['id'],
             'source_type' => 'group_message',
             'context' => 'general_group_discussion_unlinked',
+            'report_id' => (int)($row['report_id'] ?? 0),
+            'tape_id' => (int)($row['tape_id'] ?? 0),
+            'capture_id' => (int)($row['capture_id'] ?? 0),
+            'advance_id' => (int)($row['advance_id'] ?? 0),
             'sender_user_id' => (int)$row['sender_user_id'],
             'sender_name' => (string)($row['sender_name'] ?? ''),
             'sender_email' => (string)($row['sender_email'] ?? ''),
@@ -2227,7 +2389,9 @@ function ql_ledger_group_final_report_messages_snapshot(int $groupId, array $aud
     return [
         'report_context' => $reportContext,
         'general_group_refs' => $groupMessages,
-        'schema_note' => 'group_messages has group scope only; immutable report-context messages are audit-derived until message rows get report_id/tape_id/capture_id/advance_id links.',
+        'schema_note' => $contextConditions
+            ? 'Direct report-linked group messages are included by report_id/tape_id/capture_id/advance_id; older review events may still come from audit refs.'
+            : 'No direct report-linked group messages were present in this package; older review context is audit-derived and general group chat remains unlinked.',
     ];
 }
 
@@ -2420,12 +2584,34 @@ function ql_ledger_group_final_report_build_package(int $reportId, int $groupId,
 
     $accountable = ql_ledger_group_final_report_accountable_snapshot($groupId, $finalizedAt, $reportId);
     $auditRefs = ql_ledger_group_final_report_audit_refs($groupId, $cardIds, $finalizedAt, $reportId);
-    $messages = ql_ledger_group_final_report_messages_snapshot($groupId, $auditRefs, $finalizedAt);
+    $captureIdsForMessages = [];
+    foreach ($captures as $captureRow) {
+        $captureId = (int)($captureRow['capture_id'] ?? 0);
+        if ($captureId > 0) {
+            $captureIdsForMessages[] = $captureId;
+        }
+    }
+    $advanceIdsForMessages = [];
+    foreach (($accountable['items'] ?? []) as $advanceRow) {
+        $advanceId = (int)($advanceRow['advance_id'] ?? 0);
+        if ($advanceId > 0) {
+            $advanceIdsForMessages[] = $advanceId;
+        }
+    }
+    $messages = ql_ledger_group_final_report_messages_snapshot(
+        $reportId,
+        $groupId,
+        $auditRefs,
+        $finalizedAt,
+        $cardIds,
+        $captureIdsForMessages,
+        $advanceIdsForMessages
+    );
     $totals = $snapshot['totals'] ?? [];
 
     return [
         'package_type' => 'group_final_report',
-        'package_version' => 1,
+        'package_version' => 2,
         'report_id' => $reportId,
         'created_at' => $snapshotCreatedAt,
         'immutability' => [
@@ -2532,6 +2718,67 @@ function ql_ledger_group_final_report_proof_download(): void
     header('Content-Disposition: inline; filename="' . str_replace('"', '', $name) . '"');
     header('X-Content-Type-Options: nosniff');
     readfile($target);
+    exit;
+}
+
+function ql_ledger_group_final_report_package_export_download(): void
+{
+    $user = ql_require_user();
+    $reportId = (int)($_GET['report_id'] ?? $_POST['report_id'] ?? 0);
+    if ($reportId <= 0) {
+        http_response_code(400);
+        echo 'Invalid report request';
+        return;
+    }
+
+    $result = ql_ledger_group_final_report_package_for_user($reportId, (int)$user['id']);
+    $export = null;
+    $filename = 'findesk-final-report-package-' . $reportId . '.json';
+    if (!empty($result['ok'])) {
+        $export = [
+            'export_type' => 'findesk_group_final_report_package',
+            'format' => 'json_v1',
+            'created_at' => date('c'),
+            'report_id' => $reportId,
+            'package_available' => true,
+            'proof_binary_note' => 'Proof files stay behind authorized download_url links in the package proof index.',
+            'report' => $result['report'],
+            'package' => $result['package'],
+        ];
+    } else {
+        $detail = ql_ledger_group_final_report_for_user($reportId, (int)$user['id']);
+        if (empty($detail['ok'])) {
+            $error = (string)($result['error'] ?? $detail['error'] ?? 'package_error');
+            http_response_code($error === 'access_denied' ? 403 : ($error === 'historical_snapshot_missing' ? 409 : 404));
+            echo $error;
+            return;
+        }
+        $filename = 'findesk-legacy-final-report-snapshot-' . $reportId . '.json';
+        $export = [
+            'export_type' => 'findesk_legacy_final_report_snapshot',
+            'format' => 'json_v1',
+            'created_at' => date('c'),
+            'report_id' => $reportId,
+            'package_available' => false,
+            'legacy_warning' => 'This closed report predates the immutable group package. The export contains the historical snapshot only, not the full package proof archive.',
+            'report' => $detail['report'],
+            'snapshot' => $detail['snapshot'],
+        ];
+    }
+
+    $json = json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        http_response_code(500);
+        echo 'package_export_encode_failed';
+        return;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Length: ' . strlen($json));
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Robots-Tag: noindex, nofollow, noarchive');
+    echo $json;
     exit;
 }
 
@@ -2664,7 +2911,7 @@ function ql_ledger_group_finalize_report(array $input): array
             $finalReportCreatedAt,
             $snapshotCreatedAt
         );
-        $finalReportDetails['package_version'] = 1;
+        $finalReportDetails['package_version'] = (int)($reportPackage['package_version'] ?? 2);
         $finalReportDetails['report_package'] = $reportPackage;
         $finalReportJson = json_encode($finalReportDetails, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($finalReportJson === false) {
