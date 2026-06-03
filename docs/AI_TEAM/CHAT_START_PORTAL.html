@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinDesk Chat Start Portal</title>
+  <style>
+    :root {
+      --ink: #142033;
+      --muted: #5c6b80;
+      --line: rgba(20, 32, 51, 0.12);
+      --card: rgba(255, 255, 255, 0.8);
+      --card-strong: rgba(255, 255, 255, 0.92);
+      --blue: #0a84ff;
+      --teal: #0f8f7f;
+      --gold: #b7791f;
+      --red: #d92d20;
+      --shadow: 0 24px 70px rgba(20, 32, 51, 0.12);
+      --soft-shadow: 0 12px 28px rgba(20, 32, 51, 0.08);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(10,132,255,.16), transparent 30%),
+        radial-gradient(circle at 88% 0%, rgba(183,121,31,.14), transparent 28%),
+        linear-gradient(180deg, #fbfdff 0%, #edf4f8 100%);
+    }
+
+    .shell {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero,
+    .card {
+      border: 1px solid rgba(255,255,255,.82);
+      border-radius: var(--radius-xl);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.72)),
+        var(--card);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(22px) saturate(1.16);
+      -webkit-backdrop-filter: blur(22px) saturate(1.16);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 22px;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 4px;
+      background: linear-gradient(90deg, var(--teal), var(--blue), var(--gold), var(--red));
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.72);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.95);
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .brand-pill img {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      box-shadow: 0 8px 18px rgba(15,64,77,.16);
+      background: rgba(255,255,255,.94);
+    }
+
+    .hero h1 {
+      margin: 18px 0 8px;
+      font-size: clamp(34px, 5vw, 56px);
+      line-height: .95;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 920px;
+      margin: 0;
+      color: #4f5f76;
+      font-size: 18px;
+      line-height: 1.34;
+    }
+
+    .hero-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .btn,
+    .link-grid a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.82);
+      box-shadow: var(--soft-shadow);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .btn.primary {
+      border-color: transparent;
+      background: linear-gradient(180deg, #1588ff 0%, #0066d6 100%);
+      color: white;
+      box-shadow: 0 16px 30px rgba(0,102,214,.22);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      padding: 18px;
+    }
+
+    .banner {
+      padding: 16px 18px;
+      border: 1px solid rgba(183,121,31,.24);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,248,232,.94));
+      box-shadow: var(--soft-shadow);
+    }
+
+    .banner strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+
+    .kicker {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .card p,
+    .card li {
+      color: #4f5f76;
+      font-size: 15px;
+      line-height: 1.42;
+    }
+
+    .facts,
+    .rules,
+    .docs,
+    .roles {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .facts li,
+    .rules li,
+    .docs li,
+    .roles li {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--card-strong);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+    }
+
+    code {
+      font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      color: #16314f;
+      background: rgba(20,32,51,.06);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(16,24,40,.94);
+      color: #f7fafc;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .note {
+      padding: 12px 14px;
+      border: 1px solid rgba(183,121,31,.24);
+      border-radius: var(--radius-md);
+      background: rgba(183,121,31,.08);
+      color: #6f5318;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .danger {
+      border-color: rgba(217,45,32,.22);
+      background: rgba(217,45,32,.08);
+      color: #8a2218;
+    }
+
+    @media (max-width: 920px) {
+      .grid,
+      .link-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        padding: 10px;
+      }
+
+      .hero,
+      .card {
+        border-radius: 22px;
+      }
+
+      .hero {
+        padding: 18px 14px;
+      }
+
+      .hero p {
+        font-size: 16px;
+      }
+
+      .brand-pill {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="brand-row">
+        <div class="brand-pill">
+          <img src="../../public/assets/brand-mark.png" alt="">
+          <span>FinDesk · finance.brkovic.ltd</span>
+        </div>
+      </div>
+
+      <h1>Старт нового чата</h1>
+      <p>Единая стартовая страница для любого нового чата в WebStorm по проекту FinDesk. Здесь собраны проект, офис, правила поведения, локальный запуск, production-контур, ссылки на handoff и напоминание про базу данных, уже прикрепленную в шаблонах WebStorm.</p>
+
+      <div class="hero-links">
+        <a class="btn primary" href="./OFFICE_DASHBOARD.html">Открыть офис</a>
+        <a class="btn" href="./PROJECT_DIRECTOR_HANDOFF_2026-06-02.md">Текущий director handoff</a>
+        <a class="btn" href="./00_START_HERE.md">Быстрый старт офиса</a>
+        <a class="btn" href="./PROJECT_DIRECTOR_START_PROMPT.md">Start prompt директора</a>
+      </div>
+    </section>
+
+    <section class="banner">
+      <strong>Current Beacon: Phase 1 Functional Blueprint</strong>
+      <p>Не продолжай латать смешанный экран FinDesk. Сначала смотри новый мандат, короткий kickoff report и локальный функциональный прототип.</p>
+      <div class="hero-links">
+        <a class="btn primary" href="./51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md">Phase 1 mandate</a>
+        <a class="btn" href="./52_PHASE1_KICKOFF_REPORT_2026-06-02.md">Kickoff report</a>
+        <a class="btn" href="./FINDESK_PHASE1_FUNCTIONAL_PROTOTYPE_2026-06-02.html">Local prototype</a>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <div class="kicker">Проект</div>
+        <h2>Где находится FinDesk</h2>
+        <ul class="facts">
+          <li><b>Корень проекта:</b> <code>/home/alexey/GitHub/finance.brkovic.ltd</code></li>
+          <li><b>GitHub repository:</b> <code>git@github.com:vetus-nauta/finance.brkovic.ltd.git</code></li>
+          <li><b>Текущая ветка:</b> <code>main</code></li>
+          <li><b>Рабочий public root:</b> <code>/home/alexey/GitHub/finance.brkovic.ltd/public</code></li>
+          <li><b>Актуальный production host:</b> <code>https://finance.brkovic.ltd/app.php</code></li>
+          <li><b>Актуальный production FTP path:</b> <code>finance.brkovic.ltd/public</code></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="kicker">WebStorm</div>
+        <h2>База данных и IDE-контур</h2>
+        <ul class="facts">
+          <li><b>Главное правило:</b> база данных для <code>finance.brkovic.ltd</code> уже прикреплена в шаблонах WebStorm.</li>
+          <li><b>Что делать:</b> если нужен просмотр схемы, таблиц, связей или SQL-проверка, сначала используй это готовое подключение.</li>
+          <li><b>Что не делать:</b> не начинай заново поиск точки входа к БД и не плодить новые подключения без причины.</li>
+          <li><b>Граница ответственности:</b> изменения DB/API делает только Backend Data Engineer или директор в осознанном deploy-контуре.</li>
+        </ul>
+        <p class="note">Эта страница фиксирует, что DB connection уже есть в IDE-среде WebStorm. Для нового чата это исходная точка, а не гипотеза.</p>
+      </article>
+
+      <article class="card">
+        <div class="kicker">Localhost</div>
+        <h2>Как и где поднят локальный сайт</h2>
+        <ul class="facts">
+          <li><b>Стартовый скрипт:</b> <code>scripts/start-local.sh</code></li>
+          <li><b>Host:</b> <code>127.0.0.1</code></li>
+          <li><b>Port:</b> <code>18889</code> через <code>php -S 127.0.0.1:18889 -t public</code></li>
+          <li><b>Локальный вход для ручной работы:</b> <code>http://127.0.0.1:18889/reset-local.php</code></li>
+          <li><b>Локальный app shell:</b> <code>http://127.0.0.1:18889/app.php</code></li>
+          <li><b>Локальный public root:</b> <code>http://127.0.0.1:18889/</code></li>
+          <li><b>Локальная API-проверка:</b> <code>http://127.0.0.1:18889/api.php?action=current_user</code></li>
+        </ul>
+        <p class="note">`reset-local.php` локальный helper: он чистит локальный service worker/cache и переводит в `app.php`. Его не считают production-файлом.</p>
+      </article>
+
+      <article class="card">
+        <div class="kicker">Офис</div>
+        <h2>Какие документы открыть первыми</h2>
+        <ul class="docs">
+          <li><a href="./OFFICE_DASHBOARD.html">`docs/AI_TEAM/OFFICE_DASHBOARD.html`</a></li>
+          <li><a href="./00_START_HERE.md">`docs/AI_TEAM/00_START_HERE.md`</a></li>
+          <li><a href="./PROJECT_DIRECTOR_HANDOFF_2026-06-02.md">`docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md`</a></li>
+          <li><a href="./51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md">`docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md`</a></li>
+          <li><a href="./52_PHASE1_KICKOFF_REPORT_2026-06-02.md">`docs/AI_TEAM/52_PHASE1_KICKOFF_REPORT_2026-06-02.md`</a></li>
+          <li><a href="./04_TASK_BOARD.md">`docs/AI_TEAM/04_TASK_BOARD.md`</a></li>
+          <li><a href="./05_DECISIONS.md">`docs/AI_TEAM/05_DECISIONS.md`</a></li>
+          <li><a href="./CHAT_LINKS.md">`docs/AI_TEAM/CHAT_LINKS.md`</a></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="kicker">Поведение</div>
+        <h2>Как должен вести себя новый чат</h2>
+        <ul class="rules">
+          <li>Не начинать проект с нуля. Сначала читать handoff, task board, decisions и status-файлы ролей.</li>
+          <li>Не делать <code>reset</code>, <code>checkout</code>, <code>clean</code> и не выбрасывать локальную работу без прямого приказа.</li>
+          <li>Не ломать финансовые формулы, если это не согласовано с Product Finance Architect и Chief Auditor.</li>
+          <li>Не менять backend/API без осознанной Backend/Data ответственности.</li>
+          <li>Полные отчеты ролей хранить в <code>docs/AI_TEAM/roles/*</code>; в главный чат возвращать только короткий рапорт.</li>
+          <li>Любой deploy считать отдельным контуром: backup, preflight, selected files, smoke, deploy report.</li>
+        </ul>
+        <p class="note danger">Не путать локальный backend candidate в репозитории с тем, что уже реально выложено на production.</p>
+      </article>
+
+      <article class="card">
+        <div class="kicker">Роли</div>
+        <h2>Кому куда читать и писать</h2>
+        <ul class="roles">
+          <li><b>Product Finance Architect:</b> <a href="./roles/01_product_finance_architect/ROLE.md">ROLE</a> · <a href="./roles/01_product_finance_architect/STATUS.md">STATUS</a> · <a href="./roles/01_product_finance_architect/CHAT.md">CHAT</a></li>
+          <li><b>Backend Data Engineer:</b> <a href="./roles/02_backend_data_engineer/ROLE.md">ROLE</a> · <a href="./roles/02_backend_data_engineer/STATUS.md">STATUS</a> · <a href="./roles/02_backend_data_engineer/CHAT.md">CHAT</a></li>
+          <li><b>Frontend UX Engineer:</b> <a href="./roles/03_frontend_ux_engineer/ROLE.md">ROLE</a> · <a href="./roles/03_frontend_ux_engineer/STATUS.md">STATUS</a> · <a href="./roles/03_frontend_ux_engineer/CHAT.md">CHAT</a></li>
+          <li><b>QA Release Engineer:</b> <a href="./roles/04_qa_release_engineer/ROLE.md">ROLE</a> · <a href="./roles/04_qa_release_engineer/STATUS.md">STATUS</a> · <a href="./roles/04_qa_release_engineer/CHAT.md">CHAT</a></li>
+          <li><b>Chief Auditor:</b> <a href="./roles/05_chief_auditor/CHAT.md">CHAT</a></li>
+          <li><b>SEO Growth Engineer:</b> <a href="./roles/06_seo_growth_engineer/ROLE.md">ROLE</a> · <a href="./roles/06_seo_growth_engineer/STATUS.md">STATUS</a></li>
+          <li><b>Web Designer:</b> <a href="./roles/07_web_designer/ROLE.md">ROLE</a> · <a href="./roles/07_web_designer/STATUS.md">STATUS</a> · <a href="./roles/07_web_designer/CHAT.md">CHAT</a></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="kicker">Production</div>
+        <h2>Что сейчас считается правдой</h2>
+        <ul class="facts">
+          <li><b>Последний подтвержденный production frontend:</b> <code>20260601-findesk-mobilefit2</code></li>
+          <li><b>Что подтверждено live:</b> `public/app.php`, `public/assets/app.css`, `public/assets/app.js`, `public/service-worker.js`</li>
+          <li><b>Что открыто:</b> authenticated mobile QA после логина, real-device scanner/PWA camera gate, language/PWA audit, backend DB candidate deploy.</li>
+          <li><b>Что нельзя путать:</b> отчеты <code>45-46</code> и локальный DB/message/export candidate есть в source tree, но это не равно production deploy.</li>
+        </ul>
+      </article>
+
+      <article class="card wide">
+        <div class="kicker">Команды</div>
+        <h2>Минимальный старт нового чата</h2>
+        <pre>git status --short
+git status -sb
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+php scripts/local-smoke.php http://127.0.0.1:18889</pre>
+        <p class="note">Если в текущем shell нет `php`, не объявлять код сломанным автоматически. Сначала проверить, отвечает ли локальный сайт по `http://127.0.0.1:18889/app.php` и `api.php?action=current_user`.</p>
+      </article>
+
+      <article class="card wide">
+        <div class="kicker">Готовый вводный текст</div>
+        <h2>Что давать любому новому чату</h2>
+        <pre>Проект FinDesk находится в /home/alexey/GitHub/finance.brkovic.ltd.
+Стартуй из docs/AI_TEAM/CHAT_START_PORTAL.html, затем открой docs/AI_TEAM/OFFICE_DASHBOARD.html,
+docs/AI_TEAM/00_START_HERE.md, docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md,
+docs/AI_TEAM/04_TASK_BOARD.md, docs/AI_TEAM/05_DECISIONS.md и STATUS-файлы ролей.
+
+Локальный сайт здесь:
+http://127.0.0.1:18889/reset-local.php
+рабочий app shell:
+http://127.0.0.1:18889/app.php
+public root:
+/home/alexey/GitHub/finance.brkovic.ltd/public
+
+База данных для finance.brkovic.ltd уже прикреплена в шаблонах WebStorm.
+Если нужна схема, таблицы, связи или SQL-проверка, сначала используй это подключение.
+
+Production-контур:
+https://finance.brkovic.ltd/app.php
+FTP path:
+finance.brkovic.ltd/public
+
+Не начинай с нуля, не делай reset/checkout/clean, не путай локальный backend candidate с production,
+и храни полные отчеты ролей в docs/AI_TEAM/roles/*.</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

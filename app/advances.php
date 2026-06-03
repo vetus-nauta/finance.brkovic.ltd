@@ -25,6 +25,122 @@ function ql_advance_currency($value): string
     return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'EUR';
 }
 
+function ql_advance_pending_marker_prefix(): string
+{
+    return '__QL_TRANSFER_PENDING__';
+}
+
+function ql_advance_pending_note_payload($note): ?array
+{
+    $raw = trim((string)$note);
+    $prefix = ql_advance_pending_marker_prefix();
+    if ($raw === '' || strpos($raw, $prefix) !== 0) {
+        return null;
+    }
+
+    $json = trim(substr($raw, strlen($prefix)));
+    if ($json === '') {
+        return [];
+    }
+
+    $decoded = json_decode($json, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function ql_advance_pending_note(array $payload = []): string
+{
+    $base = [
+        'state' => 'pending',
+        'issued_at' => date('Y-m-d H:i:s'),
+    ];
+
+    return ql_advance_pending_marker_prefix() . json_encode(
+        array_merge($base, $payload),
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+}
+
+function ql_advance_clean_moderation_note($note): ?string
+{
+    $raw = trim((string)$note);
+    if ($raw === '') {
+        return null;
+    }
+
+    return ql_advance_pending_note_payload($raw) !== null ? null : $raw;
+}
+
+function ql_advance_is_pending_transfer(array $advance): bool
+{
+    return (string)($advance['status'] ?? '') === 'issued'
+        && ql_advance_pending_note_payload($advance['moderation_note'] ?? null) !== null;
+}
+
+function ql_advance_transfer_public_flags(array $advance): array
+{
+    $status = (string)($advance['status'] ?? '');
+    $pending = ql_advance_is_pending_transfer($advance);
+
+    if ($pending) {
+        $state = 'pending';
+    } elseif ($status === 'issued') {
+        $state = 'active';
+    } elseif ($status === 'submitted') {
+        $state = 'ready_report';
+    } elseif ($status === 'discrepancy') {
+        $state = 'ready_report_discrepancy';
+    } elseif ($status === 'returned') {
+        $state = 'rework';
+    } elseif ($status === 'accepted') {
+        $state = 'accepted';
+    } elseif ($status === 'closed') {
+        $state = 'closed';
+    } else {
+        $state = $status !== '' ? $status : 'unknown';
+    }
+
+    return [
+        'transfer_pending' => $pending,
+        'transfer_active' => $status === 'issued' && !$pending,
+        'transfer_state' => $state,
+        'transfer_pending_meta' => $pending ? ql_advance_pending_note_payload($advance['moderation_note'] ?? null) : null,
+    ];
+}
+
+function ql_advance_open_for_totals_sql(string $alias = 'ca'): string
+{
+    $like = str_replace("'", "''", ql_advance_pending_marker_prefix() . '%');
+    return "({$alias}.status IN ('issued', 'submitted', 'returned', 'discrepancy')"
+        . " AND NOT ({$alias}.status = 'issued' AND COALESCE({$alias}.moderation_note, '') LIKE '{$like}'))";
+}
+
+function ql_advance_tape_pending_transfer(int $tapeId, int $userId = 0): ?array
+{
+    if ($tapeId <= 0) {
+        return null;
+    }
+
+    $params = [$tapeId];
+    $userWhere = '';
+    if ($userId > 0) {
+        $userWhere = ' AND assigned_to_user_id = ?';
+        $params[] = $userId;
+    }
+
+    $stmt = ql_db()->prepare("
+        SELECT *
+        FROM cash_advances
+        WHERE on_the_go_tape_id = ?
+          AND deleted_at IS NULL
+          {$userWhere}
+        LIMIT 1
+    ");
+    $stmt->execute($params);
+    $row = $stmt->fetch();
+
+    return ($row && ql_advance_is_pending_transfer($row)) ? $row : null;
+}
+
 function ql_advance_scope(int $groupId, int $userId): ?array
 {
     $membership = ql_group_membership($groupId, $userId);
@@ -152,6 +268,8 @@ function ql_advance_visible_row(int $advanceId, int $userId): ?array
 function ql_advance_public(array $advance): array
 {
     $tapeId = (int)($advance['on_the_go_tape_id'] ?? 0);
+    $flags = ql_advance_transfer_public_flags($advance);
+    $advance['session_snapshot'] = $tapeId > 0 ? ql_on_the_go_tape_primary_session_snapshot($tapeId, 'cash') : null;
     $advance['summary'] = $tapeId > 0 ? ql_advance_tape_summary($tapeId) : [
         'cash_in' => round((float)($advance['amount'] ?? 0), 2),
         'cash_out' => 0.0,
@@ -164,7 +282,11 @@ function ql_advance_public(array $advance): array
     $effectiveLeft = $advance['actual_remaining'] !== null
         ? (float)$advance['actual_remaining']
         : (float)($advance['summary']['cash_left'] ?? 0);
-    $advance['summary']['effective_cash_left'] = round($effectiveLeft, 2);
+    $advance['summary']['effective_cash_left'] = round($flags['transfer_pending'] ? 0 : $effectiveLeft, 2);
+    $advance['summary']['active_cash_left'] = round($flags['transfer_pending'] ? 0 : $effectiveLeft, 2);
+    $advance['summary']['pending_amount'] = $flags['transfer_pending'] ? round((float)($advance['amount'] ?? 0), 2) : 0.0;
+    $advance['moderation_note'] = ql_advance_clean_moderation_note($advance['moderation_note'] ?? null);
+    $advance = array_merge($advance, $flags);
 
     return $advance;
 }
@@ -194,15 +316,16 @@ function ql_advance_totals(int $groupId, ?int $assignedUserId = null): array
         $params[] = $assignedUserId;
     }
 
+    $openWhere = ql_advance_open_for_totals_sql('ca');
     $stmt = ql_db()->prepare("
         SELECT
-            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN ca.amount ELSE 0 END), 0) AS open_issued,
-            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN COALESCE(s.cash_out, 0) + COALESCE(s.card_out, 0) ELSE 0 END), 0) AS open_spent,
-            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN COALESCE(s.cash_out, 0) ELSE 0 END), 0) AS open_cash_spent,
-            COALESCE(SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN COALESCE(s.card_out, 0) ELSE 0 END), 0) AS open_card_spent,
+            COALESCE(SUM(CASE WHEN {$openWhere} THEN ca.amount ELSE 0 END), 0) AS open_issued,
+            COALESCE(SUM(CASE WHEN {$openWhere} THEN COALESCE(s.cash_out, 0) + COALESCE(s.card_out, 0) ELSE 0 END), 0) AS open_spent,
+            COALESCE(SUM(CASE WHEN {$openWhere} THEN COALESCE(s.cash_out, 0) ELSE 0 END), 0) AS open_cash_spent,
+            COALESCE(SUM(CASE WHEN {$openWhere} THEN COALESCE(s.card_out, 0) ELSE 0 END), 0) AS open_card_spent,
             COALESCE(SUM(
                 CASE
-                    WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN
+                    WHEN {$openWhere} THEN
                         CASE
                             WHEN ca.actual_remaining IS NOT NULL THEN ca.actual_remaining
                             ELSE COALESCE(t.cash_received, ca.amount) + COALESCE(s.extra_cash_in, 0) - COALESCE(s.cash_out, 0)
@@ -210,7 +333,7 @@ function ql_advance_totals(int $groupId, ?int $assignedUserId = null): array
                     ELSE 0
                 END
             ), 0) AS open_cash_left,
-            SUM(CASE WHEN ca.status IN ('issued', 'submitted', 'returned', 'discrepancy') THEN 1 ELSE 0 END) AS open_count,
+            SUM(CASE WHEN {$openWhere} THEN 1 ELSE 0 END) AS open_count,
             COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.cash_out, 0) + COALESCE(s.card_out, 0) ELSE 0 END), 0) AS accepted_spent,
             COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.cash_out, 0) ELSE 0 END), 0) AS accepted_cash_spent,
             COALESCE(SUM(CASE WHEN ca.status = 'accepted' THEN COALESCE(s.card_out, 0) ELSE 0 END), 0) AS accepted_card_spent,
@@ -300,11 +423,25 @@ function ql_advance_create(array $input): array
 
         $stmt = $db->prepare("
             INSERT INTO cash_advances
-                (group_id, issued_by_user_id, assigned_to_user_id, title, amount, currency, status)
+                (group_id, issued_by_user_id, assigned_to_user_id, title, amount, currency, status, moderation_note)
             VALUES
-                (?, ?, ?, ?, ?, ?, 'issued')
+                (?, ?, ?, ?, ?, ?, 'issued', ?)
         ");
-        $stmt->execute([$groupId, $userId, $assignedUserId, $title, $amount, $currency]);
+        $stmt->execute([
+            $groupId,
+            $userId,
+            $assignedUserId,
+            $title,
+            $amount,
+            $currency,
+            ql_advance_pending_note([
+                'issued_by_user_id' => $userId,
+                'assigned_to_user_id' => $assignedUserId,
+                'amount' => $amount,
+                'currency' => $currency,
+                'title' => $title,
+            ])
+        ]);
         $advanceId = (int)$db->lastInsertId();
 
         $tapeStmt = $db->prepare("
@@ -331,7 +468,8 @@ function ql_advance_create(array $input): array
                 'amount' => $amount,
                 'currency' => $currency,
                 'title' => $title,
-                'tape_id' => $tapeId
+                'tape_id' => $tapeId,
+                'transfer_state' => 'pending',
             ]);
         }
         $db->commit();
@@ -342,6 +480,7 @@ function ql_advance_create(array $input): array
             'amount' => $amount,
             'currency' => $currency,
             'title' => $title,
+            'transfer_state' => 'pending',
         ]);
 
         return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];
@@ -395,6 +534,7 @@ function ql_advance_list(array $input = []): array
         $params[] = $status;
     }
 
+    $pendingLike = str_replace("'", "''", ql_advance_pending_marker_prefix() . '%');
     $sql = "
         SELECT
             ca.*,
@@ -412,12 +552,12 @@ function ql_advance_list(array $input = []): array
         WHERE {$where}
         ORDER BY
             CASE ca.status
-                WHEN 'submitted' THEN 0
-                WHEN 'discrepancy' THEN 1
-                WHEN 'issued' THEN 2
-                WHEN 'returned' THEN 3
-                WHEN 'accepted' THEN 4
-                ELSE 5
+                WHEN 'issued' THEN CASE WHEN COALESCE(ca.moderation_note, '') LIKE '{$pendingLike}' THEN 0 ELSE 3 END
+                WHEN 'submitted' THEN 1
+                WHEN 'discrepancy' THEN 2
+                WHEN 'returned' THEN 4
+                WHEN 'accepted' THEN 5
+                ELSE 6
             END,
             ca.created_at DESC,
             ca.id DESC
@@ -540,6 +680,9 @@ function ql_advance_submit(array $input): array
     if ((int)$advance['assigned_to_user_id'] !== $userId) {
         return ['ok' => false, 'error' => 'access_denied'];
     }
+    if (ql_advance_is_pending_transfer($advance)) {
+        return ['ok' => false, 'error' => 'advance_transfer_pending_confirmation_required'];
+    }
     if (!in_array((string)$advance['status'], ['issued', 'returned', 'discrepancy'], true)) {
         return ['ok' => false, 'error' => 'invalid_advance_status'];
     }
@@ -610,6 +753,172 @@ function ql_advance_submit(array $input): array
         'expected_remaining' => number_format($expected, 2, '.', ''),
         'actual_remaining' => number_format($actual, 2, '.', ''),
         'difference_amount' => number_format($difference, 2, '.', ''),
+    ]);
+
+    return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];
+}
+
+function ql_advance_confirm(array $input): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $advanceId = (int)($input['id'] ?? 0);
+
+    if ($advanceId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_advance_id'];
+    }
+
+    $advance = ql_advance_visible_row($advanceId, $userId);
+    if (!$advance) {
+        return ['ok' => false, 'error' => 'advance_not_found'];
+    }
+    if ((int)$advance['assigned_to_user_id'] !== $userId) {
+        return ['ok' => false, 'error' => 'access_denied'];
+    }
+    if ((string)$advance['status'] !== 'issued' || !ql_advance_is_pending_transfer($advance)) {
+        return ['ok' => false, 'error' => 'advance_not_pending_transfer'];
+    }
+
+    $stmt = ql_db()->prepare("
+        UPDATE cash_advances
+        SET moderation_note = NULL,
+            updated_at = NOW()
+        WHERE id = ?
+          AND assigned_to_user_id = ?
+          AND status = 'issued'
+          AND deleted_at IS NULL
+        LIMIT 1
+    ");
+    $stmt->execute([$advanceId, $userId]);
+
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write($userId, 'advance_transfer_confirmed', 'cash_advance', $advanceId, [
+            'group_id' => (int)$advance['group_id'],
+            'assigned_to_user_id' => $userId,
+            'amount' => (string)($advance['amount'] ?? ''),
+            'currency' => (string)($advance['currency'] ?? 'EUR'),
+        ]);
+    }
+    ql_on_the_go_journal_append('advance_transfer_confirmed', $userId, (int)($advance['on_the_go_tape_id'] ?? 0), [
+        'group_id' => (int)$advance['group_id'],
+        'advance_id' => $advanceId,
+        'assigned_to_user_id' => $userId,
+        'amount' => (string)($advance['amount'] ?? ''),
+        'currency' => (string)($advance['currency'] ?? 'EUR'),
+    ]);
+
+    return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];
+}
+
+function ql_advance_update_pending(array $input): array
+{
+    $user = ql_require_user();
+    $userId = (int)$user['id'];
+    $advanceId = (int)($input['id'] ?? 0);
+    $amount = ql_advance_decimal($input['amount'] ?? '', false);
+    $currency = ql_advance_currency($input['currency'] ?? 'EUR');
+    $title = trim((string)($input['title'] ?? ''));
+
+    if ($advanceId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_advance_id'];
+    }
+    if ($amount === null) {
+        return ['ok' => false, 'error' => 'invalid_amount'];
+    }
+    if ($title === '') {
+        $title = 'Деньги сотруднику';
+    }
+    if (mb_strlen($title) > 190) {
+        $title = mb_substr($title, 0, 190);
+    }
+
+    $advance = ql_advance_visible_row($advanceId, $userId);
+    if (!$advance) {
+        return ['ok' => false, 'error' => 'advance_not_found'];
+    }
+
+    $scope = ql_advance_scope((int)$advance['group_id'], $userId);
+    if (!$scope || empty($scope['can_manage_money'])) {
+        return ['ok' => false, 'error' => 'access_denied', 'required' => 'advanced'];
+    }
+    if ((string)$advance['status'] !== 'issued' || !ql_advance_is_pending_transfer($advance)) {
+        return ['ok' => false, 'error' => 'advance_not_pending_transfer'];
+    }
+
+    $tapeId = (int)($advance['on_the_go_tape_id'] ?? 0);
+    $pendingMeta = ql_advance_pending_note_payload($advance['moderation_note'] ?? null) ?: [];
+    $pendingMeta['edited_at'] = date('Y-m-d H:i:s');
+    $pendingMeta['edited_by_user_id'] = $userId;
+    $pendingMeta['amount'] = $amount;
+    $pendingMeta['currency'] = $currency;
+    $pendingMeta['title'] = $title;
+
+    $db = ql_db();
+
+    try {
+        $db->beginTransaction();
+
+        $stmt = $db->prepare("
+            UPDATE cash_advances
+            SET title = ?,
+                amount = ?,
+                currency = ?,
+                moderation_note = ?,
+                updated_at = NOW()
+            WHERE id = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([
+            $title,
+            $amount,
+            $currency,
+            ql_advance_pending_note($pendingMeta),
+            $advanceId,
+        ]);
+
+        if ($tapeId > 0) {
+            $tapeStmt = $db->prepare("
+                UPDATE on_the_go_tapes
+                SET title = ?,
+                    cash_received = ?,
+                    currency = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+                LIMIT 1
+            ");
+            $tapeStmt->execute([
+                $title,
+                $amount,
+                $currency,
+                $tapeId,
+            ]);
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return ['ok' => false, 'error' => 'advance_update_pending_failed', 'message' => $e->getMessage()];
+    }
+
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write($userId, 'advance_transfer_edited', 'cash_advance', $advanceId, [
+            'group_id' => (int)$advance['group_id'],
+            'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+            'amount' => $amount,
+            'currency' => $currency,
+            'title' => $title,
+        ]);
+    }
+    ql_on_the_go_journal_append('advance_transfer_edited', $userId, $tapeId, [
+        'group_id' => (int)$advance['group_id'],
+        'advance_id' => $advanceId,
+        'assigned_to_user_id' => (int)$advance['assigned_to_user_id'],
+        'amount' => $amount,
+        'currency' => $currency,
+        'title' => $title,
     ]);
 
     return ['ok' => true, 'advance' => ql_advance_public(ql_advance_row($advanceId))];

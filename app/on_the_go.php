@@ -60,6 +60,52 @@ function ql_on_the_go_capture_allowed_for_stream(string $captureType, string $st
     return in_array($captureType, ql_on_the_go_capture_types_for_stream($streamType), true);
 }
 
+function ql_on_the_go_pending_transfer_block(int $tapeId, int $userId): ?array
+{
+    if ($tapeId <= 0 || $userId <= 0) {
+        return null;
+    }
+
+    if (function_exists('ql_advance_tape_pending_transfer')) {
+        $advance = ql_advance_tape_pending_transfer($tapeId, $userId);
+        if ($advance) {
+            return [
+                'code' => 'advance_transfer_pending_confirmation_required',
+                'message' => 'Сначала подтвердите получение денег в карточке сотрудника.',
+                'advance_id' => (int)($advance['id'] ?? 0),
+            ];
+        }
+    }
+
+    try {
+        $stmt = ql_db()->prepare("
+            SELECT ft.id
+            FROM on_the_go_tapes t
+            JOIN findesk_transfers ft
+              ON ft.group_id = t.group_id
+             AND ft.assigned_to_user_id = t.user_id
+             AND ft.stream_type = t.stream_type
+             AND ft.state = 'pending'
+            WHERE t.id = ?
+              AND t.user_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$tapeId, $userId]);
+        $transferId = (int)($stmt->fetchColumn() ?: 0);
+        if ($transferId > 0) {
+            return [
+                'code' => 'findesk_transfer_pending_confirmation_required',
+                'message' => 'Сначала подтвердите получение денег. До подтверждения журнал заблокирован.',
+                'transfer_id' => $transferId,
+            ];
+        }
+    } catch (Throwable $e) {
+        return null;
+    }
+
+    return null;
+}
+
 function ql_on_the_go_client_token($value, bool $generate = false, string $prefix = 'field'): string
 {
     $token = trim((string)$value);
@@ -794,6 +840,20 @@ function ql_on_the_go_sync_empty_group_tape_base(int $userId, int $groupId): voi
         return;
     }
 
+    try {
+        $findeskStmt = ql_db()->prepare("
+            SELECT
+                (SELECT COUNT(*) FROM findesk_transfers WHERE group_id = ? AND state IN ('pending','active')) +
+                (SELECT COUNT(*) FROM findesk_reports WHERE group_id = ? AND status IN ('draft','finalized','archived'))
+        ");
+        $findeskStmt->execute([$groupId, $groupId]);
+        if ((int)($findeskStmt->fetchColumn() ?: 0) > 0) {
+            return;
+        }
+    } catch (Throwable $e) {
+        // Older installations may not have the FinDesk phase-2 tables yet.
+    }
+
     $balance = ql_on_the_go_latest_unsent_card_after_amount($userId, $groupId);
     if ($balance === null) {
         $balance = ql_on_the_go_group_work_balance($groupId);
@@ -1200,6 +1260,12 @@ function ql_on_the_go_tape_list(array $input = []): array
         $tape['summary'] = ql_on_the_go_tape_summary((int)$tape['id']);
         $tape['card_summary'] = ql_on_the_go_card_summary((int)$tape['id']);
         $tape['card_state'] = ql_on_the_go_card_state($tape, $tape['card_summary']);
+        if ((int)($tape['advance_id'] ?? 0) > 0 && function_exists('ql_advance_row') && function_exists('ql_advance_transfer_public_flags')) {
+            $advance = ql_advance_row((int)$tape['advance_id']);
+            if ($advance) {
+                $tape = array_merge($tape, ql_advance_transfer_public_flags($advance));
+            }
+        }
     }
 
     return [
@@ -1293,6 +1359,16 @@ function ql_on_the_go_create(array $input): array
         $tape = ql_on_the_go_tape_get($tapeId, (int)$user['id']);
     }
     $streamType = ql_on_the_go_tape_stream($tape ?? []);
+    $pendingTransfer = ql_on_the_go_pending_transfer_block($tapeId, (int)$user['id']);
+    if ($pendingTransfer) {
+        return [
+            'ok' => false,
+            'error' => $pendingTransfer['code'],
+            'message' => $pendingTransfer['message'],
+            'advance_id' => (int)($pendingTransfer['advance_id'] ?? 0),
+            'transfer_id' => (int)($pendingTransfer['transfer_id'] ?? 0),
+        ];
+    }
     if (!ql_on_the_go_capture_allowed_for_stream($type, $streamType)) {
         return ['ok' => false, 'error' => 'capture_type_not_allowed_for_stream'];
     }
@@ -2206,6 +2282,16 @@ function ql_on_the_go_signed_sync(array $input): array
             return ['ok' => false, 'error' => 'not_group_member'];
         }
     }
+    $pendingTransfer = ql_on_the_go_pending_transfer_block($tapeId, $userId);
+    if ($pendingTransfer) {
+        return [
+            'ok' => false,
+            'error' => $pendingTransfer['code'],
+            'message' => $pendingTransfer['message'],
+            'advance_id' => (int)($pendingTransfer['advance_id'] ?? 0),
+            'transfer_id' => (int)($pendingTransfer['transfer_id'] ?? 0),
+        ];
+    }
 
     $existingSummary = ql_on_the_go_card_summary($tapeId);
     $existingState = ql_on_the_go_card_state($tape, $existingSummary);
@@ -2661,6 +2747,45 @@ function ql_on_the_go_previous_card_after_amount(int $userId, int $groupId, int 
     return round((float)($summary['after_amount'] ?? 0), 2);
 }
 
+function ql_on_the_go_previous_fixed_card_info(int $userId, int $groupId, int $sourceTapeId, string $streamType): ?array
+{
+    if ($userId <= 0 || $sourceTapeId <= 0) {
+        return null;
+    }
+
+    $scopeGroupId = $groupId > 0 ? $groupId : 0;
+    $stmt = ql_db()->prepare("
+        SELECT t.id, t.submitted_at
+        FROM on_the_go_tapes t
+        WHERE t.user_id = ?
+          AND COALESCE(t.group_id, 0) = ?
+          AND t.status <> 'archived'
+          AND t.stream_type = ?
+          AND t.submitted_at IS NOT NULL
+          AND t.id < ?
+        ORDER BY t.id DESC
+        LIMIT 1
+    ");
+    $stmt->execute([
+        $userId,
+        $scopeGroupId,
+        ql_on_the_go_stream_type($streamType),
+        $sourceTapeId,
+    ]);
+    $previous = $stmt->fetch();
+    if (!$previous) {
+        return null;
+    }
+
+    $summary = ql_on_the_go_card_summary((int)$previous['id']);
+
+    return [
+        'tape_id' => (int)$previous['id'],
+        'amount' => round((float)($summary['after_amount'] ?? 0), 2),
+        'submitted_at' => (string)($previous['submitted_at'] ?? ''),
+    ];
+}
+
 function ql_on_the_go_apply_sequential_base(array $card, int $groupId): array
 {
     if ((int)($card['advance_id'] ?? 0) > 0) {
@@ -2827,6 +2952,13 @@ function ql_on_the_go_card_return_requested_at(int $tapeId): string
 function ql_on_the_go_card_public(array $card, int $viewerId): array
 {
     $summary = ql_on_the_go_card_summary((int)$card['id']);
+    $sessionSnapshot = ql_on_the_go_tape_primary_session_snapshot((int)$card['id'], ql_on_the_go_tape_stream($card));
+    $lastFixed = ql_on_the_go_previous_fixed_card_info(
+        (int)($card['user_id'] ?? 0),
+        isset($card['group_id']) ? (int)$card['group_id'] : 0,
+        (int)$card['id'],
+        ql_on_the_go_tape_stream($card)
+    );
     $state = ql_on_the_go_card_state($card, $summary);
     $canManage = ql_on_the_go_card_can_manage($card, $viewerId);
     $canModerate = ql_on_the_go_card_can_moderate($card, $viewerId);
@@ -2842,8 +2974,22 @@ function ql_on_the_go_card_public(array $card, int $viewerId): array
         && (int)($summary['records_count'] ?? 0) > 0
         && $submissionBlock === null;
     $returnRequestedAt = ql_on_the_go_card_return_requested_at((int)$card['id']);
+    $advanceFlags = [
+        'transfer_pending' => false,
+        'transfer_active' => false,
+        'transfer_state' => '',
+        'transfer_pending_meta' => null,
+    ];
+    if ((int)($card['advance_id'] ?? 0) > 0 && function_exists('ql_advance_row') && function_exists('ql_advance_transfer_public_flags')) {
+        $advance = ql_advance_row((int)$card['advance_id']);
+        if ($advance) {
+            $advanceFlags = ql_advance_transfer_public_flags($advance);
+        }
+    }
 
-    return [
+    $isTransferPending = !empty($advanceFlags['transfer_pending']);
+
+    return array_merge([
         'id' => (int)$card['id'],
         'tape_id' => (int)$card['id'],
         'user_id' => (int)$card['user_id'],
@@ -2865,14 +3011,17 @@ function ql_on_the_go_card_public(array $card, int $viewerId): array
         'submitted_at' => $card['submitted_at'] ?? '',
         'actual_remaining' => $card['actual_remaining'] !== null ? round((float)$card['actual_remaining'], 2) : null,
         'difference_amount' => $card['difference_amount'] !== null ? round((float)$card['difference_amount'], 2) : null,
+        'last_fixed_amount' => $lastFixed['amount'] ?? null,
+        'last_fixed_at' => $lastFixed['submitted_at'] ?? '',
         'user_display_name' => $card['user_display_name'] ?? $card['email'] ?? 'Участник',
         'email' => $card['email'] ?? '',
         'summary' => $summary,
+        'session_snapshot' => $sessionSnapshot,
         'viewer_is_owner' => $isOwner,
         'can_moderate' => $canModerate,
-        'can_edit' => $canManage && !$isLocked,
+        'can_edit' => $canManage && !$isLocked && !$isTransferPending,
         'can_toggle' => $canManage,
-        'can_delete' => $canManage,
+        'can_delete' => $canManage && !$isTransferPending,
         'can_submit' => $canSubmit,
         'can_return' => ($canModerate || $canSelfReturn) && $isLocked,
         'can_request_return' => $isOwner && !$canModerate && !$canSelfReturn && $isLocked && !$isUiArchived && $returnRequestedAt === '',
@@ -2882,7 +3031,91 @@ function ql_on_the_go_card_public(array $card, int $viewerId): array
         'submit_block_reason' => $submissionBlock['code'] ?? '',
         'submit_block_message' => $submissionBlock['message'] ?? '',
         'submit_blocking_card_id' => $submissionBlock['blocking_card_id'] ?? null,
+    ], $advanceFlags);
+}
+
+function ql_on_the_go_tape_primary_session_snapshot(int $tapeId, string $preferredSessionType = ''): ?array
+{
+    if ($tapeId <= 0) {
+        return null;
+    }
+
+    $preferredSessionType = in_array($preferredSessionType, ['cash', 'card'], true) ? $preferredSessionType : '';
+    $cacheKey = $tapeId . ':' . ($preferredSessionType !== '' ? $preferredSessionType : '*');
+    static $cache = [];
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    $stmt = ql_db()->prepare("
+        SELECT
+            s.id,
+            s.tape_id,
+            s.session_type,
+            s.status,
+            s.started_at,
+            s.closed_at,
+            s.archived_at,
+            s.created_at,
+            s.updated_at,
+            COALESCE(SUM(CASE
+                WHEN c.review_status <> 'archived'
+                 AND c.capture_type IN ('cash_in', 'cash_out', 'noncash_out')
+                THEN c.amount ELSE 0 END), 0) AS amount_total,
+            SUM(CASE
+                WHEN c.review_status <> 'archived'
+                 AND c.capture_type IN ('cash_in', 'cash_out', 'noncash_out')
+                THEN 1 ELSE 0 END) AS records_total,
+            SUM(CASE
+                WHEN c.review_status = 'needs_review'
+                 AND c.capture_type IN ('cash_in', 'cash_out', 'noncash_out')
+                THEN 1 ELSE 0 END) AS pending_total
+        FROM on_the_go_sessions s
+        LEFT JOIN on_the_go_captures c ON c.session_id = s.id
+        WHERE s.tape_id = ?
+        GROUP BY s.id
+        ORDER BY
+            CASE
+                WHEN ? <> '' AND s.session_type = ? THEN 0
+                WHEN ? <> '' THEN 1
+                ELSE 0
+            END,
+            CASE WHEN EXISTS (
+                SELECT 1
+                FROM on_the_go_captures c2
+                WHERE c2.session_id = s.id
+                  AND c2.review_status <> 'archived'
+                  AND c2.capture_type IN ('cash_in', 'cash_out', 'noncash_out')
+                LIMIT 1
+            ) THEN 0 ELSE 1 END,
+            CASE s.status WHEN 'active' THEN 0 WHEN 'closed' THEN 1 ELSE 2 END,
+            COALESCE(s.closed_at, s.started_at, s.created_at) DESC,
+            s.id DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$tapeId, $preferredSessionType, $preferredSessionType, $preferredSessionType]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        $cache[$cacheKey] = null;
+        return null;
+    }
+
+    $cache[$cacheKey] = [
+        'id' => (int)($row['id'] ?? 0),
+        'tape_id' => (int)($row['tape_id'] ?? 0),
+        'session_type' => (string)($row['session_type'] ?? 'cash'),
+        'status' => (string)($row['status'] ?? 'active'),
+        'selection_mode' => 'primary_meaningful',
+        'started_at' => (string)($row['started_at'] ?? ''),
+        'closed_at' => (string)($row['closed_at'] ?? ''),
+        'archived_at' => (string)($row['archived_at'] ?? ''),
+        'created_at' => (string)($row['created_at'] ?? ''),
+        'updated_at' => (string)($row['updated_at'] ?? ''),
+        'amount_total' => round((float)($row['amount_total'] ?? 0), 2),
+        'records_total' => (int)($row['records_total'] ?? 0),
+        'pending_total' => (int)($row['pending_total'] ?? 0),
     ];
+    return $cache[$cacheKey];
 }
 
 function ql_on_the_go_archive_legacy_ledger_rows(int $tapeId, int $ownerUserId): int
@@ -3830,6 +4063,16 @@ function ql_on_the_go_update(array $input): array
     }
     if (!ql_on_the_go_card_can_manage($card, (int)$user['id'])) {
         return ['ok' => false, 'error' => 'access_denied'];
+    }
+    $pendingTransfer = ql_on_the_go_pending_transfer_block((int)($card['id'] ?? 0), (int)$user['id']);
+    if ($pendingTransfer) {
+        return [
+            'ok' => false,
+            'error' => $pendingTransfer['code'],
+            'message' => $pendingTransfer['message'],
+            'advance_id' => (int)($pendingTransfer['advance_id'] ?? 0),
+            'transfer_id' => (int)($pendingTransfer['transfer_id'] ?? 0),
+        ];
     }
 
     $type = (string)($input['capture_type'] ?? $existing['capture_type']);

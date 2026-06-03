@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "YachtProvisionRequest",
+  "type": "object",
+  "required": [
+    "people_count",
+    "days"
+  ],
+  "properties": {
+    "people_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "days": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "profile": {
+      "type": "string",
+      "enum": [
+        "light",
+        "balanced",
+        "onboard_full",
+        "charter_comfort"
+      ],
+      "default": "balanced"
+    },
+    "meal_plan": {
+      "type": "string",
+      "default": "breakfast_onboard_lunch_light_dinner_mixed"
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "ru",
+        "en"
+      ],
+      "default": "ru"
+    },
+    "filters": {
+      "type": "object"
+    }
+  }
+}

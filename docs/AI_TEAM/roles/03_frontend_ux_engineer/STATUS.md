@@ -1,5 +1,32 @@
 # Frontend UX Engineer Status
 
+## Latest Status 2026-06-02 - Phase 2 Navigation Shell
+
+Role: Frontend/UX Engineer FinDesk
+Task: plan Phase 2 visible product hierarchy and remove old routes from normal user path before physical QA.
+Status: IMPLEMENTED LOCALLY; authenticated/mobile QA pending.
+
+Task card:
+
+- `docs/AI_TEAM/roles/03_frontend_ux_engineer/TASK_CARD_PHASE2_NAVIGATION_2026-06-02.md`
+
+Primary read:
+
+- `docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`
+
+Output expected:
+
+- `docs/AI_TEAM/roles/03_frontend_ux_engineer/PHASE2_NAVIGATION_SHELL_PLAN_2026-06-02.md`
+
+Current blocker:
+
+- browser/mobile authenticated QA has not run yet;
+- old modules remain in DOM for compatibility, but are removed from the normal visible product menu.
+
+Implementation report:
+
+- `docs/AI_TEAM/60_PHASE2_IMPLEMENTATION_SPRINT_LOCAL_2026-06-02.md`
+
 ## Latest Status 2026-05-28 FinDesk Board Rebuild
 
 Role: Frontend/UX Engineer FinDesk

@@ -20,7 +20,7 @@ header('Pragma: no-cache');
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="/assets/app.css?v=20260601-findesk-mobilefit2">
+  <link rel="stylesheet" href="/assets/app.css?v=20260603-yacht-bunkering-inside1">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -57,8 +57,19 @@ header('Pragma: no-cache');
       </div>
 
         <div id="loginPanel" class="auth-panel hidden">
-        <h1 data-i18n="auth.signInTitle">FinDesk access code</h1>
-        <p class="lead" data-i18n="auth.signInLead">Enter your email and receive a 6-digit code to open FinDesk.</p>
+        <section class="findesk-auth-welcome" aria-label="FinDesk">
+          <span>FinDesk</span>
+          <h1>Деньги исчезают тихо.</h1>
+          <p>Потратил — запиши. Получил — запиши. Работайте один или с людьми, а FinDesk сохранит картину денег.</p>
+          <div class="findesk-auth-paths">
+            <button type="button" data-auth-start="solo">Работаю один</button>
+            <button type="button" data-auth-start="team">Работаю с людьми</button>
+            <button type="button" data-auth-start="templates">Готовые шаблоны</button>
+          </div>
+        </section>
+
+        <h2 data-i18n="auth.signInTitle">Код доступа</h2>
+        <p class="lead" data-i18n="auth.signInLead">Введите email и получите 6-значный код. После входа FinDesk продолжит выбранный путь.</p>
 
         <label class="form-label" for="loginEmail" data-i18n="auth.email">Email</label>
         <input id="loginEmail" class="ql-input" type="email" data-i18n-placeholder="auth.placeholder.email" placeholder="email@example.com" autocomplete="email">
@@ -75,45 +86,63 @@ header('Pragma: no-cache');
       </div>
 
       <div id="userPanel" class="auth-panel hidden">
-          <nav class="module-nav module-nav-menu-only findesk-primary-nav glass-soft" aria-label="FinDesk modules">
-            <button class="module-tab module-primary-tab active" type="button" data-module-tab="ontherun">Живой отчет</button>
-            <button class="module-tab module-primary-tab" type="button" data-module-tab="captain">FinDesk</button>
+          <nav class="module-nav module-nav-menu-only findesk-primary-nav phase1-primary-nav phase2-top-shell" aria-label="FinDesk">
+            <button class="phase2-shell-back" type="button" data-phase-back aria-label="Назад" disabled>‹</button>
+            <div class="phase2-shell-title">
+              <strong>FinDesk</strong>
+              <span data-phase-shell-title>Welcome Hall</span>
+            </div>
+            <button class="module-primary-tab" type="button" data-phase-screen="journal-choice">Журнал</button>
             <div class="module-menu">
               <button class="module-tab module-menu-toggle" type="button" data-module-menu-toggle aria-expanded="false">
-                <span>Детали</span>
-                <b data-module-menu-current>Открыть</b>
+                <span>Меню</span>
+                <b data-module-menu-current>Product</b>
               </button>
               <div class="module-menu-panel hidden" data-module-menu-panel>
                 <section class="module-menu-group">
-                  <span>Учет</span>
-                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="overview">Деньги на руках</button>
-                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="advances">Подотчеты</button>
-                  <button class="module-menu-item" type="button" data-module-tab="ledger">Открытый учет</button>
+                  <span>Workspace</span>
+                  <button class="module-menu-item active" type="button" data-phase-screen="welcome">FinDesk</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="journal-choice">Живые записи</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="solo">Работаю один</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="team">Работаю с людьми</button>
                 </section>
                 <section class="module-menu-group">
-                  <span>Отчетность</span>
-                  <button class="module-menu-item" type="button" data-module-tab="reports">Сводка отчета</button>
-                  <button class="module-menu-item" type="button" data-module-tab="captain" data-module-focus="archive">Архив отчетов</button>
+                  <span>Reports</span>
+                  <button class="module-menu-item" type="button" data-phase-screen="reports">Отчеты</button>
                 </section>
                 <section class="module-menu-group">
-                  <span>Аналитика</span>
-                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="ai">AI-анализ</button>
-                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="audit">AI-аудит</button>
-                  <button class="module-menu-item" type="button" data-module-tab="money" data-module-screen="overview">Статистика</button>
+                  <span>Шаблоны</span>
+                  <button class="module-menu-item" type="button" data-phase-screen="yacht">Yacht</button>
                 </section>
                 <section class="module-menu-group">
-                  <span>Управление</span>
-                  <button class="module-menu-item" type="button" data-module-tab="groups">Сотрудники и группы</button>
-                  <button class="module-menu-item" type="button" data-module-tab="business">Бизнес</button>
-                </section>
-                <section class="module-menu-group">
-                  <span>Система</span>
-                  <button class="module-menu-item" type="button" data-module-tab="premium">Premium</button>
-                  <button class="module-menu-item" type="button" data-module-tab="settings">Настройки</button>
+                  <span>Account</span>
+                  <button class="module-menu-item" type="button" data-phase-screen="profile">Профиль</button>
                 </section>
               </div>
             </div>
+            <div class="phase2-shell-account">
+              <span data-phase-account>Account</span>
+              <button type="button" data-phase-logout>Выйти</button>
+              <select class="phase2-language-select language-select" data-language-select aria-label="Language">
+                <option value="en">EN</option>
+                <option value="ru">RU</option>
+                <option value="de">DE</option>
+                <option value="it">IT</option>
+                <option value="es">ES</option>
+                <option value="sr">SR</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
           </nav>
+
+          <section id="phase1ProductShell" class="phase1-product-shell" data-phase-current="welcome" aria-live="polite">
+            <div id="phase1Screen" class="phase1-screen">
+              <div class="phase1-quiet-panel">
+                <span class="phase1-kicker">FinDesk</span>
+                <h1>Загружаю рабочую среду</h1>
+              </div>
+            </div>
+          </section>
 
           <div id="moduleLedger" class="ql-module hidden" data-module="ledger">
 
@@ -244,66 +273,16 @@ header('Pragma: no-cache');
         </section>
           </div>
 
-          <div id="moduleOnTheGo" class="ql-module active" data-module="ontherun">
+          <div id="moduleOnTheGo" class="ql-module hidden" data-module="ontherun">
 
-            <section id="otrStreamGate" class="otr-stream-gate glass-soft hidden" aria-hidden="true">
-              <header class="otr-gate-header">
-                <button id="otrStreamGateBackBtn" class="otr-cards-round-btn otr-gate-back-btn" type="button" aria-label="Вернуться назад" title="Назад">‹</button>
-                <div class="otr-gate-brand">
-                  <strong>FinDesk</strong>
-                  <span>brkovic.ltd</span>
-                </div>
-                <details class="otr-gate-menu">
-                  <summary>Меню</summary>
-                  <div class="otr-gate-menu-panel">
-                    <section>
-                      <span>Работа</span>
-                      <button type="button" data-module-tab="ontherun">Живые отчеты</button>
-                      <button type="button" data-module-tab="captain">Проверка отчетов</button>
-                      <button type="button" data-module-tab="money" data-module-screen="overview">Деньги на руках</button>
-                      <button type="button" data-module-tab="money" data-module-screen="advances">Подотчеты</button>
-                    </section>
-                    <section>
-                      <span>Отчетность</span>
-                      <button type="button" data-module-tab="ledger">Открытый учет</button>
-                      <button type="button" data-module-tab="reports">Сводка отчета</button>
-                      <button type="button" data-module-tab="captain" data-module-focus="archive">Архив отчетов</button>
-                    </section>
-                    <section>
-                      <span>Аналитика</span>
-                      <button type="button" data-module-tab="money" data-module-screen="ai">AI-анализ</button>
-                      <button type="button" data-module-tab="money" data-module-screen="audit">AI-аудит</button>
-                    </section>
-                    <section>
-                      <span>Управление</span>
-                      <button type="button" data-module-tab="groups">Сотрудники и группы</button>
-                      <button type="button" data-module-tab="business">Бизнес</button>
-                      <button type="button" data-module-tab="premium">Premium</button>
-                      <button type="button" data-module-tab="settings">Настройки</button>
-                    </section>
-                  </div>
-                </details>
-              </header>
+            <section id="otrStreamGate" class="otr-stream-gate phase1-retired-gate glass-soft hidden" aria-hidden="true">
               <div class="otr-stream-shell">
                 <div class="otr-stream-gate-head">
-                  <h2>Выберите отчет</h2>
+                  <h2>Журнал</h2>
                 </div>
-                <p class="soft-note">Выберите тип отчета. Наличные считают остаток на руках, банковская карта ведет отдельный расход от нуля.</p>
-                <div class="otr-stream-choices" role="list">
-                  <button class="otr-stream-choice cash" type="button" data-otr-stream-choice="cash" role="listitem">
-                    <span>Наличные</span>
-                    <small>приход, расход, остаток кассы</small>
-                  </button>
-                  <button class="otr-stream-choice card" type="button" data-otr-stream-choice="card" role="listitem">
-                    <span>Банковская карта</span>
-                    <small>только расход, отдельно от кассы</small>
-                  </button>
-                </div>
+                <p class="soft-note">Этот переход заменен Phase 2. Сначала выбирается поток: наличные или карта.</p>
+                <button class="primary-btn wide-btn" type="button" data-phase-screen="journal-choice">Открыть выбор потока</button>
               </div>
-              <footer class="otr-gate-footer">
-                <span>FinDesk by brkovic.ltd</span>
-                <small>All rights reserved.</small>
-              </footer>
             </section>
 
             <section id="otrSimpleCard" class="otr-simple-card glass-soft stream-cash">
@@ -311,7 +290,7 @@ header('Pragma: no-cache');
                 <button id="otrEditorBackBtn" class="otr-cards-round-btn otr-editor-back-btn" type="button" aria-label="Назад к карточкам">‹</button>
                 <div>
                   <span id="otrSimpleStreamKicker" class="captain-kicker">Наличные</span>
-                  <h2>Записи</h2>
+                  <h2>Живой журнал</h2>
                 </div>
                 <div class="otr-editor-tools">
                   <button id="otrStreamSwitchBtn" class="otr-stream-switch" type="button" aria-label="Сменить поток" title="Сменить поток">Наличные</button>
@@ -325,51 +304,47 @@ header('Pragma: no-cache');
 
               <div class="otr-live-stack">
                 <section class="otr-live-block otr-live-money">
-                  <label id="otrAdminAmountLabel" class="form-label" for="otrAdminAmount">Дали</label>
-                  <input id="otrAdminAmount" class="ql-input otr-admin-amount" type="text" inputmode="decimal" placeholder="0.00" readonly aria-readonly="true">
-                  <p id="otrAdminAmountHelp" class="soft-note compact-note hidden">Информативное поле текущего отчета. Дополнительные приходы пишите строками со знаком +.</p>
+                  <div class="otr-live-facts-grid">
+                    <div class="otr-live-fact">
+                      <label id="otrAdminAmountLabel" class="form-label" for="otrAdminAmount">Старт журнала</label>
+                      <input id="otrAdminAmount" class="ql-input otr-admin-amount" type="text" inputmode="decimal" placeholder="0.00" readonly aria-readonly="true">
+                      <p id="otrAdminAmountHelp" class="soft-note compact-note">Это стартовая сумма текущего журнала.</p>
+                    </div>
+                    <div id="otrSimpleResult" class="otr-simple-result otr-journal-current" aria-label="Текущий остаток">
+                      <div><span>Сейчас осталось</span><b>€0.00</b></div>
+                      <div><span>Записей</span><b>0</b></div>
+                    </div>
+                  </div>
                 </section>
 
                 <section class="otr-live-block otr-live-note">
-                  <label class="form-label" for="otrSimpleNotes">Записи</label>
-                  <div id="otrSimpleResult" class="otr-simple-result otr-note-metrics" aria-label="Было, движение и стало">
-                    <div><span>Было</span><b>€0.00</b></div>
-                    <div><span>Приход</span><b>€0.00</b></div>
-                    <div><span>Расход</span><b>€0.00</b></div>
-                    <div><span>Стало</span><b>€0.00</b></div>
-                  </div>
-                  <div id="otrQuickCaptureBar" class="otr-quick-capture-bar stream-cash" aria-label="Быстрая фиксация">
-                    <button class="otr-quick-capture-btn cash-only income" type="button" data-otr-quick-line="cash_in" aria-label="Добавить приход наличных" title="Добавить приход наличных">+ Получили</button>
-                    <button class="otr-quick-capture-btn cash-only expense" type="button" data-otr-quick-line="cash_out" aria-label="Добавить расход наличными" title="Добавить расход наличными">- Наличные</button>
-                    <button class="otr-quick-capture-btn card-only card" type="button" data-otr-quick-line="noncash_out" aria-label="Добавить расход с карты" title="Добавить расход с карты">- Карта</button>
-                    <button class="otr-quick-capture-btn advance cash-only" type="button" data-otr-quick-advance aria-label="Перейти к подотчетам" title="Выдать деньги сотруднику через подотчеты">Подотчет</button>
-                  </div>
+                  <label class="form-label" for="otrSimpleNotes">Живая запись</label>
                   <div class="otr-notes-surface">
-                    <textarea id="otrSimpleNotes" class="ql-input otr-simple-notes" placeholder="-45 продукты&#10;-67 топливо&#10;+100 получил от руководителя"></textarea>
-                    <div class="otr-note-float-actions" aria-label="Доказательства">
-                      <button class="otr-note-float-btn camera" type="button" data-otr-attach="camera" aria-label="Сфотографировать чек" title="Сфотографировать чек"><span>Фото</span></button>
-                      <button class="otr-note-float-btn scan" type="button" data-otr-attach="scan" aria-label="Сканировать чек" title="Сканировать чек"><span>Скан</span></button>
-                      <button class="otr-note-float-btn attach" type="button" data-otr-attach="media" aria-label="Прикрепить файл" title="Прикрепить файл"><span>Файл</span></button>
-                    </div>
+                    <textarea id="otrSimpleNotes" class="ql-input otr-simple-notes" placeholder="± Сумма и заметка..."></textarea>
                   </div>
                 </section>
 
                 <div class="otr-live-side">
                   <section class="otr-live-block otr-live-attach">
-                    <div class="otr-attach-panel" aria-label="Вложения живого отчета">
+                    <div class="otr-attach-panel otr-attach-panel-phase1" aria-label="Вложения живого отчета">
                       <input id="otrSimpleFile" class="otr-attach-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.txt">
-                      <button class="otr-attach-btn" type="button" data-otr-attach="camera" aria-label="Камера" title="Камера">
-                        <span>Камера</span>
-                        <small>сфотографировать чек</small>
-                      </button>
-                      <button class="otr-attach-btn" type="button" data-otr-attach="scan" aria-label="Скан документа" title="Скан документа">
-                        <span>Скан</span>
-                        <small>документ / PDF</small>
-                      </button>
-                      <button class="otr-attach-btn" type="button" data-otr-attach="media" aria-label="Медиатека" title="Медиатека">
-                        <span>Медиатека</span>
-                        <small>выбрать фото или файл</small>
-                      </button>
+                      <details class="otr-attach-menu">
+                        <summary class="otr-attach-menu-trigger">Скрепка</summary>
+                        <div class="otr-attach-menu-list">
+                          <button class="otr-attach-btn" type="button" data-otr-attach="camera" aria-label="Камера" title="Камера">
+                            <span>Фото</span>
+                            <small>сфотографировать чек</small>
+                          </button>
+                          <button class="otr-attach-btn" type="button" data-otr-attach="scan" aria-label="Скан документа" title="Скан документа">
+                            <span>Скан</span>
+                            <small>документ / PDF</small>
+                          </button>
+                          <button class="otr-attach-btn" type="button" data-otr-attach="media" aria-label="Медиатека" title="Медиатека">
+                            <span>Файл</span>
+                            <small>выбрать фото или документ</small>
+                          </button>
+                        </div>
+                      </details>
                       <div id="otrSimpleFileName" class="otr-attach-file">Без вложения</div>
                       <div id="otrProofStateList" class="otr-proof-state-list" aria-live="polite">
                         <span>Доказательства: нет</span>
@@ -379,6 +354,7 @@ header('Pragma: no-cache');
                   </section>
 
                   <section class="otr-live-block otr-live-summary">
+                    <label class="form-label">Живые записи</label>
                     <div id="otrSimplePreview" class="otr-simple-preview">
                       <p class="soft-note">Введите строки со знаком + или -.</p>
                     </div>
@@ -386,10 +362,8 @@ header('Pragma: no-cache');
 
                   <section class="otr-live-actions">
                     <div class="otr-simple-actions">
-                      <button id="otrSimpleSaveBtn" class="primary-btn wide-btn" type="button" aria-label="Сохранить отчет" title="Сохранить отчет">Сохранить</button>
-                      <button id="otrSimpleEditBtn" class="ghost-btn wide-btn otr-edit-action-btn" type="button" aria-label="Зафиксировать записи" title="Зафиксировать">Готово</button>
-                      <button id="otrOpenCardsBtn" class="ghost-btn wide-btn" type="button" aria-label="К списку живых отчетов" title="К списку живых отчетов">Список</button>
-                      <button id="otrSimpleSubmitBtn" class="ghost-btn wide-btn submit-soft-btn hidden" type="button" aria-label="Сдать в FinDesk" title="Сдать в FinDesk">FinDesk</button>
+                      <button id="otrSimpleEditBtn" class="primary-btn wide-btn otr-edit-action-btn" type="button" aria-label="Зафиксировать журнал" title="Зафиксировать журнал">Зафиксировать журнал</button>
+                      <button id="otrSimpleSubmitBtn" class="ghost-btn wide-btn submit-soft-btn hidden" type="button" aria-label="Сдать в FinDesk" title="Сдать в FinDesk">Сдать в FinDesk</button>
                       <button id="otrSimpleDeleteBtn" class="ghost-btn wide-btn danger-soft-btn hidden" type="button" aria-label="Удалить карточку" title="Удалить карточку">Удалить</button>
                     </div>
 
@@ -409,7 +383,7 @@ header('Pragma: no-cache');
                   <h3>Живые отчеты</h3>
                 </div>
                 <div class="otr-cards-toolbar">
-                  <button id="otrCardsFinDeskBtn" class="otr-cards-round-btn hidden" type="button" data-mode-open="captain" aria-label="Открыть FinDesk" title="Открыть FinDesk">FD</button>
+                  <button id="otrCardsFinDeskBtn" class="otr-cards-round-btn hidden" type="button" data-mode-open="captain" aria-label="Открыть FinDesk" title="Открыть FinDesk">FinDesk</button>
                   <button id="otrArchiveCardsBtn" class="ghost-btn small-btn" type="button" aria-label="Открыть архив живых отчетов" title="Архив">Архив</button>
                   <button id="otrRefreshCardsBtn" class="ghost-btn small-btn" type="button">Обновить</button>
                   <button id="otrNewCardBtn" class="otr-cards-round-btn primary" type="button" aria-label="Новая карточка">+</button>
@@ -559,38 +533,53 @@ header('Pragma: no-cache');
           </div>
 
           <div id="moduleCaptain" class="ql-module hidden" data-module="captain">
-            <section class="captain-card findesk-board-card glass-soft">
-              <div class="captain-ref-brand">
-                <div class="captain-ref-brand-pill">
-                  <img class="brand-mark" src="/assets/brand-mark.png?v=20260522-106" alt="FinDesk" width="28" height="28">
-                  <strong>FinDesk · brkovic.ltd</strong>
-                  <span>•</span>
-                  <em>Финансовое web app</em>
+            <section class="findesk-surface" aria-label="FinDesk">
+              <header class="findesk-product-rail" aria-label="Навигация FinDesk">
+                <div class="findesk-product-brand">
+                  <strong>FinDesk</strong>
+                  <span>Рабочий экран контроля денег</span>
                 </div>
-              </div>
-
-              <div class="captain-balance-strip" aria-label="Остатки наличных">
-                <div class="captain-balance-pill">
-                  <span>У админа</span>
-                  <b id="captainAdminCashLeft">€0.00</b>
+                <div class="findesk-product-actions">
+                  <button class="ghost-btn small-btn" type="button" data-captain-open-quick="editor">Быстрые записи</button>
+                  <details class="findesk-top-menu">
+                    <summary>Детали</summary>
+                    <div class="findesk-top-menu-panel">
+                      <button class="findesk-top-menu-item" type="button" data-module-tab="money" data-module-screen="advances">Подотчеты</button>
+                      <button class="findesk-top-menu-item" type="button" data-module-tab="reports">Итоговые отчеты</button>
+                      <button class="findesk-top-menu-item" type="button" data-captain-open-archive>Архив</button>
+                      <button class="findesk-top-menu-item" type="button" data-module-tab="groups">Сотрудники и группы</button>
+                      <button class="findesk-top-menu-item" type="button" data-module-tab="settings">Настройки</button>
+                    </div>
+                  </details>
                 </div>
-                <div class="captain-balance-pill">
-                  <span>У сотрудников</span>
-                  <b id="captainEmployeeCashLeft">€0.00</b>
+              </header>
+
+              <header class="findesk-shell-head">
+                <div class="findesk-shell-copy">
+                  <span class="findesk-shell-kicker">Рабочая группа</span>
+                  <strong id="captainDeskTitle">Текущая группа</strong>
+                  <p id="captainStatus" class="soft-note"></p>
                 </div>
-              </div>
+                <div class="findesk-shell-controls">
+                  <label class="form-label" for="captainGroupSelect">Группа</label>
+                  <select id="captainGroupSelect" class="ql-input">
+                    <option value="">Выберите группу</option>
+                  </select>
+                  <div class="findesk-shell-metrics" aria-label="Остатки наличных">
+                    <div>
+                      <span>У администратора</span>
+                      <b id="captainAdminCashLeft">€0.00</b>
+                    </div>
+                    <div>
+                      <span>У сотрудников</span>
+                      <b id="captainEmployeeCashLeft">€0.00</b>
+                    </div>
+                  </div>
+                </div>
+              </header>
 
-              <div class="captain-admin-bar">
-                <label class="form-label" for="captainGroupSelect">Рабочая группа</label>
-                <select id="captainGroupSelect" class="ql-input">
-                  <option value="">Выберите группу</option>
-                </select>
-                <div class="captain-admin-actions"></div>
-                <p id="captainStatus" class="soft-note"></p>
-              </div>
-
-              <div id="captainBoardHome" class="captain-board-home">
-                <div id="captainSubmittedList" class="captain-card-button-board">
+              <div id="captainBoardHome" class="findesk-board-home">
+                <div id="captainSubmittedList" class="findesk-card-board">
                   <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
                 </div>
               </div>
@@ -608,36 +597,125 @@ header('Pragma: no-cache');
                 </header>
 
                 <div id="captainAdminWork" class="captain-card-work hidden">
-                  <div id="captainCurrentSummary" class="captain-current-summary">
-                    <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
-                  </div>
-                  <div id="captainReportPack" class="captain-child-report-list">
-                    <p class="soft-note">Дочерние отчеты появятся после утверждения сотрудника.</p>
-                  </div>
-                  <div class="captain-admin-action-bar">
-                    <button class="primary-btn" type="button" data-captain-finalize-report>Создать и утвердить отчет</button>
-                    <button class="ghost-btn" type="button" data-captain-open-report>Открыть</button>
-                    <button class="ghost-btn" type="button" data-captain-print>Распечатать</button>
-                    <button class="ghost-btn" type="button" data-captain-open-included>Дочерние</button>
-                  </div>
+                  <section class="captain-session-panel captain-session-panel-primary">
+                    <div class="captain-session-panel-head">
+                      <div>
+                        <span>Администратор</span>
+                        <h4>Мой журнал</h4>
+                      </div>
+                    </div>
+                    <div id="captainCurrentSummary" class="captain-current-summary">
+                      <p class="soft-note" data-i18n="captain.loading">Загружаю данные FinDesk…</p>
+                    </div>
+                  </section>
+
+                  <section class="captain-session-panel">
+                    <div class="captain-session-panel-head">
+                      <div>
+                        <span>Работа с сотрудниками</span>
+                        <h4>Передать деньги сотруднику</h4>
+                      </div>
+                    </div>
+                    <div id="captainIssuePanel" class="findesk-issue-panel">
+                      <label class="form-label" for="captainIssueMemberSelect">Сотрудник</label>
+                      <select id="captainIssueMemberSelect" class="ql-input">
+                        <option value="">Выберите сотрудника</option>
+                      </select>
+                      <label class="form-label" for="captainIssueTitle">Назначение</label>
+                      <input id="captainIssueTitle" class="ql-input" type="text" placeholder="Например: закупка, топливо, дорога">
+                      <label class="form-label" for="captainIssueAmount">Сумма</label>
+                      <input id="captainIssueAmount" class="ql-input" type="text" inputmode="decimal" placeholder="0.00">
+                      <div class="captain-current-actions">
+                        <button id="captainIssueCreateBtn" class="primary-btn" type="button">Передать деньги</button>
+                        <button class="ghost-btn" type="button" data-captain-open-quick="editor">Открыть быстрые записи</button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="captain-session-panel">
+                    <div class="captain-session-panel-head">
+                      <div>
+                        <span>Сотрудники</span>
+                        <h4>Кому выданы деньги и кто работает в группе</h4>
+                      </div>
+                    </div>
+                    <div id="captainMemberList" class="captain-session-stack">
+                      <p class="soft-note">Список сотрудников появится после загрузки группы.</p>
+                    </div>
+                  </section>
+
+                  <section class="captain-session-panel">
+                    <div class="captain-session-panel-head">
+                      <div>
+                        <span>На проверке</span>
+                        <h4>Готовые журналы сотрудников</h4>
+                      </div>
+                    </div>
+                    <div id="captainAdminInbox" class="captain-session-stack">
+                      <p class="soft-note">Входящих отчетов пока нет.</p>
+                    </div>
+                  </section>
+
+                  <section class="captain-session-panel">
+                    <div class="captain-session-panel-head">
+                      <div>
+                        <span>В сборке</span>
+                        <h4>Прикрепленные журналы и выдачи</h4>
+                      </div>
+                    </div>
+                    <div id="captainReportPack" class="captain-child-report-list">
+                      <p class="soft-note">Принятые карточки и подотчеты появятся здесь после проверки.</p>
+                    </div>
+                  </section>
+
+                  <section class="captain-session-panel">
+                    <div class="captain-session-panel-head">
+                      <div>
+                        <span>Итог</span>
+                        <h4>Сборка общего отчета</h4>
+                      </div>
+                    </div>
+                    <div id="captainAssemblySummary" class="captain-assembly-summary">
+                      <p class="soft-note">Собираю статус общего отчета…</p>
+                    </div>
+                    <div class="captain-admin-action-bar">
+                      <button class="primary-btn" type="button" data-captain-finalize-report>Сохранить общий отчет</button>
+                      <button class="ghost-btn" type="button" data-captain-print>Печать / PDF</button>
+                      <button class="ghost-btn" type="button" data-captain-send-report>Отправить</button>
+                      <button class="ghost-btn" type="button" data-captain-open-included>Состав</button>
+                    </div>
+                    <p id="captainAssemblyStatus" class="soft-note"></p>
+                  </section>
+
+                  <details class="findesk-details-fold">
+                    <summary>Детали</summary>
+                    <div class="findesk-details-fold-body">
+                      <div class="captain-invite-panel">
+                        <label class="form-label" for="captainInviteEmail">Пригласить сотрудника</label>
+                        <input id="captainInviteEmail" class="ql-input" type="email" placeholder="email@example.com">
+                        <label class="form-label" for="captainInviteAccessLevel">Роль</label>
+                        <select id="captainInviteAccessLevel" class="ql-input">
+                          <option value="base">Сотрудник</option>
+                          <option value="manager">Проверка отчетов</option>
+                          <option value="advanced">Полный доступ</option>
+                        </select>
+                        <button id="captainCreateInviteBtn" class="ghost-btn small-btn" type="button">Создать приглашение</button>
+                        <input id="captainInviteUrl" class="ql-input hidden" type="text" readonly>
+                      </div>
+                      <div id="captainArchivePack" class="captain-session-stack">
+                        <p class="soft-note">Архив выполненных записей пока пуст.</p>
+                      </div>
+                      <div class="captain-detail-actions">
+                        <button id="captainJournalExportBtn" class="ghost-btn small-btn hidden" type="button">Журнал</button>
+                        <button class="ghost-btn small-btn" type="button" data-captain-open-archive>Открыть архив</button>
+                        <button class="ghost-btn small-btn" type="button" data-module-tab="money" data-module-screen="advances">Все подотчеты</button>
+                      </div>
+                    </div>
+                  </details>
                 </div>
 
                 <div id="captainParticipantWork" class="captain-card-work"></div>
               </section>
-
-              <div class="captain-details-compact captain-ref-archive-wrap" id="captainDetailsPanel">
-                <section class="captain-archive-compact" id="captainArchivePanel">
-                  <div>
-                    <span>Архив</span>
-                    <div id="captainArchivePack" class="soft-note">Архив выполненных записей пока пуст.</div>
-                  </div>
-                  <div class="captain-archive-actions">
-                    <button id="captainJournalExportBtn" class="ghost-btn small-btn hidden" type="button">Журнал</button>
-                    <button class="ghost-btn small-btn" type="button" data-captain-open-archive>Открыть архив</button>
-                    <button class="ghost-btn small-btn" type="button" data-module-tab="money" data-module-screen="advances">Все подотчеты</button>
-                  </div>
-                </section>
-              </div>
             </section>
           </div>
 
@@ -1468,9 +1546,9 @@ header('Pragma: no-cache');
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260601-findesk-mobilefit2"></script>
+  <script src="/assets/i18n.js?v=20260603-yacht-bunkering-inside1"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260601-findesk-mobilefit2"></script>
+  <script src="/assets/app.js?v=20260603-yacht-bunkering-inside1"></script>
 </body>
 </html>

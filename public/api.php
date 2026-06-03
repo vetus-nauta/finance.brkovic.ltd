@@ -7,6 +7,9 @@ require_once __DIR__ . '/../app/messages.php';
 require_once __DIR__ . '/../app/business.php';
 require_once __DIR__ . '/../app/on_the_go.php';
 require_once __DIR__ . '/../app/advances.php';
+require_once __DIR__ . '/../app/findesk_phase2.php';
+require_once __DIR__ . '/../app/yacht_provisioning.php';
+require_once __DIR__ . '/../app/yacht_prices.php';
 $aiModulePath = __DIR__ . '/../app/ai.php';
 if (is_file($aiModulePath)) {
     require_once $aiModulePath;
@@ -41,6 +44,14 @@ try {
             ql_json(['ok' => false, 'error' => 'ai_unavailable']);
         }
         ql_json(ql_ai_analysis_run(ql_input()));
+    }
+
+    if ($action === 'yacht_provision_calculate') {
+        ql_json(ql_yacht_provision_calculate(ql_input()));
+    }
+
+    if ($action === 'yacht_price_approved_catalog') {
+        ql_json(ql_yacht_price_approved_catalog(ql_input()));
     }
 
 
@@ -197,6 +208,14 @@ try {
         ql_json(ql_advance_detail(ql_input()));
     }
 
+    if ($action === 'advance_confirm') {
+        ql_json(ql_advance_confirm(ql_input()));
+    }
+
+    if ($action === 'advance_update_pending') {
+        ql_json(ql_advance_update_pending(ql_input()));
+    }
+
     if ($action === 'advance_submit') {
         ql_json(ql_advance_submit(ql_input()));
     }
@@ -219,6 +238,66 @@ try {
 
     if ($action === 'advance_cancel') {
         ql_json(ql_advance_cancel(ql_input()));
+    }
+
+    if ($action === 'findesk_workspace_get') {
+        ql_json(ql_findesk_workspace_get(ql_input()));
+    }
+
+    if ($action === 'findesk_workspace_set') {
+        ql_json(ql_findesk_workspace_set(ql_input()));
+    }
+
+    if ($action === 'findesk_transfer_list') {
+        ql_json(ql_findesk_transfer_list(ql_input()));
+    }
+
+    if ($action === 'findesk_transfer_create') {
+        ql_json(ql_findesk_transfer_create(ql_input()));
+    }
+
+    if ($action === 'findesk_transfer_update') {
+        ql_json(ql_findesk_transfer_update(ql_input()));
+    }
+
+    if ($action === 'findesk_transfer_confirm') {
+        ql_json(ql_findesk_transfer_confirm(ql_input()));
+    }
+
+    if ($action === 'findesk_transfer_cancel') {
+        ql_json(ql_findesk_transfer_cancel(ql_input()));
+    }
+
+    if ($action === 'findesk_report_assembly_get') {
+        ql_json(ql_findesk_report_assembly_get(ql_input()));
+    }
+
+    if ($action === 'findesk_report_item_attach') {
+        ql_json(ql_findesk_report_item_attach(ql_input()));
+    }
+
+    if ($action === 'findesk_report_finalize') {
+        ql_json(ql_findesk_report_finalize(ql_input()));
+    }
+
+    if ($action === 'findesk_report_list') {
+        ql_json(ql_findesk_report_list(ql_input()));
+    }
+
+    if ($action === 'findesk_report_archive_export') {
+        ql_json(ql_findesk_report_archive_export(ql_input()));
+    }
+
+    if ($action === 'findesk_report_detail') {
+        ql_json(ql_findesk_report_detail(ql_input()));
+    }
+
+    if ($action === 'findesk_protected_action_prepare') {
+        ql_json(ql_findesk_protected_action_prepare(ql_input()));
+    }
+
+    if ($action === 'findesk_protected_action_confirm') {
+        ql_json(ql_findesk_protected_action_confirm(ql_input()));
     }
 
     if ($action === 'ledger_create') {

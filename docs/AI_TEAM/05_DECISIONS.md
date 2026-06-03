@@ -1,5 +1,195 @@
 # Decisions Log
 
+## 2026-06-03: Yacht Bunkering Is Internal To Yacht Template
+
+Decision: `Бункеровка` is not a primary FinDesk start path. It belongs inside the Yacht template only.
+
+Reason:
+
+- FinDesk is a financial program first, not a yacht-only application;
+- the general start page must remain understandable for all users;
+- Yacht is one ready template under `Готовые шаблоны`;
+- bunkering/starter package is a yacht work-order function, not a global FinDesk function.
+
+Control:
+
+- scope correction report: `docs/AI_TEAM/87_YACHT_BUNKERING_SCOPE_CORRECTION_LOCAL_2026-06-03.md`;
+- Yacht section handoff: `docs/AI_TEAM/88_YACHT_TEMPLATE_SECTION_HANDOFF_2026-06-03.md`;
+- do not add `Бункеровка` back to the pre-auth start, Welcome Hall, or top menu;
+- keep the internal Yacht button that scrolls to `Бункеровка / стартовый пакет`.
+
+## 2026-06-02: Product Bible V1 Becomes Highest-Level FinDesk Source
+
+Decision: accept the Drive package `findesk_product_bible_full_v1.zip` as the highest-level FinDesk product source.
+
+Reason:
+
+- it explicitly defines FinDesk from Welcome Hall to final report;
+- it resolves conflicts between Phase 1, Phase 2, Phase 3, QA, audit and handoff documents;
+- it forbids reviving old interface patterns, dashboard-first thinking, accounting/ERP language and ecosystem portal links;
+- it defines Product Completion as real UX, visual system, mobile-first pass, physical QA and old interface removal.
+
+Control:
+
+- intake record: `docs/AI_TEAM/63_PRODUCT_BIBLE_V1_INTAKE_2026-06-02.md`;
+- Product Bible stands above all phase documents unless the CEO explicitly changes product direction;
+- next implementation must expose the approved structure, not patch over old FinDesk;
+- Phase 3 cannot pass while old FinDesk remains visually recognizable;
+- production release remains blocked until functional QA, engine audit, UX QA, mobile QA, visual QA, report/export QA, backup/rollback check and production release audit are complete.
+
+## 2026-06-03: Sprint 0 Route Map Before Product Bible Implementation
+
+Decision: close Sprint 0 as a route/product audit and start Sprint 1 from Welcome Hall and the application shell.
+
+Reason:
+
+- current Product screens exist, but they are mixed with the legacy `ontherun` router;
+- old modules remain physically present in DOM and can be reopened through `qlSetModule`, `data-module-tab`, saved localStorage state, or browser Back;
+- Product Bible V1 requires removing old interface remnants before Phase 3 can pass;
+- implementing deeper screens before isolating the route layer would repeat the previous patch-over-old-product failure.
+
+Control:
+
+- route map: `docs/AI_TEAM/64_PRODUCT_BIBLE_SPRINT0_ROUTE_MAP_2026-06-03.md`;
+- Sprint 1 starts with `Welcome Hall`, shell, menu, and Back behavior;
+- old `ledger/ontherun/captain/money/groups/settings` screens are hidden engine support only, not normal product navigation;
+- do not continue styling or patching the old `captain` or `ontherun` surface as the user-facing FinDesk.
+
+## 2026-06-02: Phase 3 Product Identity Queued After Phase 2 QA
+
+Decision: accept the Drive package `FinDesk Phase 3 - Product Identity, UX Validation & Cohesion` as the next product validation source after Phase 2 authenticated QA.
+
+Reason:
+
+- Phase 3 is about making Phase 1 logic and Phase 2 architecture visible as one coherent product;
+- it explicitly forbids inventing a new FinDesk or redesigning approved business logic;
+- it defines the style direction as operational luxury minimalism and requires physical QA across desktop, iPhone, Android and iPad.
+
+Control:
+
+- source recorded at `docs/AI_TEAM/61_PHASE3_PRODUCT_IDENTITY_UX_VALIDATION_2026-06-02.md`;
+- Phase 2 QA remains the current gate;
+- Phase 3 is not a styling escape hatch and not a new dashboard/ERP direction;
+- old interface remnants must disappear before physical QA.
+
+## 2026-06-02: Phase 2 Gate Before Implementation
+
+Decision: start Phase 2 with Sprint 0/1/2 audit and block implementation until the working blueprint and QA checklist reflect the Phase 2 packages.
+
+Reason:
+
+- Phase 2 package explicitly defines this as logic/workflow construction, not styling;
+- the current app still contains visible old navigation and legacy UX paths;
+- continuing implementation over hidden old state would repeat the previous product failure.
+
+Control:
+
+- current Phase 2 audit: `docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`;
+- old modules must not remain normal product navigation before physical QA;
+- Cash/Card choice must appear before Live Journal;
+- transfer offer must be first-class: pending -> employee confirmation -> active;
+- active workspace, report assembly and protected actions must become first-class contracts;
+- no destructive database action is approved;
+- no visual/style sprint starts before the new product hierarchy is visible.
+
+## 2026-06-02: Phase 2 Local Implementation Sprint
+
+Decision: implement the first local Phase 2 slice after the audit gate, using additive backend state and a new visible product shell.
+
+Reason:
+
+- the audit confirmed auth, groups, journal and attachment foundations can be preserved;
+- transfer, active workspace, report assembly and protected actions needed first-class state;
+- physical QA cannot start while old routes are the normal visible product path.
+
+Control:
+
+- local sprint report: `docs/AI_TEAM/60_PHASE2_IMPLEMENTATION_SPRINT_LOCAL_2026-06-02.md`;
+- new backend module: `app/findesk_phase2.php`;
+- new DB rollout script: `deploy/findesk_phase2_foundation.sql`;
+- no old tables were dropped;
+- no production deploy was done;
+- authenticated local QA is required before production upload.
+
+## 2026-06-02: Phase 2 Authenticated API QA Pass
+
+Decision: accept the local authenticated API workflow as passed for Phase 2 logic, while keeping physical UX QA and production deploy blocked.
+
+Reason:
+
+- two authenticated users completed the first-class transfer lifecycle;
+- pending transfer blocked employee Live Journal input;
+- employee confirmation activated cash/card workflows;
+- Cash and Card stayed separated through report assembly and final reports;
+- Protected Action required reason and exact `CONFIRM`;
+- active workspace preference persisted per user.
+
+Control:
+
+- QA report: `docs/AI_TEAM/62_PHASE2_AUTHENTICATED_API_QA_2026-06-02.md`;
+- this is not a physical UX pass;
+- desktop/iPhone/Android/iPad validation is still required;
+- production DB rollout and deploy remain blocked until local product path QA is approved.
+
+## 2026-06-02: Mandatory Phase 1 Alignment Patch
+
+Decision: block further Phase 1 implementation until the mandatory alignment patch is reflected in the working blueprint, Phase 1 audit, and QA checklist.
+
+Reason:
+
+- product architecture still needed explicit confirmation of transfer activation rules;
+- card/non-cash rules needed a final MVP definition;
+- Team Workspace and Employee Card needed stronger people-first constraints;
+- final report structure needed an explicit `Cash / Card / Total` contract;
+- QA needed exact checks for these rules before more implementation.
+
+Control:
+
+- pending transfer is a first-class lifecycle: issue -> pending -> employee confirmation -> active;
+- employee journal must stay blocked while transfer is pending;
+- cash and card remain separate streams through journal and report composition;
+- Team Workspace stays a people screen;
+- Employee Card top layout is `name / position / issued / remaining`;
+- Live Journal stays records-feed-first;
+- final report structure is `Cash Section -> Card / Non-Cash Section -> Total`;
+- implementation continues only after these rules are present in blueprint, audit, and QA checklist.
+
+## 2026-06-02: Phase 1 Functional Blueprint Becomes The Main Product Beacon
+
+Decision: adopt `docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md` as the main source for the next FinDesk product step.
+
+Reason:
+
+- CEO provided a new Drive package with a screen-by-screen functional blueprint;
+- the current FinDesk result was rejected as a mixed technical layer rather than a product;
+- continuing to patch the current screen would deepen the structural error.
+
+Control:
+
+- Phase 1 is functional cleanup first, not visual redesign first;
+- auth, backend, database, PWA, manifest, and service worker foundations stay in place unless a direct requirement forces change;
+- `Live Journal` is the first cleanup target;
+- no production-first implementation of half-finished Phase 1 screens;
+- all next role tasks must read the new blueprint mandate before editing code.
+
+## 2026-06-01: FinDesk Must Move From Board Rebuild To Active Session Model
+
+Decision: treat the 2026-06-01 FinDesk active-session task as the current main FinDesk product task, and treat `48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md` as an intermediate rebuild rather than the final target.
+
+Reason:
+
+- the older board rebuild improved structure and mobile fit, but still lived too close to the legacy mixed surface;
+- CEO clarified a stricter operating model: active session only, one participant report per session, one administrator report per session, one summary report, and one immutable archived summary object;
+- the main problem is now product/session behavior, not only card layout.
+
+Control:
+
+- current task card: `docs/AI_TEAM/49_FINDESK_ACTIVE_SESSION_REBUILD_TASK_2026-06-01.md`;
+- no formula rewrite is authorized by this decision;
+- no destructive log deletion is authorized by this decision;
+- active-session UX, report uniqueness, confirmation state, and archive transition must be formalized before broad implementation;
+- `48` remains valid as an intermediate implementation record, not as the final requirement source.
+
 ## 2026-06-02: Director Handoff And Production Boundary
 
 Decision: make `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md` the current start handoff for the next Project Director.

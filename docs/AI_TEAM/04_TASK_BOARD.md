@@ -1,5 +1,846 @@
 # AI Team Task Board
 
+## Director Sprint 2026-06-03 - Yacht Bunkering Button Scope Correction
+
+Status: local scope correction implemented; browser QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/87_YACHT_BUNKERING_SCOPE_CORRECTION_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- removed external "Бункеровка" start buttons from FinDesk entry points;
+- removed "Бункеровка" from the top "Шаблоны" menu;
+- removed separate "Бункеровка" card from Welcome Hall and Templates screen;
+- kept bunkering inside Yacht template as an internal action;
+- asset version updated to `20260603-yacht-bunkering-inside1`.
+
+Open:
+
+- browser visual QA;
+- production deploy only after explicit approval.
+
+## Director Sprint 2026-06-03 - Yacht Approved Price Bridge
+
+Status: local read-only API and frontend bridge implemented; browser QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/85_YACHT_APPROVED_PRICE_BRIDGE_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- added `app/yacht_prices.php`;
+- added API action `yacht_price_approved_catalog`;
+- API reads active approved storage catalog only;
+- API requires authenticated user;
+- Yacht UI can load approved prices and apply them manually;
+- approved diesel/gasoline prices map into Yacht fuel rows;
+- blocked duty-free item is not applied;
+- printing sets `price_locked_at` and stores `price_snapshot`;
+- automated price apply is blocked after price lock;
+- asset version updated to `20260603-yacht-approved-bridge1`.
+
+Open:
+
+- browser visual QA;
+- real mobile QA;
+- server-side immutable Yacht order archive if Yacht orders need durable storage beyond local state;
+- explicit supplier quote path for duty-free fuel.
+
+## Director Sprint 2026-06-03 - Yacht Price Approval Gate
+
+Status: local approval gate implemented; active storage catalog approved; UI not published.
+
+Primary report:
+
+- `docs/AI_TEAM/84_YACHT_PRICE_APPROVAL_GATE_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- added `scripts/yacht_price_candidate_gate.cjs`;
+- review command works;
+- approval without phrase/warning/duty-free allowances is blocked;
+- approved local catalog created at `storage/yacht-price-approved/20260603T132215Z-adriatic_balkans-fuel-approved.json`;
+- active pointer created at `storage/yacht-price-approved/active-adriatic_balkans-fuel.json`;
+- approved local prices: diesel `EUR 2.24 / 1.57`, gasoline `EUR 2.13 / 1.49`;
+- blocked: `duty_free_marine_diesel_liter`;
+- `ui_published: false`.
+
+Open:
+
+- build read-only API/frontend bridge from approved storage catalog to Yacht price engine;
+- keep direct UI publication blocked until source/version indicators are visible;
+- collect explicit duty-free supplier quotes.
+
+## Director Sprint 2026-06-03 - Yacht Fuel Price Candidate
+
+Status: local candidate created; not published.
+
+Primary report:
+
+- `docs/AI_TEAM/83_YACHT_FUEL_PRICE_CANDIDATE_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- full `adriatic_balkans/fuel` OpenAI run completed;
+- snapshot created at `storage/yacht-price-catalog/20260603T131456Z-adriatic_balkans-fuel-node.json`;
+- candidate builder added: `scripts/yacht_price_candidate_from_snapshot.cjs`;
+- candidate created at `storage/yacht-price-candidates/20260603T131613Z-adriatic_balkans-fuel-candidate.json`;
+- accepted: `marine_diesel_liter`, `gasoline_liter`;
+- blocked: `duty_free_marine_diesel_liter`;
+- candidate remains `pending_review`, `publish_allowed: false`.
+
+Open:
+
+- build review/approval gate;
+- do not publish candidate into UI until review gate exists;
+- collect direct supplier/bunker/duty-free sources for explicit duty-free prices.
+
+## Director Sprint 2026-06-03 - Yacht AI Price Cycle
+
+Status: local AI price cycle implemented and tested.
+
+Primary report:
+
+- `docs/AI_TEAM/82_YACHT_AI_PRICE_CYCLE_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- added Node worker `scripts/yacht_price_ai_refresh.cjs`;
+- added snapshot review helper `scripts/yacht_price_snapshot_review.cjs`;
+- AI now collects source observations with explicit `price_basis`;
+- code computes final full/duty-free prices deterministically;
+- tax-included pump/retail prices are not treated as hidden net prices;
+- first controlled OpenAI run created `storage/yacht-price-catalog/20260603T130305Z-adriatic_balkans-fuel-node.json`;
+- latest reviewed result for `marine_diesel_liter`: confidence `medium`, full `EUR 2.00`, estimated duty-free `EUR 1.40`, publish status `review_required`.
+
+Open:
+
+- run full `adriatic_balkans/fuel` family;
+- review all fuel items;
+- add publication candidate layer;
+- do not publish to UI until review gate exists.
+
+## Director Sprint 2026-06-03 - OpenAI Key Smoke
+
+Status: local API key installed; OpenAI API smoke passed.
+
+Primary report:
+
+- `docs/AI_TEAM/81_OPENAI_KEY_SMOKE_PASS_2026-06-03.md`
+
+Done locally:
+
+- key file exists at `storage/secrets/openai_api_key`;
+- key file permissions are `600`;
+- `/v1/models` auth check passed;
+- `gpt-5.4-mini` is visible to the account;
+- Responses API structured-output smoke passed;
+- no key value was printed or committed.
+
+Blocked:
+
+- Yacht PHP worker dry-run/real-run, because PHP CLI is not available in the current shell.
+
+Next:
+
+- find PHP CLI path or run from an environment where `php` exists;
+- run `php scripts/yacht_price_ai_refresh.php`;
+- then one controlled `fuel/adriatic_balkans` real snapshot run.
+
+## Director Sprint 2026-06-03 - OpenAI Key Terminal Install
+
+Status: complete; key file installed.
+
+Primary report:
+
+- `docs/AI_TEAM/80_OPENAI_KEY_TERMINAL_INSTALL_READY_2026-06-03.md`
+
+Done locally:
+
+- OpenAI provider now supports `api_key_file`;
+- local config points to `storage/secrets/openai_api_key`;
+- terminal installer added at `scripts/install_openai_key.sh`;
+- installer status and shell syntax check passed.
+
+Result:
+
+- terminal install completed;
+- key status moved to `docs/AI_TEAM/81_OPENAI_KEY_SMOKE_PASS_2026-06-03.md`.
+
+## Director Sprint 2026-06-03 - Yacht Provision API Package
+
+Status: local deterministic API implementation complete.
+
+Primary report:
+
+- `docs/AI_TEAM/79_YACHT_PROVISION_API_PACKAGE_APPLIED_2026-06-03.md`
+
+Source package:
+
+- `https://drive.google.com/file/d/15f78Qt6NNA8nuh4u3I_T6Y9aoo4yncz4/view?usp=sharing`
+
+Done locally:
+
+- package catalog, filters and schemas copied into `app/data/yacht_provisioning`;
+- added `app/yacht_provisioning.php`;
+- added API action `yacht_provision_calculate`;
+- implemented people/days formula, profile multiplier, meal plan multiplier, filters, rounding, warnings and grouped category response;
+- local HTTP smoke passed for normal, invalid and large-group requests.
+
+Open:
+
+- frontend UI integration into Yacht template;
+- optional route alias for `/api/provisioning/calculate` if the app adds a routing layer;
+- PHP CLI syntax check where PHP CLI is available;
+- production deployment only after QA.
+
+## Director Sprint 2026-06-03 - OpenAI Yacht Price Refresh
+
+Status: local background scaffold complete; real key/provider run not executed.
+
+Primary report:
+
+- `docs/AI_TEAM/78_OPENAI_YACHT_PRICE_REFRESH_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- searched the project for an active OpenAI key and external AI calls;
+- confirmed current `app/ai.php` is local FinDesk analysis, not OpenAI-backed;
+- added `app/openai_provider.php`;
+- added OpenAI config template to `app/config.local.example.php`;
+- added CLI-only worker `scripts/yacht_price_ai_refresh.php`;
+- worker supports food refresh every 90 days and fuel refresh every 30 days;
+- worker defaults to `dry-run` and requires `--run` for any API call;
+- snapshots are written to `storage/yacht-price-catalog` and do not overwrite active Yacht prices.
+
+Open:
+
+- set real `OPENAI_API_KEY` only in server environment;
+- run PHP syntax check where PHP CLI is available;
+- add approved source registry per region;
+- add source confidence, outlier control and director approval before publishing catalog values.
+
+## Director Sprint 2026-06-03 - Yacht Price Engine
+
+Status: local implementation complete; provider integration open.
+
+Primary report:
+
+- `docs/AI_TEAM/77_YACHT_PRICE_ENGINE_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- yacht price zones were converted from flat presets to `Price Engine v1`;
+- user sees only the final visible price;
+- net source values, averaging, tax, logistics, markup and duty-free discount stay inside the engine;
+- food and fuel support `Полная цена / Duty free`;
+- failed/unavailable source entries are ignored in the averaging model;
+- yacht crew roles are preserved during form synchronization;
+- asset version updated to `20260603-yacht-price-engine1`.
+
+Open path to 100 percent readiness:
+
+- define approved truth sources per region and product family;
+- move catalog snapshots to backend storage;
+- add manual and scheduled refresh;
+- add outlier control, source confidence and fallback to last good snapshot;
+- keep printed/archived orders immutable;
+- run browser, source-failure, duty-free and print QA.
+
+## Director Task 2026-06-02 - Product Bible V1 Alignment
+
+Status: accepted as highest-level FinDesk product source.
+
+Primary intake:
+
+- `docs/AI_TEAM/63_PRODUCT_BIBLE_V1_INTAKE_2026-06-02.md`
+
+Source package:
+
+- `https://drive.google.com/file/d/1hS3pcVRbxHTD3PnzxxRHCJ41vlN5bcs_/view?usp=sharing`
+
+Meaning:
+
+- Product Bible V1 stands above Phase 1, Phase 2, Phase 3, QA, audit and handoff documents;
+- FinDesk is a modern shared money journal, not accounting, ERP, CRM, bank, dashboard, or ecosystem portal;
+- the product path is `Welcome Hall -> Solo/Team -> Cash/Card -> Live Journal -> Fixed Journal -> Report Assembly -> Reports`;
+- Team Workspace is a people screen;
+- Live Journal is records-first;
+- old interface remnants must be removed before Phase 3 can pass.
+
+Current gate:
+
+- no implementation should proceed unless it answers the Product Bible guardrails;
+- Phase 3 remains open until UX, visual identity, mobile QA and physical QA pass;
+- production release remains blocked until functional QA, engine audit, UX QA, mobile QA, visual QA, report/export QA, backup/rollback and release audit are complete.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 0 Route Map
+
+Status: local route audit complete; Sprint 1 implementation brief ready.
+
+Primary route map:
+
+- `docs/AI_TEAM/64_PRODUCT_BIBLE_SPRINT0_ROUTE_MAP_2026-06-03.md`
+
+Key findings:
+
+- current Product screens exist, but still use `ontherun + phase1_*` as browser state;
+- old modules remain in DOM: `ledger`, `ontherun`, `captain`, `money`, `premium`, `groups`, `business`, `settings`;
+- old `data-module-tab`, `data-mode-open`, `qlSetModule`, `localStorage` restore and extra `popstate` handlers can revive legacy screens;
+- Sprint 1 must make Product Bible shell the only normal visible route.
+
+Sprint 1 target:
+
+- rebuild Welcome Hall and application shell locally;
+- restrict visible menu to Product Bible items;
+- prevent old module restore from becoming the first screen;
+- keep legacy modules as hidden engine support only;
+- do not style or patch old `captain/ontherun/money` surfaces.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 1 Welcome / Shell
+
+Status: local implementation complete; browser/physical QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/65_PRODUCT_BIBLE_SPRINT1_WELCOME_SHELL_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- pre-auth Welcome Hall added above email code login;
+- authenticated Welcome rebuilt around Product Bible start paths;
+- visible menu reduced to `Workspace / Reports / Account`;
+- product route state added as `module=product`;
+- old `ontherun + phase1_*` state is no longer the normal route layer;
+- legacy module restore and legacy click paths redirect to Product routes;
+- `moduleOnTheGo` no longer starts as active DOM module;
+- asset version updated to `20260603-product-shell1`.
+
+Checks passed:
+
+- `node --check public/assets/app.js`;
+- `node --check public/service-worker.js`;
+- `git diff --check`;
+- local HTTP checks for app shell, JS and CSS.
+
+Next sprint:
+
+- Sprint 2: `Solo Workspace -> Cash/Card Choice -> Live Journal records-first rebuild`.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 2 Solo / Live Journal
+
+Status: local implementation complete; browser/mobile QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/66_PRODUCT_BIBLE_SPRINT2_SOLO_LIVE_JOURNAL_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- `Работаю один` now activates Solo workspace;
+- Solo screen presents Cash / Card choice directly;
+- Live Journal rebuilt around records feed;
+- input is one line: `± Сумма и заметка...`;
+- `Записать` saves the line through existing journal engine;
+- `Зафиксировать журнал` uses `start_next=1`;
+- frontend now sends current `tape_id` to avoid saving into another active tape;
+- frontend preserves carry-forward start amount after fixation;
+- Cash and Card smoke tests passed separately;
+- asset version updated to `20260603-live-journal1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app/asset checks;
+- authenticated API smoke for Cash save/fix/carry-forward and Card fix.
+
+Next sprint:
+
+- Sprint 3: `Team Workspace = People Screen`, then Admin Card / Employee Card skeleton and pending transfer visible state.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 3 Team Workspace / Transfers
+
+Status: local implementation complete; browser/mobile QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/67_PRODUCT_BIBLE_SPRINT3_TEAM_WORKSPACE_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- Team route is now a people-first workspace;
+- group creation is available inside Product shell;
+- Admin Card shows `У меня / У сотрудников / Ожидают проверки`;
+- Admin Card can create invite links;
+- Admin Card can create first-class pending transfers;
+- Employee Card shows pending transfer state;
+- employee confirmation activates transfer and creates active journal tape;
+- Product shell snapshot now loads `findesk_transfer_list`;
+- employee issued/remaining calculations include first-class transfers;
+- pending transfer blocks employee journal before confirmation;
+- asset version updated to `20260603-team-workspace1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app/asset checks;
+- authenticated API smoke for group invite, join, pending transfer, confirm;
+- pending journal block smoke.
+
+Next sprint:
+
+- Sprint 4: Admin / Employee card completion, Add Money, edit/cancel pending transfer and confirmed team Live Journal path.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 4 Admin Card Completion
+
+Status: local implementation complete; browser/mobile QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/68_PRODUCT_BIBLE_SPRINT4_ADMIN_CARD_COMPLETION_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- Admin Card can add money into the active group cash journal;
+- pending transfer rows expose `Изменить` and `Отменить`;
+- edit requires reason and exact phrase `ИЗМЕНИТЬ`;
+- cancel requires reason and exact phrase `ОТМЕНИТЬ`;
+- exact phrases are checked by both frontend and backend;
+- admin money intake appends one cash-in record through `on_the_go_create`;
+- backend edit audit now stores reason plus previous/next amount and stream;
+- employee journal remains blocked while pending transfer exists;
+- confirmed transfer path was rechecked;
+- asset version updated to `20260603-admin-card1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check for frontend assets;
+- local HTTP app/asset checks;
+- authenticated API smoke for pending block, edit reason/confirmation gates, cancel confirmation gate, edit, cancel, confirm and admin cash-in.
+
+Known gaps:
+
+- browser visual QA not run because Playwright is not installed locally;
+- mobile physical QA pending;
+- Report Assembly and final archive/export remain open.
+
+Next sprint:
+
+- Sprint 5: Report Assembly, Cash/Card/Total final report structure and Protected finalization path.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 5 Report Assembly
+
+Status: local implementation complete; browser/mobile QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/69_PRODUCT_BIBLE_SPRINT5_REPORT_ASSEMBLY_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- Product snapshot now loads `findesk_report_assembly_get`;
+- Product snapshot now loads `findesk_report_list`;
+- Assembly screen shows `Cash / Card / Total`;
+- Assembly screen separates `Cash Section` and `Card / Non-cash Section`;
+- ready submitted journals can be attached through `findesk_report_item_attach`;
+- finalization requires reason and exact phrase `УТВЕРДИТЬ`;
+- backend `findesk_report_finalize` blocks missing reason and missing phrase;
+- Reports screen shows finalized group reports from `findesk_report_list`;
+- asset version updated to `20260603-report-assembly1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app/asset checks;
+- authenticated API smoke for admin journal, employee journal, attach, finalize gates, final report list.
+
+Known gaps:
+
+- browser visual QA not run because Playwright is not installed locally;
+- mobile physical QA pending;
+- report detail/export remains open;
+- package-wide archive export remains open.
+
+Next sprint:
+
+- Sprint 6: physical UX closure, mobile keyboard/touch behavior, report detail/export and remaining old-route dirt.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 6 Report Detail / Export
+
+Status: local implementation complete; browser/mobile QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/70_PRODUCT_BIBLE_SPRINT6_REPORT_DETAIL_EXPORT_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- finalized report rows now expose `Открыть` and `Экспорт`;
+- report detail loads through `findesk_report_detail`;
+- report detail shows `Cash / Card / Total`;
+- report detail shows `Cash Section` and `Card / Non-cash Section`;
+- export builds a JSON report package from the report snapshot;
+- open report detail is cleared when workspace changes;
+- asset version updated to `20260603-report-detail1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app/asset checks;
+- authenticated API smoke for report detail and export payload shape.
+
+Known gaps:
+
+- browser visual QA not run because Playwright is not installed locally;
+- mobile physical QA pending;
+- export is JSON package, not ZIP with attachments;
+- package-wide archive export across all reports remains open.
+
+Next sprint:
+
+- Sprint 7: mobile physical UX closure, keyboard/input conflict, touch responsiveness and remaining old-route remnants.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 7 Mobile UX / Route Cleanup
+
+Status: local implementation complete; real-device QA pending.
+
+Primary report:
+
+- `docs/AI_TEAM/71_PRODUCT_BIBLE_SPRINT7_MOBILE_UX_ROUTE_CLEANUP_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- Product shell now syncs dynamic mobile viewport through `visualViewport`;
+- Product inputs set `phase1-keyboard-open` while focused;
+- focused Product inputs scroll into view;
+- Live Journal no longer depends on raw `100vh`;
+- Live Journal bottom/input is sticky near safe bottom on mobile;
+- records feed has touch scrolling;
+- Product buttons/inputs use touch-friendly behavior;
+- legacy click listeners and `qlSetModule` wrappers stop side effects while Product shell is active;
+- asset version updated to `20260603-mobile-ux1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app/asset checks.
+
+Known gaps:
+
+- real-device physical QA still required;
+- browser visual QA not run because Playwright is not installed locally;
+- camera/scanner PWA gate remains open;
+- package-wide archive ZIP export remains open.
+
+Next sprint:
+
+- Sprint 8: real-device QA gate for mobile keyboard, touch scroll, PWA mode, Live Journal, Team flow and report export.
+
+## Director Sprint 2026-06-03 - Product Bible Sprint 8 Archive Export / QA Gate
+
+Status: local implementation complete; real-device QA still blocks production.
+
+Primary report:
+
+- `docs/AI_TEAM/72_PRODUCT_BIBLE_SPRINT8_ARCHIVE_EXPORT_QA_GATE_LOCAL_2026-06-03.md`
+
+QA checklist:
+
+- `docs/AI_TEAM/roles/04_qa_release_engineer/PHYSICAL_QA_CHECKLIST_PRODUCT_BIBLE_2026-06-03.md`
+
+Done locally:
+
+- added `findesk_report_archive_export`;
+- Reports screen can export full group archive JSON package;
+- archive package includes finalized reports, items and snapshots;
+- physical QA checklist created for real devices;
+- asset version updated to `20260603-archive-export1`.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app/asset checks;
+- authenticated API smoke for archive package export.
+
+Known gaps:
+
+- archive export is JSON package, not ZIP with binary attachments;
+- real-device physical QA not run;
+- browser visual QA not run because Playwright is not installed locally;
+- camera/scanner PWA gate still requires physical device check.
+
+Release gate:
+
+- production deploy remains blocked until physical QA passes on real devices.
+
+Local QA run:
+
+- `docs/AI_TEAM/roles/04_qa_release_engineer/LOCAL_QA_CHECKLIST_RUN_PRODUCT_BIBLE_2026-06-03.md`
+- local API/engine QA passed;
+- static PWA/route/mobile guard QA passed;
+- real-device physical QA remains open.
+
+## Director QA Scenario 2026-06-03 - A. Usov Final Report
+
+Status: local API QA passed; production deploy not performed.
+
+Primary report:
+
+- `docs/AI_TEAM/73_A_USOV_FINAL_QA_SCENARIO_2026-06-03.md`
+
+Done locally:
+
+- created clean group `FinDesk A. Usov Final QA 2026-06-03`, group id `275`;
+- admin `a.usov@mail.com` received `65,765 EUR`;
+- five employee transfers were issued and confirmed: `4,000`, `3,000`, `700`, `7,000`, `300 EUR`;
+- admin and all five employees submitted one Live Journal each;
+- common report id `8` was assembled and finalized;
+- archive export contains the finalized report.
+
+QA result:
+
+- final cash received: `65,765 EUR`;
+- internal issued: `15,000 EUR`;
+- total spent: `60,600 EUR`;
+- total remaining: `5,165 EUR`;
+- active Live Journals after finalization are empty;
+- carry-forward balances passed: admin `3,765`, employees `380 / 270 / 60 / 650 / 40 EUR`.
+
+Local fixes added:
+
+- FinDesk report summary now adjusts duplicated transfer received/remaining totals;
+- old empty group-journal auto-sync no longer overwrites FinDesk Phase 2 carry-forward balances.
+
+## Director Sprint 2026-06-03 - Yacht Template MVP
+
+Status: local implementation complete; production deploy not performed.
+
+Primary report:
+
+- `docs/AI_TEAM/74_YACHT_TEMPLATE_MVP_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- added `Yacht Template` product screen;
+- `Templates -> Yacht` opens the Yacht screen;
+- menu includes `Templates -> Yacht`;
+- yacht profile card supports name, marina, berth, customer contact, registration/model/hull/size/year/logo and technical fields;
+- quiet fallback logo text is `Vetus Nauta`;
+- crew role presets added for captain and crew;
+- yacht workspace creation creates a normal FinDesk group named `Yacht: <name>`;
+- separate `Bunkering / starter package` calculator added;
+- rows support quantity, unit, approximate price, selection and total;
+- prices can be hidden before printing;
+- print mode prints the yacht work order area only.
+
+Checks passed:
+
+- JS syntax;
+- service worker syntax;
+- diff check;
+- local HTTP app check.
+
+Deferred:
+
+- dynamic regional price library;
+- learning filters over historical entries;
+- service work orders from yacht technical fields;
+- backend persistence across devices.
+
+## Director Sprint 2026-06-03 - Yacht Bunkering Order
+
+Status: local implementation complete; production deploy not performed.
+
+Primary report:
+
+- `docs/AI_TEAM/75_YACHT_BUNKERING_ORDER_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- `Bunkering / starter package` now has modes `Все / Еда / Топливо / Техника`;
+- mode tabs filter rows without deleting hidden rows;
+- total package amount always counts all enabled rows;
+- selected section total is shown separately;
+- local reference price presets added as optional hints;
+- reference prices are disabled by default and must be explicitly applied;
+- applied prices remain editable manually;
+- quick row buttons added for food, fuel and technical positions;
+- fuel rows use liters and price per liter.
+
+Guardrail:
+
+- bunkering prices and package totals remain outside Live Journal, reports and archive accounting.
+
+## Director Sprint 2026-06-03 - Yacht Price Zones
+
+Status: local implementation complete; production deploy not performed.
+
+Primary report:
+
+- `docs/AI_TEAM/76_YACHT_PRICE_ZONES_LOCAL_2026-06-03.md`
+
+Done locally:
+
+- yacht reference prices are split into zones:
+  - Europe base;
+  - Adriatic / Balkans;
+  - Western Mediterranean;
+  - USA coastal states;
+  - Asia marina hubs;
+  - Caribbean islands;
+- added catalog version `2026-06-03-local-zones1`;
+- added manual `Обновить справочник` button;
+- manual update records local version/date metadata;
+- manual update does not overwrite order rows;
+- applying selected-zone prices remains a separate explicit action.
+
+Guardrail:
+
+- external live price integration is deferred until a controlled server-side provider/source exists.
+
+## Director Task 2026-06-02 - Phase 3 Product Identity / UX Validation
+
+Status: queued after Phase 2 authenticated QA.
+
+Primary source:
+
+- `docs/AI_TEAM/61_PHASE3_PRODUCT_IDENTITY_UX_VALIDATION_2026-06-02.md`
+
+Source package:
+
+- `https://drive.google.com/file/d/1S11kHRLFfb5yidEDNpGO5hsBd6-UtlZa/view?usp=drive_link`
+
+Meaning:
+
+- do not invent a new FinDesk;
+- do not redesign business logic;
+- express the approved product in one coherent UX;
+- remove old interface remnants before physical QA;
+- validate on Desktop, iPhone, Android and iPad.
+
+Gate:
+
+- Phase 3 starts only after the Phase 2 local implementation passes authenticated QA.
+
+## Director Task 2026-06-02 - Phase 2 Logic / Navigation / Engine Gate
+
+Status: authenticated local API QA passed; physical UX QA pending.
+
+Primary audit and working blueprint:
+
+- `docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`
+
+Source packages:
+
+- Logic: `https://drive.google.com/file/d/1HGyjkl0Dv6aU8OjdjN5fw2mWrK9KxjFu/view?usp=sharing`
+- Navigation/localization: `https://drive.google.com/file/d/1s1dRKCxUWUwqdqoUsiFU-NX-D_JgHyTS/view?usp=sharing`
+
+Current decision:
+
+- Sprint 0, Sprint 1 and Sprint 2 gate are documented;
+- implementation is not started yet;
+- physical QA is blocked until old visible navigation is removed and Phase 2 hierarchy is visible.
+
+Role task cards:
+
+- Product Finance Architect: `docs/AI_TEAM/roles/01_product_finance_architect/TASK_CARD_PHASE2_LOGIC_2026-06-02.md`
+- Backend Data Engineer: `docs/AI_TEAM/roles/02_backend_data_engineer/TASK_CARD_PHASE2_ENGINE_2026-06-02.md`
+- Frontend UX Engineer: `docs/AI_TEAM/roles/03_frontend_ux_engineer/TASK_CARD_PHASE2_NAVIGATION_2026-06-02.md`
+- QA Release Engineer: `docs/AI_TEAM/roles/04_qa_release_engineer/TASK_CARD_PHASE2_QA_2026-06-02.md`
+- Chief Auditor: `docs/AI_TEAM/roles/05_chief_auditor/TASK_CARD_PHASE2_GATE_2026-06-02.md`
+
+Next implementation direction after approval:
+
+- local sprint report: `docs/AI_TEAM/60_PHASE2_IMPLEMENTATION_SPRINT_LOCAL_2026-06-02.md`;
+- authenticated API QA report: `docs/AI_TEAM/62_PHASE2_AUTHENTICATED_API_QA_2026-06-02.md`;
+- additive schema/API patch for transfers, workspace preference, report assembly and protected actions is implemented locally;
+- Phase 2 shell with Back stack, compact menu, language and logout is implemented locally;
+- Cash/Card intermediate screen before Live Journal is implemented locally;
+- old modules are removed from the visible normal product menu locally;
+- next required step is browser/physical UX QA before production deploy.
+
+## Director Task 2026-06-02 - Phase 1 Functional Blueprint Reset
+
+Status: opened as the current FinDesk product task; this overrides patch-first work.
+
+Primary task card:
+
+- `docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md`
+
+Why this is current:
+
+- CEO provided a new functional blueprint package and ordered product rethinking;
+- the current live FinDesk result was rejected as a mixed, non-product screen;
+- the next correct step is a screen-by-screen rebuild, not continued patching.
+
+Current target:
+
+- functional cleanup first;
+- no style-first redesign;
+- preserve auth/backend/DB/PWA foundations;
+- start with `Live Journal`;
+- then rebuild team flow, admin card, employee card, report assembly, and reports.
+- do not continue implementation until the mandatory alignment patch of 2026-06-02 is reflected in the working blueprint, audit summary, and QA checklist.
+
+Still pending:
+
+- local functional prototype;
+- role findings from Product, Frontend, Backend, QA, Auditor;
+- exact reuse map of current APIs and states;
+- production rollback or replacement decision after local approval.
+- mandatory alignment of:
+  - pending transfer confirmation flow;
+  - separate card/non-cash stream definition;
+  - people-first Team Workspace;
+  - final Employee Card layout;
+  - final report `Cash / Card / Total` structure;
+  - QA checklist for these rules.
+
+## Director Task 2026-06-01 - FinDesk Active Session Rebuild
+
+Status: still relevant as a product idea, but no longer the main working source.
+
+Primary task card:
+
+- `docs/AI_TEAM/49_FINDESK_ACTIVE_SESSION_REBUILD_TASK_2026-06-01.md`
+
+Why this is current:
+
+- the older `48_FINDESK_BOARD_REBUILD_LOCAL_2026-05-28.md` is now treated as an intermediate board rebuild, not the final product target;
+- CEO clarified the next FinDesk model around active sessions, one report per participant per session, one admin report, one final summary object, and no stale session noise on the active surface.
+
+Current target:
+
+- active-session-first FinDesk;
+- card-button outside, full-page work area inside;
+- administrator card plus participant cards;
+- pending issue confirmation state, signed issue state, review/return/approve flow;
+- one immutable archived summary object per closed session.
+
+Still pending:
+
+- product formalization of session semantics;
+- backend support map for active session identity and one-report-per-session rules;
+- frontend implementation sprint;
+- QA matrix for active session, confirmation, parallel sessions, and archive transition.
+
 ## Director Sync 2026-06-02 - Handoff And GitHub
 
 Status: ready for GitHub sync.

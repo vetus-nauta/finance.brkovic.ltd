@@ -1,5 +1,32 @@
 # Backend Data Engineer Status
 
+## Latest Status 2026-06-02 - Phase 2 Schema/API Gate
+
+Role: Backend/Data Engineer FinDesk
+Task: prepare additive first-class schema/API plan for Phase 2.
+Status: IMPLEMENTED LOCALLY; authenticated QA pending.
+
+Task card:
+
+- `docs/AI_TEAM/roles/02_backend_data_engineer/TASK_CARD_PHASE2_ENGINE_2026-06-02.md`
+
+Primary read:
+
+- `docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`
+
+Output expected:
+
+- `docs/AI_TEAM/roles/02_backend_data_engineer/PHASE2_SCHEMA_API_PLAN_2026-06-02.md`
+
+Current blocker:
+
+- production DB rollout is not approved yet;
+- authenticated two-user transfer/report QA has not run yet.
+
+Implementation report:
+
+- `docs/AI_TEAM/60_PHASE2_IMPLEMENTATION_SPRINT_LOCAL_2026-06-02.md`
+
 ## Latest Status 2026-05-28: FinDesk Board Rebuild Data Mapping
 
 Role: Backend/Data Engineer FinDesk

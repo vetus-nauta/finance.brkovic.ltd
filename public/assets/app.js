@@ -186,11 +186,29 @@ document.addEventListener('click', function(event) {
   const nativeInstallButton = event.target.closest('#nativeInstallBtn');
   const donateButton = event.target.closest('[data-open-donate]');
   const closeButton = event.target.closest('[data-close-modal]');
+  const authStartButton = event.target.closest('[data-auth-start]');
 
   if (installButton) openInstall(installButton.getAttribute('data-open-install') || 'auto');
   if (nativeInstallButton) runNativeInstallPrompt();
   if (donateButton && window.openDonateModal) window.openDonateModal();
   if (closeButton) closeModals();
+  if (authStartButton) {
+    const target = String(authStartButton.getAttribute('data-auth-start') || 'welcome');
+    try {
+      if (window.localStorage) {
+        localStorage.setItem(QL_MODULE_STATE_KEY, JSON.stringify({
+          module: 'product',
+          findesk_product: true,
+          phase_screen: Object.prototype.hasOwnProperty.call(PHASE2_SCREEN_TITLES, target) ? target : 'solo',
+          stream_type: 'cash',
+          ts: Date.now()
+        }));
+      }
+    } catch (error) {}
+    qlShowAuthMessage('Войдите, и FinDesk продолжит выбранный путь.');
+    const email = document.getElementById('loginEmail');
+    if (email && email.focus) email.focus();
+  }
 
   if (event.target.classList && event.target.classList.contains('modal')) {
     closeModals();
@@ -289,6 +307,7 @@ function qlRenderUser(user) {
 
   if (name) name.textContent = user.display_name || 'User';
   if (email) email.textContent = user.email || '';
+  if (typeof window.qlSyncPhaseShell === 'function') window.qlSyncPhaseShell();
 }
 
 async function qlCheckCurrentUser() {
@@ -387,6 +406,7 @@ async function qlVerifyCode() {
 async function qlLogout() {
   await qlApi('logout', {});
   qlCurrentUser = null;
+  if (typeof window.qlSyncPhaseShell === 'function') window.qlSyncPhaseShell();
   qlShowPanel('login');
   qlShowAuthMessage(qlAuthText('auth.message.loggedOut', 'Signed out.'));
 }
@@ -1044,7 +1064,7 @@ function qlFinalPackageSummarySection(summary) {
       <div class="final-package-metrics">
         ${qlFinalPackageMetric('Получено', summary.received_money)}
         ${qlFinalPackageMetric('Потрачено наличными', summary.physical_cash_spent)}
-        ${qlFinalPackageMetric('Потрачено картой', summary.card_noncash_spent)}
+        ${qlFinalPackageMetric('Карта / безнал', summary.card_noncash_spent)}
         ${qlFinalPackageMetric('Осталось в кассе', summary.admin_cash_left)}
         ${qlFinalPackageMetric('Сотрудники net', summary.employee_net_remaining_total ?? summary.accountable_money_left)}
         ${qlFinalPackageMetric('Остатки сотрудников', summary.employee_positive_remaining_total)}
@@ -1194,7 +1214,7 @@ function qlFinalPackageAccountableSection(accountable) {
         ${qlFinalPackageMetric('Выдано', totals.issued)}
         ${qlFinalPackageMetric('Принято расходом', totals.accepted_spent)}
         ${qlFinalPackageMetric('Наличные расходы', totals.accepted_cash_spent)}
-        ${qlFinalPackageMetric('Карта', totals.accepted_card_spent)}
+        ${qlFinalPackageMetric('Карта / безнал', totals.accepted_card_spent)}
         ${qlFinalPackageMetric('Вернули', totals.returned_cash)}
         ${qlFinalPackageMetric('Осталось у сотрудника', totals.open_remaining_cash)}
         ${qlFinalPackageMetric('К возмещению', totals.reimbursement_due)}
@@ -1620,12 +1640,12 @@ async function qlRunReport() {
   out.innerHTML = `
     <div class="report-title">${escapeHtml(reportTitle)}</div>
     <div class="report-period">${escapeHtml(p.from || '')} → ${escapeHtml(p.to || '')}</div>
-    <div class="report-line strong"><span>Баланс</span><b>${qlCurrency(s.balance || 0)}</b></div>
+    <div class="report-line strong"><span>Итого</span><b>${qlCurrency(s.balance || 0)}</b></div>
     <div class="report-line"><span>Приход</span><b>${qlCurrency(s.income || 0)}</b></div>
     <div class="report-line"><span>Расход</span><b>${qlCurrency(s.expense || 0)}</b></div>
     <div class="report-split">
       <div><span>Наличные</span><b>${qlCurrency(s.cash_balance || 0)}</b><small>приход ${qlCurrency(s.cash_income || 0)} / расход ${qlCurrency(s.cash_expense || 0)}</small></div>
-      <div><span>Безнал</span><b>${qlCurrency(s.noncash_balance || 0)}</b><small>приход ${qlCurrency(s.noncash_income || 0)} / расход ${qlCurrency(s.noncash_expense || 0)}</small></div>
+      <div><span>Карта / безнал</span><b>${qlCurrency(s.noncash_balance || 0)}</b><small>приход ${qlCurrency(s.noncash_income || 0)} / расход ${qlCurrency(s.noncash_expense || 0)}</small></div>
     </div>
     <div class="report-line"><span>Записей</span><b>${s.records || 0}</b></div>
     ${sectionsHtml}
@@ -2115,6 +2135,14 @@ qlRenderUser = function(user) {
   setTimeout(async function() {
     await qlLoadGroups();
     qlHandleInviteFromUrl();
+    if (typeof window.qlOpenPhaseScreen === 'function') {
+      const state = qlLoadModuleState();
+      const target = state && (state.findesk_product === true || state.module === 'product')
+        ? String(state.phase_screen || state.screen || 'welcome')
+        : 'welcome';
+      window.qlOpenPhaseScreen(target || 'welcome', {history: 'replace', stack: false});
+      return;
+    }
     if (!qlRestoreModuleState()) {
       const activeModule = document.querySelector('.ql-module[data-module].active');
       const fallbackModule = activeModule ? activeModule.getAttribute('data-module') : 'ontherun';
@@ -3193,7 +3221,7 @@ function qlUseActiveGroupForLedger() {
 }
 
 const QL_MODULE_STATE_KEY = 'ql_module_state_v1';
-const QL_MODULE_STATE_ALLOWED = ['ontherun', 'ledger', 'reports', 'captain', 'money', 'groups', 'business', 'premium', 'settings'];
+const QL_MODULE_STATE_ALLOWED = ['product', 'ontherun', 'ledger', 'reports', 'captain', 'money', 'groups', 'business', 'premium', 'settings'];
 let qlBrowserHistoryReady = false;
 let qlBrowserHistoryApplying = false;
 
@@ -3203,7 +3231,7 @@ function qlBrowserHistorySupported() {
 
 function qlBuildBrowserState(moduleName, options) {
   const opts = options || {};
-  const requested = QL_MODULE_STATE_ALLOWED.includes(String(moduleName || '')) ? String(moduleName) : 'ontherun';
+  const requested = QL_MODULE_STATE_ALLOWED.includes(String(moduleName || '')) ? String(moduleName) : 'product';
   const state = {
     findesk_app: true,
     module: requested,
@@ -3213,6 +3241,13 @@ function qlBuildBrowserState(moduleName, options) {
     scope_group_id: qlResolveActiveGroupId() || 0,
     ts: Date.now()
   };
+
+  if (requested === 'product') {
+    state.findesk_product = true;
+    state.phase_screen = opts.phase_screen || opts.screen || 'welcome';
+    state.stream_type = opts.stream_type || phase1Stream || 'cash';
+    return state;
+  }
 
   if (requested === 'ontherun') {
     state.ontherun_screen = opts.ontherun_screen || opts.screen || (
@@ -3241,7 +3276,7 @@ function qlWriteBrowserState(moduleName, options, mode) {
 
 function qlReplaceBrowserHistoryFromCurrentState() {
   if (!qlBrowserHistorySupported()) return;
-  const state = qlLoadModuleState() || qlBuildBrowserState('ontherun', {screen: 'editor'});
+  const state = qlLoadModuleState() || qlBuildBrowserState('product', {phase_screen: 'welcome'});
   if (!state.findesk_app) state.findesk_app = true;
   window.history.replaceState(state, '', '/app.php');
   qlBrowserHistoryReady = true;
@@ -3275,6 +3310,16 @@ function qlSaveModuleState(moduleName, options) {
     scope_group_id: qlResolveActiveGroupId() || 0,
     ts: Date.now()
   };
+
+  if (requested === 'product') {
+    payload.findesk_product = true;
+    payload.phase_screen = options && (options.phase_screen || options.screen)
+      ? String(options.phase_screen || options.screen)
+      : 'welcome';
+    payload.stream_type = options && options.stream_type ? String(options.stream_type) : (phase1Stream || 'cash');
+    localStorage.setItem(QL_MODULE_STATE_KEY, JSON.stringify(payload));
+    return;
+  }
 
   if (requested === 'ontherun') {
     const visibleOtrScreen = document.body.classList.contains('otr-editor-open')
@@ -3322,6 +3367,19 @@ function qlApplyModuleState(state) {
 
   const requested = String(state.module || '');
   if (!QL_MODULE_STATE_ALLOWED.includes(requested)) return false;
+
+  if (requested === 'product' || state.findesk_product === true || state.phase_screen) {
+    if (state.stream_type) phase1Stream = String(state.stream_type) === 'card' ? 'card' : 'cash';
+    if (typeof window.qlOpenPhaseScreen === 'function') {
+      window.qlOpenPhaseScreen(state.phase_screen || state.screen || 'welcome', {history: 'replace', stack: false});
+      return true;
+    }
+  }
+
+  if (typeof window.qlOpenPhaseScreen === 'function') {
+    window.qlOpenPhaseScreen('welcome', {history: 'replace', stack: false});
+    return true;
+  }
 
   if (state.scope_mode === 'group') {
     const hasGroups = Array.isArray(qlGroups) && qlGroups.length > 0;
@@ -3372,6 +3430,10 @@ function qlApplyModuleState(state) {
     moduleOptions.stream_type = String(state.stream_type || '');
     moduleOptions.tape_id = Number(state.tape_id || 0);
     moduleOptions.archivedOnly = !!Number(state.archived_only || 0);
+    if (moduleOptions.screen.indexOf('phase1_') === 0 && typeof window.qlOpenPhaseScreen === 'function') {
+      window.qlOpenPhaseScreen(moduleOptions.screen.replace('phase1_', '') || 'welcome', {history: 'replace', stack: false});
+      return true;
+    }
   }
 
   qlSetModule(requested, moduleOptions);
@@ -3385,14 +3447,33 @@ function qlRestoreModuleState() {
   return qlApplyModuleState(state);
 }
 
+function qlProductScreenForLegacyModule(moduleName, screenName) {
+  const requested = String(moduleName || '');
+  const screen = String(screenName || '');
+  if (requested === 'reports') return 'reports';
+  if (requested === 'captain' || requested === 'groups') return 'team';
+  if (requested === 'ontherun') return 'journal-choice';
+  if (requested === 'money' || screen === 'advances') return 'admin';
+  return 'welcome';
+}
+
+function qlLegacyModuleRoutesAllowed(options) {
+  return !!(options && options.legacy === true);
+}
+
 function qlSetModule(moduleName, options) {
   options = options || {};
   const requested = moduleName || 'ledger';
+  if (!qlLegacyModuleRoutesAllowed(options) && typeof window.qlOpenPhaseScreen === 'function') {
+    window.qlOpenPhaseScreen(qlProductScreenForLegacyModule(requested, options.screen || ''), {history: options.history || 'push'});
+    return;
+  }
   const visible = requested === 'reports' ? 'ledger' : requested;
   let requestedScreen = options.screen || '';
   if (requested === 'money' && !requestedScreen) {
     requestedScreen = 'overview';
   }
+  qlHidePhaseWelcome();
 
   if (requested !== 'ontherun') {
     document.body.classList.remove('otr-stream-gate-open', 'otr-cards-open', 'otr-editor-open');
@@ -3486,24 +3567,3281 @@ function qlSetModule(moduleName, options) {
   }, options.history || '');
 }
 
+let phase1CurrentScreen = 'welcome';
+let phase1Stream = 'cash';
+let phase1SelectedEmployeeId = 0;
+let phase1ScreenStack = [];
+const PHASE1_WORKSPACE_KEY = 'findesk_phase1_workspace_v1';
+const PHASE2_SCREEN_TITLES = {
+  welcome: 'Welcome Hall',
+  solo: 'Solo Workspace',
+  templates: 'Готовые шаблоны',
+  yacht: 'Yacht Template',
+  'journal-choice': 'Live Journal',
+  journal: 'Live Journal',
+  team: 'Team Workspace',
+  admin: 'Admin Card',
+  employee: 'Employee Card',
+  assembly: 'Report Assembly',
+  reports: 'Reports',
+  protected: 'Protected Actions',
+  profile: 'Profile'
+};
+let phase1SnapshotLoading = false;
+let phase1SnapshotLoadedAt = 0;
+let phase1Snapshot = {
+  groups: [],
+  group: null,
+  members: [],
+  advances: [],
+  transfers: [],
+  cards: [],
+  tapes: [],
+  ledger: null,
+  journalItems: [],
+  assembly: null,
+  reports: []
+};
+let phase1JournalDraft = {cash: '', card: ''};
+let phase1JournalTouched = {cash: false, card: false};
+let phase1JournalLineDraft = {cash: '', card: ''};
+let phase1Notice = '';
+let phase1InviteUrl = '';
+let phase1PendingAction = null;
+let phase1ReportDetail = null;
+let phase1ReportDetailLoading = false;
+let phase1ViewportSyncBound = false;
+const PHASE1_YACHT_KEY = 'findesk_yacht_template_v1';
+const PHASE1_YACHT_ROLES = ['Капитан', 'Первый помощник', 'Матрос', 'Стюардесса', 'Повар', 'Механик', 'Свое название'];
+const PHASE1_YACHT_ORDER_MODES = [
+  {id: 'all', label: 'Все'},
+  {id: 'food', label: 'Еда'},
+  {id: 'fuel', label: 'Топливо'},
+  {id: 'technical', label: 'Техника'}
+];
+const PHASE1_YACHT_PACKAGE_DEFAULTS = [
+  {enabled: true, category: 'Еда', item: 'Вода питьевая', qty: 48, unit: 'бут.', price: 0.9},
+  {enabled: true, category: 'Еда', item: 'Продукты базовые', qty: 1, unit: 'компл.', price: 380},
+  {enabled: true, category: 'Еда', item: 'Кофе, чай, сахар', qty: 1, unit: 'компл.', price: 85},
+  {enabled: true, category: 'Хозяйственное', item: 'Бытовая химия', qty: 1, unit: 'компл.', price: 110},
+  {enabled: true, category: 'Хозяйственное', item: 'Полотенца бумажные / салфетки', qty: 1, unit: 'компл.', price: 45},
+  {enabled: true, category: 'Топливо', item: 'Дизель', qty: 500, unit: 'л', price: 1.65},
+  {enabled: true, category: 'Техника', item: 'Масло моторное', qty: 10, unit: 'л', price: 14},
+  {enabled: true, category: 'Техника', item: 'Фильтры запасные', qty: 1, unit: 'компл.', price: 160},
+  {enabled: true, category: 'Безопасность', item: 'Аптечка / расходники', qty: 1, unit: 'компл.', price: 95},
+  {enabled: true, category: 'Сервис', item: 'Портовые мелочи', qty: 1, unit: 'резерв', price: 150}
+];
+const PHASE1_YACHT_PRICE_CATALOG_VERSION = '2026-06-03-local-engine1';
+const PHASE1_YACHT_PRICE_ENGINE = {
+  europe_basic: {
+    label: 'Европа, базовая зона',
+    tax_rate: 0.19,
+    markup_rate: 0.18,
+    logistics_rate: 0.04,
+    duty_free_discount: {food: 0.25, fuel: 0.28},
+    sources: {
+      'Вода питьевая': [0.68, 0.71, 0.73],
+      'Продукты базовые': [270, 285, 292],
+      'Кофе, чай, сахар': [58, 62, 65],
+      'Бытовая химия': [78, 82, 86],
+      'Полотенца бумажные / салфетки': [34, 36, 38],
+      'Дизель': [1.16, 1.2, 1.23],
+      'Масло моторное': [9.8, 10.2, 10.6],
+      'Фильтры запасные': [114, 120, 126],
+      'Аптечка / расходники': [68, 72, 75],
+      'Портовые мелочи': [108, 114, 120]
+    }
+  },
+  adriatic_balkans: {
+    label: 'Адриатика / Балканы',
+    tax_rate: 0.21,
+    markup_rate: 0.15,
+    logistics_rate: 0.03,
+    duty_free_discount: {food: 0.26, fuel: 0.30},
+    sources: {
+      'Вода питьевая': [0.55, 0.58, 0.61],
+      'Продукты базовые': [238, 248, 256],
+      'Кофе, чай, сахар': [52, 55, 58],
+      'Бытовая химия': [68, 72, 75],
+      'Полотенца бумажные / салфетки': [28, 30, 31],
+      'Дизель': [1.05, 1.09, 1.12],
+      'Масло моторное': [8.8, 9.2, 9.6],
+      'Фильтры запасные': [100, 106, 112],
+      'Аптечка / расходники': [60, 63, 66],
+      'Портовые мелочи': [94, 100, 105]
+    }
+  },
+  mediterranean_west: {
+    label: 'Средиземноморье запад',
+    tax_rate: 0.2,
+    markup_rate: 0.2,
+    logistics_rate: 0.05,
+    duty_free_discount: {food: 0.25, fuel: 0.27},
+    sources: {
+      'Вода питьевая': [0.7, 0.74, 0.77],
+      'Продукты базовые': [275, 290, 302],
+      'Кофе, чай, сахар': [60, 65, 68],
+      'Бытовая химия': [82, 86, 90],
+      'Полотенца бумажные / салфетки': [36, 38, 40],
+      'Дизель': [1.18, 1.22, 1.26],
+      'Масло моторное': [10.4, 10.9, 11.3],
+      'Фильтры запасные': [120, 126, 132],
+      'Аптечка / расходники': [72, 77, 80],
+      'Портовые мелочи': [118, 126, 132]
+    }
+  },
+  usa_coastal: {
+    label: 'США / coastal states',
+    tax_rate: 0.08,
+    markup_rate: 0.24,
+    logistics_rate: 0.06,
+    duty_free_discount: {food: 0.22, fuel: 0.25},
+    sources: {
+      'Вода питьевая': [0.82, 0.86, 0.9],
+      'Продукты базовые': [320, 335, 348],
+      'Кофе, чай, сахар': [78, 82, 86],
+      'Бытовая химия': [95, 100, 106],
+      'Полотенца бумажные / салфетки': [46, 49, 52],
+      'Дизель': [0.95, 0.98, 1.02],
+      'Масло моторное': [12.2, 12.8, 13.4],
+      'Фильтры запасные': [154, 162, 170],
+      'Аптечка / расходники': [95, 100, 106],
+      'Портовые мелочи': [160, 170, 180]
+    }
+  },
+  asia_marina: {
+    label: 'Азия / marina hubs',
+    tax_rate: 0.1,
+    markup_rate: 0.18,
+    logistics_rate: 0.07,
+    duty_free_discount: {food: 0.28, fuel: 0.30},
+    sources: {
+      'Вода питьевая': [0.48, 0.5, 0.54],
+      'Продукты базовые': [220, 230, 238],
+      'Кофе, чай, сахар': [44, 47, 50],
+      'Бытовая химия': [62, 66, 70],
+      'Полотенца бумажные / салфетки': [26, 28, 30],
+      'Дизель': [0.72, 0.75, 0.78],
+      'Масло моторное': [8.2, 8.6, 9],
+      'Фильтры запасные': [104, 110, 116],
+      'Аптечка / расходники': [58, 62, 65],
+      'Портовые мелочи': [94, 98, 104]
+    }
+  },
+  caribbean_islands: {
+    label: 'Карибы / острова',
+    tax_rate: 0.15,
+    markup_rate: 0.28,
+    logistics_rate: 0.12,
+    duty_free_discount: {food: 0.25, fuel: 0.30},
+    sources: {
+      'Вода питьевая': [0.9, 0.96, 1.02],
+      'Продукты базовые': [350, 370, 390],
+      'Кофе, чай, сахар': [88, 94, 100],
+      'Бытовая химия': [110, 118, 126],
+      'Полотенца бумажные / салфетки': [52, 56, 60],
+      'Дизель': [1.02, 1.08, 1.14],
+      'Масло моторное': [14.2, 15, 15.8],
+      'Фильтры запасные': [170, 182, 194],
+      'Аптечка / расходники': [104, 112, 120],
+      'Портовые мелочи': [185, 198, 210]
+    }
+  }
+};
+let phase1YachtState = phase1ReadYachtState();
+let phase1YachtApprovedCatalog = null;
+let phase1YachtApprovedLoading = false;
+
+function phase1ReadWorkspace() {
+  try {
+    const raw = window.localStorage ? localStorage.getItem(PHASE1_WORKSPACE_KEY) : '';
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return {mode: 'none', groupId: 0};
+    const mode = parsed.mode === 'group' ? 'group' : (parsed.mode === 'solo' ? 'solo' : 'none');
+    const groupId = mode === 'group' ? Number(parsed.groupId || parsed.group_id || 0) : 0;
+    return {mode, groupId: Number.isFinite(groupId) ? groupId : 0};
+  } catch (error) {
+    return {mode: 'none', groupId: 0};
+  }
+}
+
+function phase1YachtDefaultState() {
+  return {
+    profile: {
+      name: '',
+      marina: '',
+      berth: '',
+      customer: '',
+      reg_number: '',
+      model: '',
+      hull_number: '',
+      length: '',
+      beam: '',
+      year: '',
+      logo: '',
+      engines: '',
+      generators: '',
+      watermaker: '',
+      windlass: '',
+      passerelle: '',
+      custom_fields: ''
+    },
+    crew_roles: {},
+    order: {
+      marina: '',
+      berth: '',
+      customer: '',
+      show_prices: true,
+      mode: 'all',
+      use_reference_prices: false,
+      price_region: 'adriatic_balkans',
+      price_mode: 'full',
+      price_catalog_version: PHASE1_YACHT_PRICE_CATALOG_VERSION,
+      price_catalog_updated_at: '',
+      approved_price_catalog: null,
+      price_locked_at: '',
+      price_snapshot: null,
+      rows: PHASE1_YACHT_PACKAGE_DEFAULTS.map(function(row) { return Object.assign({}, row); })
+    }
+  };
+}
+
+function phase1ReadYachtState() {
+  const defaults = phase1YachtDefaultState();
+  try {
+    const raw = window.localStorage ? localStorage.getItem(PHASE1_YACHT_KEY) : '';
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return defaults;
+    const profile = Object.assign({}, defaults.profile, parsed.profile || {});
+    const crewRoles = Object.assign({}, defaults.crew_roles, parsed.crew_roles || {});
+    const order = Object.assign({}, defaults.order, parsed.order || {});
+    order.mode = PHASE1_YACHT_ORDER_MODES.some(function(mode) { return mode.id === order.mode; }) ? order.mode : 'all';
+    order.price_region = PHASE1_YACHT_PRICE_ENGINE[order.price_region] ? order.price_region : 'adriatic_balkans';
+    order.price_mode = order.price_mode === 'duty_free' ? 'duty_free' : 'full';
+    order.use_reference_prices = !!order.use_reference_prices;
+    order.price_catalog_version = String(order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION);
+    order.price_catalog_updated_at = String(order.price_catalog_updated_at || '');
+    order.price_locked_at = String(order.price_locked_at || '');
+    order.approved_price_catalog = parsed.order && parsed.order.approved_price_catalog && typeof parsed.order.approved_price_catalog === 'object'
+      ? parsed.order.approved_price_catalog
+      : null;
+    order.price_snapshot = parsed.order && parsed.order.price_snapshot && typeof parsed.order.price_snapshot === 'object'
+      ? parsed.order.price_snapshot
+      : null;
+    order.rows = Array.isArray(order.rows) && order.rows.length
+      ? order.rows.map(function(row) { return Object.assign({enabled: true, category: '', item: '', qty: 0, unit: '', price: 0}, row || {}); })
+      : defaults.order.rows;
+    return {profile, crew_roles: crewRoles, order};
+  } catch (error) {
+    return defaults;
+  }
+}
+
+function phase1WriteYachtState() {
+  try {
+    if (window.localStorage) {
+      localStorage.setItem(PHASE1_YACHT_KEY, JSON.stringify(phase1YachtState));
+    }
+  } catch (error) {}
+}
+
+let phase1Workspace = phase1ReadWorkspace();
+
+function phase1WriteWorkspace(workspace) {
+  phase1Workspace = workspace || {mode: 'none', groupId: 0};
+  try {
+    if (window.localStorage) {
+      localStorage.setItem(PHASE1_WORKSPACE_KEY, JSON.stringify(phase1Workspace));
+    }
+  } catch (error) {}
+}
+
+function phase1Shell() {
+  return document.getElementById('phase1ProductShell');
+}
+
+function phase1ScreenNode() {
+  return document.getElementById('phase1Screen');
+}
+
+function phase1ShellIsActive() {
+  const shell = phase1Shell();
+  return !!(shell && !shell.classList.contains('hidden'));
+}
+
+function phase1NormalizeScreen(screen) {
+  const raw = String(screen || 'welcome').trim();
+  if (raw === 'live-journal' || raw === 'journal_choice' || raw === 'journal-choice') return 'journal-choice';
+  if (Object.prototype.hasOwnProperty.call(PHASE2_SCREEN_TITLES, raw)) return raw;
+  return 'welcome';
+}
+
+function phase1NavScreen(screen) {
+  const target = phase1NormalizeScreen(screen);
+  return target === 'journal' ? 'journal-choice' : target;
+}
+
+function phase1ScreenTitle(screen) {
+  const target = phase1NormalizeScreen(screen);
+  if (phase1IsYachtWorkspace()) {
+    if (target === 'team') return 'Экипаж';
+    if (target === 'admin') return 'Капитан';
+    if (target === 'employee') return 'Карточка экипажа';
+  }
+  return PHASE2_SCREEN_TITLES[target] || PHASE2_SCREEN_TITLES.welcome;
+}
+
+function phase1UserLabel() {
+  if (!qlCurrentUser || !qlCurrentUser.id) return 'Account';
+  return String(qlCurrentUser.display_name || qlCurrentUser.email || 'Account');
+}
+
+function phase1SyncShell(screen) {
+  const target = phase1NormalizeScreen(screen || phase1CurrentScreen);
+  const navTarget = phase1NavScreen(target);
+  const title = phase1ScreenTitle(target);
+  const titleNode = document.querySelector('[data-phase-shell-title]');
+  const menuCurrent = document.querySelector('[data-module-menu-current]');
+  const accountNode = document.querySelector('[data-phase-account]');
+  const back = document.querySelector('[data-phase-back]');
+
+  if (titleNode) titleNode.textContent = title;
+  if (menuCurrent) menuCurrent.textContent = title;
+  if (accountNode) accountNode.textContent = phase1UserLabel();
+  if (back) {
+    const canGoBack = phase1ScreenStack.length > 0 || target !== 'welcome';
+    back.disabled = !canGoBack;
+    back.setAttribute('aria-disabled', canGoBack ? 'false' : 'true');
+  }
+
+  document.querySelectorAll('[data-phase-screen]').forEach(function(btn) {
+    const itemScreen = phase1NavScreen(btn.getAttribute('data-phase-screen'));
+    btn.classList.toggle('active', itemScreen === navTarget);
+  });
+}
+
+window.qlSyncPhaseShell = phase1SyncShell;
+
+function phase1SyncViewportHeight() {
+  const viewport = window.visualViewport;
+  const height = viewport && viewport.height ? viewport.height : window.innerHeight;
+  if (height > 0) {
+    document.documentElement.style.setProperty('--phase1-viewport-height', Math.round(height) + 'px');
+  }
+}
+
+function phase1BindViewportSync() {
+  if (phase1ViewportSyncBound) return;
+  phase1ViewportSyncBound = true;
+  phase1SyncViewportHeight();
+  window.addEventListener('resize', phase1SyncViewportHeight, {passive: true});
+  window.addEventListener('orientationchange', function() {
+    setTimeout(phase1SyncViewportHeight, 120);
+  }, {passive: true});
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', phase1SyncViewportHeight, {passive: true});
+    window.visualViewport.addEventListener('scroll', phase1SyncViewportHeight, {passive: true});
+  }
+  document.addEventListener('focusin', function(event) {
+    const field = event.target && event.target.closest
+      ? event.target.closest('.phase1-product-shell input, .phase1-product-shell textarea, .phase1-product-shell select')
+      : null;
+    if (!field) return;
+    document.body.classList.add('phase1-keyboard-open');
+    phase1SyncViewportHeight();
+    setTimeout(function() {
+      try {
+        field.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'smooth'});
+      } catch (error) {}
+    }, 80);
+  });
+  document.addEventListener('focusout', function(event) {
+    const field = event.target && event.target.closest
+      ? event.target.closest('.phase1-product-shell input, .phase1-product-shell textarea, .phase1-product-shell select')
+      : null;
+    if (!field) return;
+    setTimeout(function() {
+      if (!document.querySelector('.phase1-product-shell input:focus, .phase1-product-shell textarea:focus, .phase1-product-shell select:focus')) {
+        document.body.classList.remove('phase1-keyboard-open');
+      }
+      phase1SyncViewportHeight();
+    }, 120);
+  });
+}
+
+function qlHidePhaseWelcome() {
+  const shell = phase1Shell();
+  if (shell) {
+    shell.classList.add('hidden');
+    shell.setAttribute('aria-hidden', 'true');
+  }
+  document.body.classList.remove('phase1-clean-mode', 'phase2-shell-mode', 'phase1-keyboard-open');
+}
+
+function qlShowPhaseWelcome() {
+  qlOpenPhaseScreen('welcome');
+}
+
+function phase1ShowShell() {
+  const shell = phase1Shell();
+  if (!shell) return;
+  phase1BindViewportSync();
+  phase1SyncViewportHeight();
+  document.body.classList.remove('otr-stream-gate-open', 'otr-cards-open', 'otr-editor-open', 'findesk-focus-mode');
+  document.body.classList.add('phase1-clean-mode', 'phase2-shell-mode');
+  document.querySelectorAll('.ql-module[data-module]').forEach(function(module) {
+    module.classList.add('hidden');
+    module.classList.remove('active');
+  });
+  shell.classList.remove('hidden');
+  shell.setAttribute('aria-hidden', 'false');
+  phase1SyncShell();
+}
+
+function qlSetPhaseNavActive(screen) {
+  phase1SyncShell(screen);
+}
+
+function phase1Escape(value) {
+  return typeof escapeHtml === 'function' ? escapeHtml(value) : String(value ?? '');
+}
+
+function phase1Money(value) {
+  const amount = Number(value || 0);
+  if (typeof qlCurrency === 'function') return qlCurrency(amount);
+  return '€' + amount.toFixed(2);
+}
+
+function phase1Number(value) {
+  const normalized = String(value ?? '').replace(/\s/g, '').replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function phase1CurrentUserId() {
+  return Number(qlCurrentUser && qlCurrentUser.id || 0);
+}
+
+function phase1GroupRoleLabel(row) {
+  const access = String(row && (row.access_level || row.role) || '').toLowerCase();
+  const role = String(row && row.role || '').toLowerCase();
+  if (access === 'advanced' || role === 'admin' || role === 'owner') return 'Администратор';
+  if (access === 'manager') return 'Проверка отчетов';
+  return 'Участник';
+}
+
+function phase1CanManageGroup(group) {
+  if (!group) return false;
+  const access = String(group.access_level || '').toLowerCase();
+  const role = String(group.role || '').toLowerCase();
+  const permissions = group.permissions || {};
+  return access === 'advanced' || role === 'admin' || role === 'owner' || !!permissions.can_manage_money || !!permissions.can_moderate;
+}
+
+function phase1CanViewReports(group) {
+  if (!group) return false;
+  const access = String(group.access_level || '').toLowerCase();
+  const role = String(group.role || '').toLowerCase();
+  const permissions = group.permissions || {};
+  return access === 'advanced' || access === 'manager' || role === 'admin' || role === 'owner' || !!permissions.can_view_group_reports;
+}
+
+function phase1CanWriteReports(group) {
+  if (!group) return false;
+  const access = String(group.access_level || '').toLowerCase();
+  const role = String(group.role || '').toLowerCase();
+  const permissions = group.permissions || {};
+  return access === 'advanced' || access === 'manager' || role === 'admin' || role === 'owner' || !!permissions.can_write_group_ledger;
+}
+
+function phase1SelectedGroup() {
+  const groups = Array.isArray(qlGroups) && qlGroups.length ? qlGroups : phase1Snapshot.groups;
+  if (!Array.isArray(groups) || !groups.length) return null;
+  if (!phase1Workspace || phase1Workspace.mode !== 'group') return null;
+  const activeId = Number(phase1Workspace.groupId || 0);
+  return groups.find(function(group) {
+    return Number(group.id) === activeId;
+  }) || null;
+}
+
+function phase1SetGroup(value) {
+  phase1ReportDetail = null;
+  phase1ReportDetailLoading = false;
+  const raw = String(value || 'none');
+  if (raw.indexOf('group:') === 0) {
+    const id = Number(raw.replace('group:', '') || 0);
+    phase1WriteWorkspace({mode: 'group', groupId: Number.isFinite(id) ? id : 0});
+    qlLedgerScopeMode = 'group';
+    qlLedgerGroupId = phase1Workspace.groupId;
+    try { qlAdvanceGroupId = phase1Workspace.groupId; } catch (error) {}
+    return;
+  }
+  if (raw === 'solo') {
+    phase1WriteWorkspace({mode: 'solo', groupId: 0});
+    qlLedgerScopeMode = 'personal';
+    qlLedgerGroupId = null;
+    try { qlAdvanceGroupId = null; } catch (error) {}
+    return;
+  }
+  phase1WriteWorkspace({mode: 'none', groupId: 0});
+  qlLedgerScopeMode = 'personal';
+  qlLedgerGroupId = null;
+  try { qlAdvanceGroupId = null; } catch (error) {}
+}
+
+function phase1WorkspaceReady() {
+  return phase1Workspace && (phase1Workspace.mode === 'solo' || (phase1Workspace.mode === 'group' && !!phase1SelectedGroup()));
+}
+
+function phase1WorkspaceMoney(value) {
+  return phase1WorkspaceReady() ? phase1Money(value) : '—';
+}
+
+function phase1GroupSelectHtml() {
+  const groups = phase1Snapshot.groups || [];
+  const selected = phase1Snapshot.group;
+  const mode = phase1Workspace && phase1Workspace.mode ? phase1Workspace.mode : 'none';
+  return `
+    <label class="phase1-context-select">
+      <span>Среда</span>
+      <select data-phase-group-select>
+        <option value="none"${mode === 'none' ? ' selected' : ''}>Выберите среду</option>
+        <option value="solo"${mode === 'solo' ? ' selected' : ''}>Лично</option>
+        ${groups.map(function(group) {
+          const isSelected = mode === 'group' && selected && Number(selected.id) === Number(group.id);
+          return '<option value="group:' + phase1Escape(group.id) + '"' + (isSelected ? ' selected' : '') + '>' + phase1Escape(group.name || 'Группа') + '</option>';
+        }).join('')}
+      </select>
+    </label>
+  `;
+}
+
+function phase1Header(title, lead, actionsHtml) {
+  return `
+    <header class="phase1-page-head">
+      <div>
+        <span class="phase1-kicker">FinDesk</span>
+        <h1>${phase1Escape(title)}</h1>
+        ${lead ? '<p>' + phase1Escape(lead) + '</p>' : ''}
+      </div>
+      <div class="phase1-head-actions">
+        ${phase1GroupSelectHtml()}
+        ${actionsHtml || ''}
+      </div>
+    </header>
+  `;
+}
+
+function phase1Metric(label, value) {
+  return '<div class="phase1-metric"><span>' + phase1Escape(label) + '</span><b>' + phase1Escape(value) + '</b></div>';
+}
+
+function phase1SignedText(items, stream) {
+  const targetStream = stream === 'card' ? 'card' : 'cash';
+  return (Array.isArray(items) ? items : []).map(function(item) {
+    const type = String(item.capture_type || '');
+    const sign = targetStream === 'card' ? '-' : (type === 'cash_in' ? '+' : '-');
+    const amount = phase1Number(item.amount || 0);
+    const description = String(item.description || '').trim();
+    return sign + amount.toFixed(2).replace(/\.00$/, '') + (description ? ' ' + description : '');
+  }).reverse().join('\n');
+}
+
+function phase1ActiveTape() {
+  const tapes = Array.isArray(phase1Snapshot.tapes) ? phase1Snapshot.tapes : [];
+  return tapes.find(function(tape) {
+    return String(tape.stream_type || 'cash') === phase1Stream;
+  }) || tapes[0] || null;
+}
+
+function phase1ActiveSummary() {
+  const tape = phase1ActiveTape();
+  if (!tape) return {};
+  return tape.card_summary || tape.summary || {};
+}
+
+function phase1JournalRecords() {
+  return Array.isArray(phase1Snapshot.journalItems) ? phase1Snapshot.journalItems : [];
+}
+
+function phase1JournalRecordsText() {
+  if (phase1JournalTouched[phase1Stream]) return phase1JournalDraft[phase1Stream] || '';
+  return phase1SignedText(phase1JournalRecords(), phase1Stream);
+}
+
+function phase1BuildJournalNotes(extraLine) {
+  const base = phase1JournalRecordsText().trim();
+  const next = String(extraLine || '').trim();
+  return [base, next].filter(Boolean).join('\n');
+}
+
+function phase1RecordLine(item) {
+  const type = String(item && item.capture_type || '');
+  const sign = phase1Stream === 'card' ? '-' : (type === 'cash_in' ? '+' : '-');
+  const amount = phase1Number(item && item.amount || 0).toFixed(2).replace(/\.00$/, '');
+  const description = String(item && item.description || '').trim();
+  return sign + amount + (description ? ' ' + description : '');
+}
+
+function phase1RenderRecordsFeed(items) {
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) {
+    return `
+      <div class="phase1-record-empty">
+        <b>Пока нет записей.</b>
+        <span>Начните с формата:</span>
+        <code>-120 Топливо</code>
+        <code>+500 Получено</code>
+      </div>
+    `;
+  }
+  return rows.map(function(item) {
+    const type = String(item.capture_type || '');
+    const isIn = phase1Stream !== 'card' && type === 'cash_in';
+    const files = Number(item.files_count || 0);
+    return `
+      <article class="phase1-record-row ${isIn ? 'is-in' : 'is-out'}">
+        <div>
+          <b>${phase1Escape(phase1RecordLine(item))}</b>
+          <span>${phase1Escape(item.created_at || '')}</span>
+        </div>
+        ${files > 0 ? '<button type="button" class="phase1-paperclip" aria-label="Вложение">Файл</button>' : ''}
+      </article>
+    `;
+  }).join('');
+}
+
+function phase1CardRecords(card) {
+  const summary = card && (card.card_summary || card.summary) || {};
+  return Number(summary.records_count || 0);
+}
+
+function phase1CardAmount(card) {
+  const summary = card && (card.card_summary || card.summary) || {};
+  return Number(summary.after_amount ?? summary.cash_left ?? summary.expense ?? summary.cash_out ?? 0);
+}
+
+function phase1AdvanceRemaining(advance) {
+  const summary = advance && advance.summary || {};
+  if (advance && advance.actual_remaining !== null && advance.actual_remaining !== undefined && advance.actual_remaining !== '') {
+    return Number(advance.actual_remaining || 0);
+  }
+  const amount = Number(advance && advance.amount || 0);
+  const cashOut = Number(summary.cash_out || 0);
+  const cardOut = Number(summary.card_out || summary.noncash_out || 0);
+  const returned = Number(summary.returned_cash || 0);
+  return amount - cashOut - cardOut - returned;
+}
+
+function phase1TransfersForUser(userId, states) {
+  const target = Number(userId || 0);
+  const allowed = Array.isArray(states) ? states : [];
+  return (phase1Snapshot.transfers || []).filter(function(transfer) {
+    const belongs = Number(transfer.assigned_to_user_id || 0) === target;
+    const state = String(transfer.state || '');
+    return belongs && (!allowed.length || allowed.includes(state));
+  });
+}
+
+function phase1TransferAmount(userId, states) {
+  return phase1TransfersForUser(userId, states).reduce(function(sum, transfer) {
+    return sum + Number(transfer.amount || 0);
+  }, 0);
+}
+
+function phase1PendingTransfersForUser(userId) {
+  return phase1TransfersForUser(userId, ['pending']);
+}
+
+function phase1ActiveTransfersForUser(userId) {
+  return phase1TransfersForUser(userId, ['active']);
+}
+
+function phase1TransferById(transferId) {
+  const id = Number(transferId || 0);
+  return (phase1Snapshot.transfers || []).find(function(transfer) {
+    return Number(transfer.id || 0) === id;
+  }) || null;
+}
+
+function phase1MoneyInput(value) {
+  return phase1Number(value || 0).toFixed(2).replace(/\.00$/, '');
+}
+
+function phase1IsYachtWorkspace() {
+  const group = phase1Snapshot.group;
+  if (!group || phase1Workspace && phase1Workspace.mode !== 'group') return false;
+  const groupName = String(group.name || '');
+  const yachtName = String((phase1YachtState.profile || {}).name || '').trim();
+  return groupName.indexOf('Yacht:') === 0 || (yachtName !== '' && groupName === 'Yacht: ' + yachtName);
+}
+
+function phase1YachtCrewRole(userId) {
+  const roles = phase1YachtState.crew_roles || {};
+  return String(roles[String(userId || '')] || '');
+}
+
+function phase1YachtSetCrewRole(userId, role) {
+  const id = String(userId || '');
+  if (!id) return;
+  const nextRole = String(role || '').trim();
+  phase1YachtState.crew_roles = Object.assign({}, phase1YachtState.crew_roles || {});
+  if (nextRole) phase1YachtState.crew_roles[id] = nextRole;
+  else delete phase1YachtState.crew_roles[id];
+  phase1WriteYachtState();
+}
+
+function phase1YachtLabels() {
+  return phase1IsYachtWorkspace()
+    ? {
+      team: 'Экипаж',
+      admin: 'Капитан',
+      employee: 'Член экипажа',
+      adminCard: 'Капитан',
+      employeeCard: 'Карточка экипажа',
+      issued: 'Выдано экипажу',
+      ready: 'Журналы экипажа'
+    }
+    : {
+      team: 'Team Workspace',
+      admin: 'Администратор',
+      employee: 'Участник',
+      adminCard: 'Admin Card',
+      employeeCard: 'Employee Card',
+      issued: 'У сотрудников',
+      ready: 'Ожидают проверки'
+    };
+}
+
+function phase1MemberName(member) {
+  return String(member && (member.display_name || member.name || member.email) || 'Участник');
+}
+
+function phase1MemberPosition(member) {
+  if (phase1IsYachtWorkspace()) {
+    const userId = Number(member && member.user_id || 0);
+    const role = String(member && member.role || '').toLowerCase();
+    const access = String(member && member.access_level || '').toLowerCase();
+    if (role === 'admin' || role === 'owner' || access === 'advanced') return 'Капитан';
+    return phase1YachtCrewRole(userId) || 'Член экипажа';
+  }
+  const role = String(member && member.role || '').toLowerCase();
+  const access = String(member && member.access_level || '').toLowerCase();
+  if (role === 'admin' || role === 'owner' || access === 'advanced') return 'Администратор';
+  if (access === 'manager') return 'Проверка отчетов';
+  return 'Участник';
+}
+
+function phase1MemberRemaining(userId) {
+  const target = Number(userId || 0);
+  const transferRemaining = phase1TransferAmount(target, ['active']);
+  const advanceRemaining = (phase1Snapshot.advances || []).filter(function(advance) {
+    return Number(advance.assigned_to_user_id || advance.user_id || 0) === target
+      && !['accepted', 'closed', 'cancelled'].includes(String(advance.status || ''));
+  }).reduce(function(sum, advance) {
+    return sum + phase1AdvanceRemaining(advance);
+  }, 0);
+  return transferRemaining + advanceRemaining;
+}
+
+function phase1MemberIssued(userId) {
+  const target = Number(userId || 0);
+  const transferIssued = phase1TransferAmount(target, ['active', 'pending']);
+  const advanceIssued = (phase1Snapshot.advances || []).filter(function(advance) {
+    return Number(advance.assigned_to_user_id || advance.user_id || 0) === target
+      && !['accepted', 'closed', 'cancelled'].includes(String(advance.status || ''));
+  }).reduce(function(sum, advance) {
+    return sum + Number(advance.amount || 0);
+  }, 0);
+  return transferIssued + advanceIssued;
+}
+
+function phase1MemberState(userId) {
+  const target = Number(userId || 0);
+  if (phase1PendingTransfersForUser(target).length) return 'Живой журнал';
+  const cards = (phase1Snapshot.cards || []).filter(function(card) {
+    return Number(card.user_id || card.tape_user_id || 0) === target;
+  });
+  if (cards.some(function(card) { return String(card.card_state || '') === 'submitted'; })) return 'Готов отчет';
+  if (cards.some(function(card) { return phase1CardRecords(card) > 0; })) return 'Живой журнал';
+  if (phase1MemberIssued(target) > 0) return 'Живой журнал';
+  return 'Нет записей';
+}
+
+function phase1AdminCash() {
+  const summary = phase1Snapshot.ledger && phase1Snapshot.ledger.summary || {};
+  return Number(summary.available_cash_balance ?? summary.cash_balance ?? summary.balance ?? 0);
+}
+
+function phase1EmployeesCash() {
+  return (phase1Snapshot.members || []).reduce(function(sum, member) {
+    const id = Number(member.user_id || 0);
+    return id === phase1CurrentUserId() ? sum : sum + phase1MemberRemaining(id);
+  }, 0);
+}
+
+function phase1TeamAdminMember() {
+  const members = phase1Snapshot.members || [];
+  const currentId = phase1CurrentUserId();
+  return members.find(function(member) {
+    const role = String(member.role || '').toLowerCase();
+    const access = String(member.access_level || '').toLowerCase();
+    return role === 'admin' || role === 'owner' || access === 'advanced';
+  }) || members.find(function(member) { return Number(member.user_id || 0) === currentId; }) || null;
+}
+
+function phase1CurrentGroupCanManageMoney() {
+  const group = phase1Snapshot.group;
+  return !!(group && phase1CanManageGroup(group));
+}
+
+function phase1EmployeeMembers() {
+  const admin = phase1TeamAdminMember();
+  return (phase1Snapshot.members || []).filter(function(member) {
+    return !admin || Number(member.user_id || 0) !== Number(admin.user_id || 0);
+  });
+}
+
+function phase1TransferRows(transfers, mode) {
+  const rows = Array.isArray(transfers) ? transfers : [];
+  if (!rows.length) {
+    return '<p class="phase1-empty">Записей пока нет.</p>';
+  }
+  const canAct = mode === 'admin' && phase1CurrentGroupCanManageMoney();
+  return rows.map(function(transfer) {
+    const state = String(transfer.state || '');
+    const stream = String(transfer.stream_type || 'cash') === 'card' ? 'Карта' : 'Наличные';
+    const labels = phase1YachtLabels();
+    const name = mode === 'admin' ? (transfer.assigned_to_name || labels.employee) : (transfer.issued_by_name || labels.admin);
+    const description = String(transfer.description || '').trim();
+    const showActions = canAct && state === 'pending';
+    return `
+      <article class="phase1-row-card ${state === 'pending' ? 'is-pending' : state === 'active' ? 'is-active' : ''}">
+        <div>
+          <b>${phase1Escape(name)}</b>
+          <span>${phase1Escape(stream)} · ${phase1Escape(state === 'pending' ? 'ожидает подтверждения' : state === 'active' ? 'подписано' : state)}${description ? ' · ' + phase1Escape(description) : ''}</span>
+        </div>
+        <div class="phase1-row-side">
+          <strong>${phase1Money(transfer.amount || 0)}</strong>
+          ${showActions ? `
+            <span class="phase1-row-actions">
+              <button class="phase1-secondary-action" type="button" data-phase-transfer-edit="${phase1Escape(transfer.id)}">Изменить</button>
+              <button class="phase1-secondary-action is-danger" type="button" data-phase-transfer-cancel="${phase1Escape(transfer.id)}">Отменить</button>
+            </span>
+          ` : ''}
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function phase1RenderPendingActionPanel() {
+  const action = phase1PendingAction || {};
+  const transfer = phase1TransferById(action.transferId);
+  if (!transfer) return '';
+  const mode = action.mode === 'cancel' ? 'cancel' : 'edit';
+  const phrase = mode === 'cancel' ? 'ОТМЕНИТЬ' : 'ИЗМЕНИТЬ';
+  const stream = String(transfer.stream_type || 'cash') === 'card' ? 'card' : 'cash';
+  return `
+    <section class="phase1-protected-inline">
+      <div>
+        <span class="phase1-kicker">Защищенное действие</span>
+        <h2>${mode === 'cancel' ? 'Отменить выдачу' : 'Изменить выдачу'}</h2>
+        <p>${mode === 'cancel'
+          ? 'Деньги не станут активными, сотрудник не сможет подписать эту выдачу.'
+          : 'Изменится только ожидающая выдача. Подписанные суммы не редактируются.'}</p>
+      </div>
+      <div class="phase1-issue-grid">
+        ${mode === 'edit' ? `
+          <label class="phase1-field">
+            <span>Поток</span>
+            <select id="phase1PendingStream">
+              <option value="cash"${stream === 'cash' ? ' selected' : ''}>Наличные</option>
+              <option value="card"${stream === 'card' ? ' selected' : ''}>Карта</option>
+            </select>
+          </label>
+          <label class="phase1-field">
+            <span>Новая сумма</span>
+            <input id="phase1PendingAmount" type="text" inputmode="decimal" value="${phase1Escape(phase1MoneyInput(transfer.amount || 0))}">
+          </label>
+          <label class="phase1-field phase1-field-wide">
+            <span>Описание</span>
+            <input id="phase1PendingDescription" type="text" value="${phase1Escape(transfer.description || '')}" placeholder="За что выданы деньги">
+          </label>
+        ` : ''}
+        <label class="phase1-field phase1-field-wide">
+          <span>Причина</span>
+          <input id="phase1PendingReason" type="text" placeholder="${mode === 'cancel' ? 'Почему отменяем' : 'Почему меняем'}">
+        </label>
+        <label class="phase1-field phase1-field-wide">
+          <span>Напишите ${phase1Escape(phrase)}</span>
+          <input id="phase1PendingConfirm" type="text" autocomplete="off">
+        </label>
+      </div>
+      <div class="phase1-action-row">
+        <button class="phase1-primary-action" type="button" data-phase-action="pending-action-apply">${mode === 'cancel' ? 'Отменить выдачу' : 'Сохранить изменение'}</button>
+        <button class="phase1-secondary-action" type="button" data-phase-action="pending-action-clear">Закрыть</button>
+      </div>
+    </section>
+  `;
+}
+
+function phase1ReportSummaryValue(summary, section, field) {
+  const data = summary && summary[section] || {};
+  return Number(data[field] || 0);
+}
+
+function phase1ReportItemsByStream(items, stream) {
+  const target = stream === 'card' ? 'card' : 'cash';
+  return (Array.isArray(items) ? items : []).filter(function(item) {
+    return String(item.stream_type || 'cash') === target;
+  });
+}
+
+function phase1ReportItemAmount(item) {
+  const summary = item && item.summary || {};
+  if (String(item && item.stream_type || 'cash') === 'card') {
+    return Number(summary.card_out ?? summary.spent_total ?? 0);
+  }
+  return Number(summary.cash_left ?? summary.after_amount ?? 0);
+}
+
+function phase1RenderReportRows(items, options) {
+  const opts = options || {};
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) return '<p class="phase1-empty">Пока пусто.</p>';
+  return rows.map(function(item) {
+    const stream = String(item.stream_type || 'cash') === 'card' ? 'Карта / безнал' : 'Наличные';
+    const owner = item.owner_name || item.owner_email || item.title || 'Журнал';
+    const date = item.submitted_at || item.attached_at || '';
+    return `
+      <article class="phase1-row-card ${opts.ready ? 'is-ready' : ''}">
+        <div>
+          <b>${phase1Escape(owner)}</b>
+          <span>${phase1Escape(stream)}${date ? ' · ' + phase1Escape(date) : ''}</span>
+        </div>
+        <div class="phase1-row-side">
+          <strong>${phase1Money(phase1ReportItemAmount(item))}</strong>
+          ${opts.attach ? '<button class="phase1-primary-action" type="button" data-phase-report-attach="' + phase1Escape(item.tape_id) + '">Включить</button>' : ''}
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function phase1ReportDetailItems(detail) {
+  const snapshotItems = detail && detail.snapshot && Array.isArray(detail.snapshot.items) ? detail.snapshot.items : [];
+  if (snapshotItems.length) return snapshotItems;
+  return detail && Array.isArray(detail.items) ? detail.items : [];
+}
+
+function phase1ReportExportPayload(detail) {
+  const report = detail && detail.report || {};
+  return {
+    package_type: 'findesk_report_package',
+    package_version: 1,
+    exported_at: new Date().toISOString(),
+    group: phase1Snapshot.group ? {
+      id: Number(phase1Snapshot.group.id || 0),
+      name: phase1Snapshot.group.name || ''
+    } : null,
+    report,
+    cash_summary: report.cash_summary || {},
+    card_summary: report.card_summary || {},
+    total_summary: report.total_summary || {},
+    items: phase1ReportDetailItems(detail),
+    snapshot: detail && detail.snapshot || {}
+  };
+}
+
+function phase1DownloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 300);
+}
+
+function phase1PathButton(screen, title, text) {
+  return `
+    <button class="phase1-route-card" type="button" data-phase-screen="${phase1Escape(screen)}">
+      <b>${phase1Escape(title)}</b>
+      <span>${phase1Escape(text)}</span>
+    </button>
+  `;
+}
+
+function phase1MoneyPicture(stream) {
+  const type = stream === 'card' ? 'card' : 'cash';
+  return `
+    <span class="phase1-money-picture ${type}" aria-hidden="true">
+      <i></i>
+      <i></i>
+      <i></i>
+    </span>
+  `;
+}
+
+function phase1RenderJournalEntryPanel(context) {
+  const currentId = phase1CurrentUserId();
+  const pending = phase1Workspace && phase1Workspace.mode === 'group'
+    ? phase1PendingTransfersForUser(currentId)
+    : [];
+  const locked = pending.length > 0;
+  const label = context || (phase1Workspace && phase1Workspace.mode === 'group' ? 'Активная группа' : 'Личная среда');
+  return `
+    <section class="phase1-journal-entry-panel">
+      <div>
+        <span class="phase1-kicker">Живые записи</span>
+        <h2>Записать движение денег</h2>
+        <p>${phase1Escape(label)}. Сначала выберите поток: наличные или карта.</p>
+      </div>
+      <div class="phase1-journal-entry-actions ${locked ? 'is-locked' : ''}">
+        ${locked ? `
+          <button type="button" disabled>Сначала подтвердите выдачу</button>
+        ` : `
+          <button class="cash" type="button" data-phase-journal-stream="cash">
+            ${phase1MoneyPicture('cash')}
+            <span>Наличные</span>
+            <b>Cash</b>
+          </button>
+          <button class="card" type="button" data-phase-journal-stream="card">
+            ${phase1MoneyPicture('card')}
+            <span>Карта</span>
+            <b>Card</b>
+          </button>
+        `}
+      </div>
+    </section>
+  `;
+}
+
+function phase1RenderWelcome() {
+  return `
+    <div class="phase1-page phase1-page-welcome">
+      <section class="phase1-welcome-hero">
+        <span class="phase1-kicker">FinDesk</span>
+        <h1>Деньги исчезают тихо.</h1>
+        <p>Потратил — запиши. Получил — запиши. Выберите, как вы работаете сегодня, а FinDesk сохранит движение наличных и карты без бухгалтерского шума.</p>
+      </section>
+      ${phase1RenderJournalEntryPanel('Быстрый вход в личный журнал')}
+      <section class="phase1-start-paths" aria-label="Старт FinDesk">
+        ${phase1PathButton('solo', 'Работаю один', 'Личный Cash или Card журнал без группы')}
+        ${phase1PathButton('team', 'Работаю с людьми', 'Люди, выдачи, подтверждения и общие отчеты')}
+        ${phase1PathButton('templates', 'Готовые шаблоны', 'Yacht, Home и будущие рабочие сценарии')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1YachtProfileValue(key) {
+  return String((phase1YachtState.profile || {})[key] || '');
+}
+
+function phase1YachtOrderValue(key) {
+  const order = phase1YachtState.order || {};
+  return String(order[key] || phase1YachtProfileValue(key) || '');
+}
+
+function phase1YachtField(key, label, placeholder, wide) {
+  return `
+    <label class="phase1-field ${wide ? 'phase1-field-wide' : ''}">
+      <span>${phase1Escape(label)}</span>
+      <input type="text" data-yacht-field="${phase1Escape(key)}" value="${phase1Escape(phase1YachtProfileValue(key))}" placeholder="${phase1Escape(placeholder || '')}">
+    </label>
+  `;
+}
+
+function phase1YachtOrderField(key, label, placeholder) {
+  return `
+    <label class="phase1-field">
+      <span>${phase1Escape(label)}</span>
+      <input type="text" data-yacht-order="${phase1Escape(key)}" value="${phase1Escape(phase1YachtOrderValue(key))}" placeholder="${phase1Escape(placeholder || '')}">
+    </label>
+  `;
+}
+
+function phase1YachtLogoHtml() {
+  const logo = phase1YachtProfileValue('logo').trim();
+  if (logo) {
+    return '<img src="' + phase1Escape(logo) + '" alt="">';
+  }
+  return '<span>Vetus Nauta</span>';
+}
+
+function phase1YachtRowMode(row) {
+  const category = String(row && row.category || '').toLowerCase();
+  const item = String(row && row.item || '').toLowerCase();
+  if (category.includes('топливо') || item.includes('дизель') || item.includes('fuel')) return 'fuel';
+  if (category.includes('техника') || category.includes('сервис') || category.includes('безопас') || item.includes('масло') || item.includes('фильтр')) return 'technical';
+  return 'food';
+}
+
+function phase1YachtModeButtons() {
+  const mode = String((phase1YachtState.order || {}).mode || 'all');
+  return `
+    <div class="phase1-yacht-mode-tabs" aria-label="Раздел наряда">
+      ${PHASE1_YACHT_ORDER_MODES.map(function(item) {
+        return '<button type="button" class="' + (mode === item.id ? 'active' : '') + '" data-yacht-mode="' + phase1Escape(item.id) + '">' + phase1Escape(item.label) + '</button>';
+      }).join('')}
+    </div>
+  `;
+}
+
+function phase1YachtOrderRows() {
+  const rows = (phase1YachtState.order && Array.isArray(phase1YachtState.order.rows))
+    ? phase1YachtState.order.rows
+    : [];
+  const mode = String((phase1YachtState.order || {}).mode || 'all');
+  const visible = rows.map(function(row, index) {
+    return {row, index};
+  }).filter(function(entry) {
+    return mode === 'all' || phase1YachtRowMode(entry.row) === mode;
+  });
+  if (!visible.length) {
+    return '<tr><td colspan="7" class="phase1-yacht-empty">В этом разделе пока нет строк.</td></tr>';
+  }
+  return visible.map(function(entry) {
+    const row = entry.row;
+    const index = entry.index;
+    return `
+      <tr data-yacht-row="${phase1Escape(index)}">
+        <td class="phase1-yacht-check"><input type="checkbox" data-yacht-row-field="enabled" ${row.enabled === false ? '' : 'checked'}></td>
+        <td><input type="text" data-yacht-row-field="category" value="${phase1Escape(row.category || '')}" placeholder="Раздел"></td>
+        <td><input type="text" data-yacht-row-field="item" value="${phase1Escape(row.item || '')}" placeholder="Артикул / позиция"></td>
+        <td><input type="text" inputmode="decimal" data-yacht-row-field="qty" value="${phase1Escape(row.qty || '')}" placeholder="0"></td>
+        <td><input type="text" data-yacht-row-field="unit" value="${phase1Escape(row.unit || '')}" placeholder="шт."></td>
+        <td class="phase1-yacht-price-cell"><input type="text" inputmode="decimal" data-yacht-row-field="price" value="${phase1Escape(row.price || '')}" placeholder="0"></td>
+        <td class="phase1-yacht-price-cell phase1-yacht-row-total">${phase1Money(phase1Number(row.qty || 0) * phase1Number(row.price || 0))}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function phase1YachtOrderTotal() {
+  const rows = (phase1YachtState.order && Array.isArray(phase1YachtState.order.rows))
+    ? phase1YachtState.order.rows
+    : [];
+  return rows.reduce(function(total, row) {
+    if (row.enabled === false) return total;
+    return total + phase1Number(row.qty || 0) * phase1Number(row.price || 0);
+  }, 0);
+}
+
+function phase1YachtOrderModeTotal(mode) {
+  const rows = (phase1YachtState.order && Array.isArray(phase1YachtState.order.rows))
+    ? phase1YachtState.order.rows
+    : [];
+  return rows.reduce(function(total, row) {
+    if (row.enabled === false) return total;
+    if (mode !== 'all' && phase1YachtRowMode(row) !== mode) return total;
+    return total + phase1Number(row.qty || 0) * phase1Number(row.price || 0);
+  }, 0);
+}
+
+function phase1YachtPriceRegionOptions() {
+  return Object.keys(PHASE1_YACHT_PRICE_ENGINE).map(function(key) {
+    const selected = String((phase1YachtState.order || {}).price_region || '') === key;
+    return '<option value="' + phase1Escape(key) + '"' + (selected ? ' selected' : '') + '>' + phase1Escape(PHASE1_YACHT_PRICE_ENGINE[key].label) + '</option>';
+  }).join('');
+}
+
+function phase1YachtPriceModeOptions() {
+  const mode = String((phase1YachtState.order || {}).price_mode || 'full');
+  return `
+    <option value="full"${mode === 'full' ? ' selected' : ''}>Полная цена</option>
+    <option value="duty_free"${mode === 'duty_free' ? ' selected' : ''}>Duty free</option>
+  `;
+}
+
+function phase1YachtActivePriceZone() {
+  const order = phase1YachtState.order || {};
+  const key = String(order.price_region || 'adriatic_balkans');
+  return PHASE1_YACHT_PRICE_ENGINE[key] || PHASE1_YACHT_PRICE_ENGINE.adriatic_balkans;
+}
+
+function phase1YachtOrderLocked(order) {
+  return !!String((order || phase1YachtState.order || {}).price_locked_at || '');
+}
+
+function phase1YachtApprovedItemKey(row) {
+  const text = String([row && row.category, row && row.item].filter(Boolean).join(' ')).toLowerCase();
+  if (!text) return '';
+  if (text.includes('duty') || text.includes('дьюти') || text.includes('tax free')) return 'duty_free_marine_diesel_liter';
+  if (text.includes('gasoline') || text.includes('petrol') || text.includes('бензин')) return 'gasoline_liter';
+  if (text.includes('diesel') || text.includes('дизел') || text.includes('дт')) return 'marine_diesel_liter';
+  return '';
+}
+
+function phase1YachtApprovedPriceFor(row, order) {
+  const catalog = phase1YachtApprovedCatalog;
+  if (!catalog || !catalog.prices || catalog.region !== String((order || {}).price_region || '')) return null;
+  const key = phase1YachtApprovedItemKey(row);
+  if (!key || !catalog.prices[key]) return null;
+  const price = catalog.prices[key];
+  const value = String((order || {}).price_mode || 'full') === 'duty_free'
+    ? phase1Number(price.duty_free_price_eur || 0)
+    : phase1Number(price.full_price_eur || 0);
+  return value > 0 ? value : null;
+}
+
+function phase1YachtApprovedCatalogPanel(order) {
+  if (phase1YachtApprovedLoading) {
+    return '<div class="phase1-yacht-approved-panel"><b>Утвержденные цены</b><span>Загружаю approved catalog...</span></div>';
+  }
+  const catalog = phase1YachtApprovedCatalog;
+  if (!catalog) {
+    return '<div class="phase1-yacht-approved-panel muted"><b>Утвержденные цены</b><span>Не загружены. Можно работать с локальным справочником или загрузить reviewed prices.</span></div>';
+  }
+  const prices = catalog.prices || {};
+  const blocked = Array.isArray(catalog.blocked_items) ? catalog.blocked_items : [];
+  const warnings = Array.isArray(catalog.warnings) ? catalog.warnings : [];
+  const approvedAt = catalog.approved_at ? new Date(catalog.approved_at).toLocaleString('ru-RU') : 'без даты';
+  return `
+    <div class="phase1-yacht-approved-panel">
+      <b>Approved: ${phase1Escape(catalog.region_label || catalog.region || 'region')} / ${phase1Escape(catalog.family || 'fuel')}</b>
+      <span>Reviewed: ${phase1Escape(approvedAt)} · позиций: ${phase1Escape(Object.keys(prices).length)} · заблокировано: ${phase1Escape(blocked.length)}</span>
+      <small>${phase1Escape(warnings[0] || 'Источник прошел локальный review gate.')}</small>
+    </div>
+  `;
+}
+
+function phase1YachtAverageNetPrice(sources) {
+  const values = (Array.isArray(sources) ? sources : []).map(function(source) {
+    if (source && typeof source === 'object') {
+      if (source.ok === false || source.available === false) return null;
+      return phase1Number(source.net ?? source.price ?? 0);
+    }
+    return phase1Number(source || 0);
+  }).filter(function(value) {
+    return value > 0;
+  });
+  if (!values.length) return null;
+  return values.reduce(function(sum, value) { return sum + value; }, 0) / values.length;
+}
+
+function phase1YachtEnginePrice(row, order) {
+  const zone = phase1YachtActivePriceZone();
+  const item = String(row && row.item || '').trim();
+  const sources = zone.sources && zone.sources[item];
+  const net = phase1YachtAverageNetPrice(sources);
+  if (net === null) return null;
+  const rowMode = phase1YachtRowMode(row);
+  const taxRate = phase1Number(zone.tax_rate || 0);
+  const markupRate = phase1Number(zone.markup_rate || 0);
+  const logisticsRate = phase1Number(zone.logistics_rate || 0);
+  let finalPrice = net * (1 + taxRate + logisticsRate) * (1 + markupRate);
+  if (String(order && order.price_mode || 'full') === 'duty_free' && (rowMode === 'food' || rowMode === 'fuel')) {
+    const discounts = zone.duty_free_discount || {};
+    const discount = phase1Number(discounts[rowMode] || 0.27);
+    finalPrice *= (1 - discount);
+  }
+  return Math.max(0, Math.round(finalPrice * 100) / 100);
+}
+
+function phase1RenderYacht() {
+  const profile = phase1YachtState.profile || {};
+  const order = phase1YachtState.order || {};
+  const yachtName = String(profile.name || '').trim() || 'Название яхты';
+  const marina = phase1YachtOrderValue('marina');
+  const berth = phase1YachtOrderValue('berth');
+  const customer = phase1YachtOrderValue('customer');
+  const showPrices = order.show_prices !== false;
+  const isLocked = phase1YachtOrderLocked(order);
+  const mode = String(order.mode || 'all');
+  const modeLabel = (PHASE1_YACHT_ORDER_MODES.find(function(item) { return item.id === mode; }) || PHASE1_YACHT_ORDER_MODES[0]).label;
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Yacht', 'Шаблон не меняет ЖЖ и отчеты. Он добавляет морскую шапку, роли экипажа и отдельный стартовый пакет.', '')}
+      <section class="phase1-yacht-masthead">
+        <div class="phase1-yacht-logo">${phase1YachtLogoHtml()}</div>
+        <div>
+          <span class="phase1-kicker">Яхта</span>
+          <h2>${phase1Escape(yachtName)}</h2>
+          <p>${phase1Escape([profile.model, profile.reg_number, profile.length ? profile.length + ' m' : ''].filter(Boolean).join(' · ') || 'Настройте яхту перед первым нарядом.')}</p>
+        </div>
+        <div class="phase1-action-row phase1-yacht-masthead-actions">
+          <button class="phase1-secondary-action" type="button" data-phase-action="yacht-scroll-bunkering">Бункеровка</button>
+          <button class="phase1-secondary-action" type="button" data-phase-action="yacht-create-workspace">Создать среду яхты</button>
+        </div>
+      </section>
+
+      <section class="phase1-issue-panel">
+        <h2>Настроить яхту</h2>
+        <div class="phase1-issue-grid">
+          ${phase1YachtField('name', 'Название яхты', 'Например: Vetus Nauta')}
+          ${phase1YachtField('marina', 'Марина', 'Например: Porto Montenegro')}
+          ${phase1YachtField('berth', 'Место стоянки', 'Например: B-14')}
+          ${phase1YachtField('customer', 'Контакт заказчика', 'Имя, телефон, email')}
+          ${phase1YachtField('reg_number', 'Рег. номер', '')}
+          ${phase1YachtField('model', 'Модель', '')}
+          ${phase1YachtField('hull_number', 'Номер корпуса', '')}
+          ${phase1YachtField('year', 'Год', '')}
+          ${phase1YachtField('length', 'Длина', 'м')}
+          ${phase1YachtField('beam', 'Ширина', 'м')}
+          ${phase1YachtField('logo', 'Лого яхты URL', 'Если пусто, будет тихий Vetus Nauta', true)}
+          ${phase1YachtField('engines', 'Двигатели', 'Номера / модели', true)}
+          ${phase1YachtField('generators', 'Генераторы', 'Номера / модели', true)}
+          ${phase1YachtField('watermaker', 'Опреснитель', 'Модель', true)}
+          ${phase1YachtField('windlass', 'Якорная лебедка', 'Модель', true)}
+          ${phase1YachtField('passerelle', 'Пасарелла', 'Модель', true)}
+          <label class="phase1-field phase1-field-wide">
+            <span>Кастомные поля</span>
+            <textarea data-yacht-field="custom_fields" placeholder="Любые будущие сервисные данные">${phase1Escape(phase1YachtProfileValue('custom_fields'))}</textarea>
+          </label>
+        </div>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-action="yacht-save">Сохранить яхту</button>
+        </div>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+      </section>
+
+      <section class="phase1-list-panel">
+        <h2>Экипаж</h2>
+        <div class="phase1-yacht-role-grid">
+          ${PHASE1_YACHT_ROLES.map(function(role) {
+            return '<span>' + phase1Escape(role) + '</span>';
+          }).join('')}
+        </div>
+        <p class="phase1-status-line">В Yacht-шаблоне администратор называется капитаном, сотрудники - экипажем. Роли дают ощущение моря, но не меняют финансовую логику.</p>
+      </section>
+
+      <section id="phase1YachtBunkering" class="phase1-yacht-order phase1-yacht-print-area ${showPrices ? '' : 'hide-prices'}" tabindex="-1">
+        <div class="phase1-yacht-order-head">
+          <div class="phase1-yacht-logo small">${phase1YachtLogoHtml()}</div>
+          <div>
+            <span class="phase1-kicker">Бункеровка / стартовый пакет</span>
+            <h2>${phase1Escape(yachtName)}</h2>
+            <p>${phase1Escape([marina, berth, customer].filter(Boolean).join(' · ') || 'Марина, место стоянки и контакт задаются перед заказом.')}</p>
+          </div>
+        </div>
+        <div class="phase1-issue-grid phase1-yacht-order-fields">
+          ${phase1YachtOrderField('marina', 'Марина перед заказом', 'Марина')}
+          ${phase1YachtOrderField('berth', 'Место стоянки', 'Berth')}
+          ${phase1YachtOrderField('customer', 'Контакт заказчика', 'Имя / телефон')}
+          <label class="phase1-field">
+            <span>Регион цен</span>
+            <select data-yacht-order="price_region">${phase1YachtPriceRegionOptions()}</select>
+          </label>
+          <label class="phase1-field">
+            <span>Режим цены</span>
+            <select data-yacht-order="price_mode">${phase1YachtPriceModeOptions()}</select>
+          </label>
+          <label class="phase1-field phase1-yacht-price-toggle">
+            <span>Печать</span>
+            <label><input type="checkbox" data-yacht-order="show_prices" ${showPrices ? 'checked' : ''}> Показывать цены</label>
+          </label>
+          <label class="phase1-field phase1-yacht-price-toggle">
+            <span>Справочник</span>
+            <label><input type="checkbox" data-yacht-order="use_reference_prices" ${order.use_reference_prices ? 'checked' : ''}> Использовать примерные цены</label>
+          </label>
+        </div>
+        ${phase1YachtModeButtons()}
+        <div class="phase1-yacht-reference-panel">
+          <p>Справочные цены - подсказка для наряда, не финансовый факт. После подстановки их можно править вручную.</p>
+          <p class="phase1-yacht-catalog-meta">Справочник: ${phase1Escape(order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION)} · обновлен: ${phase1Escape(order.price_catalog_updated_at || 'еще не обновлялся вручную')}</p>
+          ${isLocked ? '<p class="phase1-yacht-lock">Цены зафиксированы для печати: ' + phase1Escape(order.price_locked_at) + '. Автоматическая переподстановка заблокирована.</p>' : ''}
+          ${phase1YachtApprovedCatalogPanel(order)}
+          <div class="phase1-action-row">
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-refresh-price-catalog">Обновить справочник</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-apply-prices">Подставить цены региона</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-load-approved-prices">Загрузить approved</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-apply-approved-prices">Подставить approved</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-food">Добавить еду</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-fuel">Добавить топливо</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-tech">Добавить технику</button>
+          </div>
+        </div>
+        <div class="phase1-yacht-table-wrap">
+          <table class="phase1-yacht-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Раздел</th>
+                <th>Позиция</th>
+                <th>Кол-во</th>
+                <th>Ед.</th>
+                <th class="phase1-yacht-price-cell">Цена</th>
+                <th class="phase1-yacht-price-cell">Итого</th>
+              </tr>
+            </thead>
+            <tbody>${phase1YachtOrderRows()}</tbody>
+          </table>
+        </div>
+        <div class="phase1-yacht-order-footer">
+          <strong class="phase1-yacht-price-cell">Всего: <span data-yacht-total>${phase1Money(phase1YachtOrderTotal())}</span></strong>
+          <span class="phase1-yacht-section-total phase1-yacht-price-cell">${phase1Escape(modeLabel)}: <b data-yacht-mode-total>${phase1Money(phase1YachtOrderModeTotal(mode))}</b></span>
+          <div class="phase1-action-row">
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-row">Добавить строку</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-reset-package">Базовый пакет</button>
+            ${isLocked ? '<button class="phase1-secondary-action" type="button" data-phase-action="yacht-new-price-draft">Новая копия с новыми ценами</button>' : ''}
+            <button class="phase1-primary-action" type="button" data-phase-action="yacht-print-order">Печать наряда</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function phase1FocusYachtBunkering() {
+  window.setTimeout(function() {
+    const order = document.getElementById('phase1YachtBunkering');
+    if (!order) return;
+    order.classList.add('is-focus-bunkering');
+    if (typeof order.focus === 'function') {
+      try {
+        order.focus({preventScroll: true});
+      } catch (error) {
+        order.focus();
+      }
+    }
+    if (typeof order.scrollIntoView === 'function') {
+      order.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+    window.setTimeout(function() {
+      order.classList.remove('is-focus-bunkering');
+    }, 1600);
+  }, 30);
+}
+
+function phase1RenderTemplates() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Готовые шаблоны', 'Шаблоны помогают начать с понятного сценария. В MVP они ведут в обычный рабочий путь FinDesk.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('yacht', 'Yacht', 'Яхта, капитан, экипаж, бункеровка и стартовый пакет')}
+        ${phase1PathButton('team', 'Home', 'Дом, помощники, покупки и отчеты')}
+        ${phase1PathButton('solo', 'Personal', 'Личный журнал денег')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderSolo() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Работаю один', 'Личная среда без группы. Выберите Cash или Card, затем просто пишите движения денег.', '')}
+      ${phase1RenderJournalEntryPanel('Личная среда')}
+      <section class="phase1-list-panel">
+        <h2>Мои журналы</h2>
+        ${phase1Snapshot.cards.length ? phase1Snapshot.cards.slice(0, 5).map(function(card) {
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>${phase1Escape(card.stream_type === 'card' ? 'Карта' : 'Наличные')}</b>
+                <span>${phase1Escape(card.card_state === 'submitted' ? 'Зафиксирован' : card.card_state === 'included' ? 'В отчете' : 'В работе')}</span>
+              </div>
+              <strong>${phase1Money(phase1CardAmount(card))}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Зафиксированных журналов пока нет.</p>'}
+      </section>
+    </div>
+  `;
+}
+
+function phase1JournalDraftText() {
+  if (phase1JournalTouched[phase1Stream]) return phase1JournalDraft[phase1Stream] || '';
+  return phase1SignedText(phase1Snapshot.journalItems || [], phase1Stream);
+}
+
+function phase1RenderJournalChoice() {
+  if (!phase1WorkspaceReady()) {
+    return `
+      <div class="phase1-page phase1-page-journal">
+        ${phase1Header('Live Journal', 'Сначала выберите активную среду.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Активная среда</span>
+          <h1>Не выбрана</h1>
+          <p>Журнал открывается только внутри выбранной личной или групповой среды.</p>
+        </section>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="phase1-page phase1-page-journal-choice">
+      ${phase1Header('Live Journal', 'Выберите поток до входа в журнал. Наличные и карта не смешиваются.', '')}
+      <section class="phase1-choice-grid" aria-label="Выбор потока журнала">
+        <button class="phase1-choice-card cash" type="button" data-phase-journal-stream="cash">
+          ${phase1MoneyPicture('cash')}
+          <span>Cash</span>
+          <b>Наличные</b>
+          <small>Приходы, расходы и остаток на руках.</small>
+        </button>
+        <button class="phase1-choice-card card" type="button" data-phase-journal-stream="card">
+          ${phase1MoneyPicture('card')}
+          <span>Card / Non-cash</span>
+          <b>Карта</b>
+          <small>Отдельный журнал расходов. Стартовый остаток по умолчанию 0.</small>
+        </button>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderJournal() {
+  if (!phase1WorkspaceReady()) {
+    return `
+      <div class="phase1-page phase1-page-journal">
+        ${phase1Header('Живой журнал', 'Выберите среду: личную работу или группу.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Активная среда</span>
+          <h1>Не выбрана</h1>
+          <p>Журнал не показывает старые строки и суммы, пока вы явно не выберете рабочую среду.</p>
+        </section>
+      </div>
+    `;
+  }
+  const streamLabel = phase1Stream === 'card' ? 'Карта' : 'Наличные';
+  const records = phase1JournalRecords();
+  const summary = phase1ActiveSummary();
+  const startAmount = phase1Stream === 'card' ? 0 : Number(summary.before_amount ?? summary.admin_cash_in ?? 0);
+  const currentAmount = phase1Stream === 'card'
+    ? Math.abs(Number(summary.card_out ?? summary.spent_total ?? 0))
+    : Number(summary.cash_left ?? 0);
+  const currentLabel = phase1Stream === 'card' ? 'По карте записано' : 'Сейчас осталось';
+  const pendingLine = phase1JournalLineDraft[phase1Stream] || '';
+  const cards = (phase1Snapshot.cards || []).filter(function(card) {
+    return (phase1Stream === 'card') === (String(card.stream_type || 'cash') === 'card');
+  }).slice(0, 5);
+  const canFix = records.length > 0 || !!String(pendingLine).trim();
+  return `
+    <div class="phase1-page phase1-page-journal">
+      ${phase1Header('Live Journal', streamLabel, '')}
+      <section class="phase1-journal-workspace">
+        <div class="phase1-journal-strip">
+          <span>${phase1Stream === 'card' ? 'Старт карты' : 'Было на старте'}</span>
+          <b>${phase1Money(startAmount)}</b>
+          <button type="button" data-phase-screen="journal-choice">Сменить поток</button>
+        </div>
+        <div class="phase1-records-feed" aria-label="Лента записей">
+          ${phase1RenderRecordsFeed(records)}
+        </div>
+        <div class="phase1-journal-bottom">
+          <div class="phase1-current-amount">
+            <span>${phase1Escape(currentLabel)}</span>
+            <b>${phase1Money(currentAmount)}</b>
+          </div>
+          <div class="phase1-input-line">
+            <button class="phase1-attach-action" type="button" data-phase-action="journal-attach" aria-label="Вложение">Файл</button>
+            <input id="phase1JournalLine" type="text" inputmode="decimal" value="${phase1Escape(pendingLine)}" placeholder="± Сумма и заметка...">
+            <button class="phase1-primary-action" type="button" data-phase-action="journal-add">Записать</button>
+          </div>
+          <div class="phase1-action-row">
+            ${canFix ? '<button class="phase1-secondary-action" type="button" data-phase-action="journal-fix">Зафиксировать журнал</button>' : ''}
+            <button class="phase1-icon-action" type="button" data-phase-action="journal-refresh">Обновить</button>
+          </div>
+        </div>
+        <p id="phase1JournalStatus" class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Последние журналы</h2>
+        ${cards.length ? cards.map(function(card) {
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>${phase1Escape(card.title || 'Журнал')}</b>
+                <span>${phase1Escape(card.card_state === 'submitted' ? 'Сдан администратору' : card.card_state === 'included' ? 'В общем отчете' : 'В работе')}</span>
+              </div>
+              <strong>${phase1Money(phase1CardAmount(card))}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Сохраненных журналов пока нет.</p>'}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderTeam() {
+  const members = phase1Snapshot.members || [];
+  if (!phase1WorkspaceReady() || !phase1Snapshot.group) {
+    const groups = phase1Snapshot.groups || [];
+    return `
+      <div class="phase1-page">
+        ${phase1Header('Работаю с людьми', 'Создайте или выберите рабочую среду. После этого FinDesk покажет людей, а не старый дашборд.', '')}
+        <section class="phase1-list-panel">
+          <h2>Рабочие среды</h2>
+          ${groups.length ? groups.map(function(group) {
+            return `
+              <button class="phase1-person-button" type="button" data-phase-group-pick="${phase1Escape(group.id)}">
+                <span>${phase1Escape(group.name || 'Группа')}</span>
+                <small>${phase1Escape(group.member_count ? group.member_count + ' участников' : 'Открыть среду')}</small>
+              </button>
+            `;
+          }).join('') : '<p class="phase1-empty">Активных групп пока нет.</p>'}
+        </section>
+        <section class="phase1-issue-panel">
+          <label class="phase1-field">
+            <span>Новая группа</span>
+            <input id="phase1NewGroupName" type="text" placeholder="Например: Yacht, Home, Project">
+          </label>
+          <button class="phase1-primary-action" type="button" data-phase-action="team-create-group">Создать группу</button>
+          <p id="phase1TeamStatus" class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+        </section>
+      </div>
+    `;
+  }
+  const currentId = phase1CurrentUserId();
+  const admin = phase1TeamAdminMember();
+  const labels = phase1YachtLabels();
+  const others = members.filter(function(member) {
+    return !admin || Number(member.user_id || 0) !== Number(admin.user_id || 0);
+  });
+  return `
+    <div class="phase1-page">
+      ${phase1Header(labels.team, phase1IsYachtWorkspace() ? 'Экран экипажа. Карточка открывает рабочее окно члена экипажа.' : 'Экран людей. Карточка открывает рабочее окно человека.', '')}
+      ${phase1RenderJournalEntryPanel(phase1Snapshot.group ? phase1Snapshot.group.name || 'Активная группа' : 'Активная группа')}
+      <section class="phase1-people-board">
+        <button class="phase1-person-button is-admin" type="button" data-phase-screen="admin">
+          <span>${phase1Escape(admin ? phase1MemberName(admin) : labels.admin)}</span>
+          <small>${phase1Escape(admin ? phase1MemberPosition(admin) : labels.admin)}</small>
+          <b>${phase1Money(phase1AdminCash())}</b>
+        </button>
+        <div class="phase1-people-grid">
+          ${others.length ? others.map(function(member) {
+            const id = Number(member.user_id || 0);
+            const state = phase1MemberState(id);
+            return `
+              <button class="phase1-person-button ${state === 'Готов отчет' ? 'is-ready' : ''}" type="button" data-phase-employee="${phase1Escape(id)}">
+                <span>${phase1Escape(phase1MemberName(member))}</span>
+                <small>${phase1Escape(phase1MemberPosition(member))} · ${phase1Escape(state)}</small>
+                <b>${phase1Money(phase1MemberRemaining(id))}</b>
+              </button>
+            `;
+          }).join('') : '<p class="phase1-empty">Участников пока нет.</p>'}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderAdmin() {
+  if (!phase1WorkspaceReady()) {
+    return `
+      <div class="phase1-page">
+        ${phase1Header('Администратор', 'Выберите активную среду, чтобы увидеть деньги и сданные журналы.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Нет активной среды</span>
+          <h1>Суммы скрыты</h1>
+          <p>FinDesk не подставляет старые данные без явного выбора пользователя.</p>
+        </section>
+      </div>
+    `;
+  }
+  if (!phase1Snapshot.group) {
+    return phase1RenderTeam();
+  }
+  const canManage = phase1CurrentGroupCanManageMoney();
+  const employees = phase1EmployeeMembers();
+  const pendingTransfers = (phase1Snapshot.transfers || []).filter(function(transfer) {
+    return String(transfer.state || '') === 'pending';
+  });
+  const activeTransfers = (phase1Snapshot.transfers || []).filter(function(transfer) {
+    return String(transfer.state || '') === 'active';
+  });
+  const readyCards = (phase1Snapshot.cards || []).filter(function(card) {
+    return String(card.card_state || '') === 'submitted';
+  });
+  const labels = phase1YachtLabels();
+  return `
+    <div class="phase1-page">
+      ${phase1Header(labels.adminCard, phase1IsYachtWorkspace() ? 'Рабочий центр яхты: добавить деньги, выдать экипажу, проверить готовые журналы.' : 'Рабочий центр группы: добавить деньги, выдать сотруднику, проверить готовые журналы.', '')}
+      <section class="phase1-hero-line">
+        ${phase1Metric('У меня', phase1WorkspaceMoney(phase1AdminCash()))}
+        ${phase1Metric(labels.issued, phase1WorkspaceMoney(phase1EmployeesCash()))}
+        ${phase1Metric(labels.ready, readyCards.length)}
+      </section>
+      ${phase1RenderJournalEntryPanel(phase1IsYachtWorkspace() ? 'Журнал капитана' : 'Журнал администратора')}
+      ${canManage ? `
+        <section class="phase1-issue-panel">
+          <h2>Добавить деньги</h2>
+          <div class="phase1-issue-grid">
+            <label class="phase1-field">
+              <span>Сумма</span>
+              <input id="phase1AdminMoneyAmount" type="text" inputmode="decimal" placeholder="0.00">
+            </label>
+            <label class="phase1-field">
+              <span>От кого</span>
+              <input id="phase1AdminMoneySource" type="text" placeholder="Например: владелец">
+            </label>
+            <label class="phase1-field phase1-field-wide">
+              <span>Комментарий</span>
+              <input id="phase1AdminMoneyNote" type="text" placeholder="Необязательно">
+            </label>
+          </div>
+          <div class="phase1-action-row">
+            <button class="phase1-primary-action" type="button" data-phase-action="admin-add-money">Добавить</button>
+          </div>
+        </section>
+        <section class="phase1-issue-panel">
+          <h2>${phase1Escape(phase1IsYachtWorkspace() ? 'Пригласить члена экипажа' : 'Пригласить сотрудника')}</h2>
+          <div class="phase1-issue-grid">
+            <label class="phase1-field">
+              <span>Email</span>
+              <input id="phase1InviteEmail" type="email" placeholder="employee@example.com">
+            </label>
+            <label class="phase1-field">
+              <span>Роль</span>
+              <select id="phase1InviteAccess">
+                <option value="base">Участник</option>
+                <option value="manager">Проверка отчетов</option>
+              </select>
+            </label>
+          </div>
+          <div class="phase1-action-row">
+            <button class="phase1-secondary-action" type="button" data-phase-action="invite-member">Создать приглашение</button>
+          </div>
+          ${phase1InviteUrl ? '<p class="phase1-status-line phase1-invite-link">' + phase1Escape(phase1InviteUrl) + '</p>' : ''}
+        </section>
+        <section class="phase1-issue-panel">
+          <h2>Выдать деньги</h2>
+          <div class="phase1-issue-grid">
+            <label class="phase1-field">
+              <span>${phase1Escape(phase1IsYachtWorkspace() ? 'Экипаж' : 'Сотрудник')}</span>
+              <select id="phase1IssueEmployee">
+                ${employees.map(function(member) {
+                  return '<option value="' + phase1Escape(member.user_id) + '">' + phase1Escape(phase1MemberName(member)) + '</option>';
+                }).join('')}
+              </select>
+            </label>
+            <label class="phase1-field">
+              <span>Поток</span>
+              <select id="phase1IssueStream">
+                <option value="cash">Наличные</option>
+                <option value="card">Карта</option>
+              </select>
+            </label>
+            <label class="phase1-field">
+              <span>Сумма</span>
+              <input id="phase1IssueAmount" type="text" inputmode="decimal" placeholder="0.00">
+            </label>
+            <label class="phase1-field">
+              <span>Описание</span>
+              <input id="phase1IssueDescription" type="text" placeholder="Например: расходы на день">
+            </label>
+          </div>
+          <div class="phase1-action-row">
+            <button class="phase1-primary-action" type="button" data-phase-action="issue-transfer"${employees.length ? '' : ' disabled'}>Выдать</button>
+            <button class="phase1-secondary-action" type="button" data-phase-screen="assembly">Собрать отчет</button>
+          </div>
+          <p id="phase1AdminStatus" class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+        </section>
+      ` : ''}
+      <section class="phase1-list-panel">
+        <h2>Ожидают подтверждения</h2>
+        ${phase1TransferRows(pendingTransfers, 'admin')}
+      </section>
+      ${phase1RenderPendingActionPanel()}
+      <section class="phase1-list-panel">
+        <h2>Подписанные выдачи</h2>
+        ${phase1TransferRows(activeTransfers.slice(0, 5), 'admin')}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>${phase1Escape(labels.ready)}</h2>
+        ${readyCards.length ? readyCards.map(function(card) {
+          return `
+            <article class="phase1-row-card is-ready">
+              <div>
+                <b>${phase1Escape(card.owner_name || card.user_name || card.title || 'Журнал')}</b>
+                <span>${phase1Escape(card.stream_type === 'card' ? 'Карта' : 'Наличные')}</span>
+              </div>
+              <strong>${phase1Money(phase1CardAmount(card))}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Сданных журналов пока нет.</p>'}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderEmployee() {
+  const selectedId = phase1SelectedEmployeeId || phase1CurrentUserId();
+  const member = (phase1Snapshot.members || []).find(function(row) {
+    return Number(row.user_id || 0) === Number(selectedId);
+  }) || null;
+  const name = member ? phase1MemberName(member) : 'Сотрудник';
+  const role = member ? phase1MemberPosition(member) : 'Участник';
+  const pending = phase1PendingTransfersForUser(selectedId);
+  const active = phase1ActiveTransfersForUser(selectedId);
+  const isSelf = Number(selectedId) === phase1CurrentUserId();
+  const canManage = phase1CurrentGroupCanManageMoney();
+  const isYacht = phase1IsYachtWorkspace();
+  const myCards = (phase1Snapshot.cards || []).filter(function(card) {
+    return Number(card.user_id || card.tape_user_id || 0) === Number(selectedId);
+  }).slice(0, 5);
+  return `
+    <div class="phase1-page">
+      ${phase1Header(name, role, '')}
+      <section class="phase1-hero-line">
+        ${phase1Metric('Выдано', phase1Money(phase1MemberIssued(selectedId)))}
+        ${phase1Metric('Осталось', phase1Money(phase1MemberRemaining(selectedId)))}
+      </section>
+      ${isYacht && member && canManage ? `
+        <section class="phase1-issue-panel">
+          <h2>Должность в экипаже</h2>
+          <div class="phase1-issue-grid">
+            <label class="phase1-field">
+              <span>Роль</span>
+              <select data-yacht-crew-role="${phase1Escape(selectedId)}">
+                <option value=""${phase1YachtCrewRole(selectedId) === '' || !PHASE1_YACHT_ROLES.includes(phase1YachtCrewRole(selectedId)) ? ' selected' : ''}>Член экипажа</option>
+                ${PHASE1_YACHT_ROLES.filter(function(item) { return item !== 'Капитан'; }).map(function(item) {
+                  const selected = phase1YachtCrewRole(selectedId) === item;
+                  return '<option value="' + phase1Escape(item) + '"' + (selected ? ' selected' : '') + '>' + phase1Escape(item) + '</option>';
+                }).join('')}
+              </select>
+            </label>
+            <label class="phase1-field">
+              <span>Свое название</span>
+              <input type="text" data-yacht-crew-custom="${phase1Escape(selectedId)}" placeholder="Например: боцман" value="${PHASE1_YACHT_ROLES.includes(phase1YachtCrewRole(selectedId)) ? '' : phase1Escape(phase1YachtCrewRole(selectedId))}">
+            </label>
+          </div>
+          <p class="phase1-status-line">Должность влияет только на интерфейс и будущие наряды. Деньги и отчеты не меняются.</p>
+        </section>
+      ` : ''}
+      ${pending.length ? `
+        <section class="phase1-pending-panel">
+          <span class="phase1-kicker">Ожидает подтверждения</span>
+          ${pending.map(function(transfer) {
+            return `
+              <article class="phase1-row-card is-pending">
+                <div>
+                  <b>${phase1Money(transfer.amount || 0)} · ${phase1Escape(transfer.stream_type === 'card' ? 'Карта' : 'Наличные')}</b>
+                  <span>${phase1Escape(transfer.description || 'Выдача от администратора')}</span>
+                </div>
+                ${isSelf ? '<button class="phase1-primary-action" type="button" data-phase-transfer-confirm="' + phase1Escape(transfer.id) + '">Подтвердить</button>' : '<strong>ждет подписи</strong>'}
+              </article>
+            `;
+          }).join('')}
+          <p class="phase1-status-line">Пока сумма не подтверждена, она не становится активной.</p>
+        </section>
+      ` : ''}
+      <section class="phase1-action-row">
+        ${isSelf && !pending.length ? '<button class="phase1-primary-action" type="button" data-phase-screen="journal-choice">Открыть живой журнал</button>' : ''}
+        ${isSelf && pending.length ? '<button class="phase1-secondary-action" type="button" disabled>Журнал откроется после подтверждения</button>' : ''}
+        ${!isSelf ? '<button class="phase1-secondary-action" type="button" disabled>Живой журнал видит только сотрудник</button>' : ''}
+        <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Мои журналы</button>
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Подписанные выдачи</h2>
+        ${phase1TransferRows(active.slice(0, 5), 'employee')}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Мои журналы</h2>
+        ${myCards.length ? myCards.map(function(card) {
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>${phase1Escape(card.title || 'Журнал')}</b>
+                <span>${phase1Escape(card.card_state === 'submitted' ? 'Сдан' : card.card_state === 'included' ? 'В отчете' : 'В работе')}</span>
+              </div>
+              <strong>${phase1Money(phase1CardAmount(card))}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Журналов пока нет.</p>'}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderAssembly() {
+  if (!phase1WorkspaceReady()) {
+    return `
+      <div class="phase1-page">
+        ${phase1Header('Сборка отчета', 'Выберите активную среду перед сборкой.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Отчет не выбран</span>
+          <h1>Нет активных данных</h1>
+        </section>
+      </div>
+    `;
+  }
+  const group = phase1Snapshot.group;
+  if (!group || !phase1CanViewReports(group)) {
+    return `
+      <div class="phase1-page">
+        ${phase1Header('Сборка отчета', 'Общие отчеты видит администратор или менеджер группы.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Доступ закрыт</span>
+          <h1>Отчет собирает ответственный</h1>
+        </section>
+      </div>
+    `;
+  }
+  const assembly = phase1Snapshot.assembly || {};
+  const summary = assembly.summary || {};
+  const ready = assembly.ready_items || [];
+  const attached = assembly.attached_items || [];
+  const cashItems = phase1ReportItemsByStream(attached, 'cash');
+  const cardItems = phase1ReportItemsByStream(attached, 'card');
+  const canWrite = phase1CanWriteReports(group);
+  const reportId = assembly.draft_report && assembly.draft_report.id ? Number(assembly.draft_report.id) : 0;
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Сборка отчета', 'Сданные журналы включаются в один общий отчет. Cash и Card остаются раздельными.', '')}
+      <section class="phase1-report-total">
+        ${phase1Metric('Cash', phase1Money(phase1ReportSummaryValue(summary, 'cash', 'remaining')))}
+        ${phase1Metric('Card / Non-cash', phase1Money(phase1ReportSummaryValue(summary, 'card', 'spent')))}
+        ${phase1Metric('Total', phase1Money(phase1ReportSummaryValue(summary, 'total', 'remaining')))}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Cash Section</h2>
+        ${phase1RenderReportRows(cashItems)}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Card / Non-cash Section</h2>
+        ${phase1RenderReportRows(cardItems)}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Готовые журналы</h2>
+        ${canWrite ? phase1RenderReportRows(ready, {ready: true, attach: true}) : '<p class="phase1-empty">Включать журналы может администратор или менеджер.</p>'}
+      </section>
+      ${canWrite && attached.length ? `
+        <section class="phase1-protected-inline">
+          <div>
+            <span class="phase1-kicker">Финализация</span>
+            <h2>Создать общий отчет</h2>
+            <p>После утверждения арифметика Cash, Card и Total фиксируется. Включенные журналы уходят из активной сборки.</p>
+          </div>
+          <div class="phase1-issue-grid">
+            <label class="phase1-field phase1-field-wide">
+              <span>Причина / комментарий</span>
+              <input id="phase1ReportFinalizeReason" type="text" placeholder="Например: отчет за смену принят">
+            </label>
+            <label class="phase1-field phase1-field-wide">
+              <span>Напишите УТВЕРДИТЬ</span>
+              <input id="phase1ReportFinalizeConfirm" type="text" autocomplete="off">
+            </label>
+          </div>
+          <div class="phase1-action-row">
+            <button class="phase1-primary-action" type="button" data-phase-action="report-finalize" data-phase-report-id="${phase1Escape(reportId)}">Создать и утвердить отчет</button>
+            <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Открыть отчеты</button>
+          </div>
+        </section>
+      ` : ''}
+      <p id="phase1ReportStatus" class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+    </div>
+  `;
+}
+
+function phase1RenderReports() {
+  if (!phase1WorkspaceReady()) {
+    return `
+      <div class="phase1-page">
+        ${phase1Header('Отчеты', 'Выберите среду, чтобы открыть отчеты.', '')}
+        <section class="phase1-report-total">
+          ${phase1Metric('Cash', '—')}
+          ${phase1Metric('Card / Non-cash', '—')}
+          ${phase1Metric('Total', '—')}
+        </section>
+      </div>
+    `;
+  }
+  const group = phase1Snapshot.group;
+  if (!group || !phase1CanViewReports(group)) {
+    return `
+      <div class="phase1-page">
+        ${phase1Header('Отчеты', 'Общие отчеты видит администратор или менеджер группы.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Доступ закрыт</span>
+          <h1>Отчеты скрыты</h1>
+        </section>
+      </div>
+    `;
+  }
+  const reports = phase1Snapshot.reports || [];
+  const last = reports[0] || null;
+  const lastCash = last && last.cash_summary || {};
+  const lastCard = last && last.card_summary || {};
+  const lastTotal = last && last.total_summary || {};
+  const detail = phase1ReportDetail;
+  const detailReport = detail && detail.report || null;
+  const detailItems = phase1ReportDetailItems(detail);
+  const detailCashItems = phase1ReportItemsByStream(detailItems, 'cash');
+  const detailCardItems = phase1ReportItemsByStream(detailItems, 'card');
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Отчеты', 'Финализированные общие отчеты. Журналы внутри отчета уже зафиксированы.', '')}
+      <section class="phase1-report-total">
+        ${phase1Metric('Cash', last ? phase1Money(lastCash.remaining || 0) : '—')}
+        ${phase1Metric('Card / Non-cash', last ? phase1Money(lastCard.spent || 0) : '—')}
+        ${phase1Metric('Total', last ? phase1Money(lastTotal.remaining || 0) : '—')}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Архив общих отчетов</h2>
+        ${reports.length ? reports.slice(0, 20).map(function(report) {
+          const cash = report.cash_summary || {};
+          const card = report.card_summary || {};
+          const total = report.total_summary || {};
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>Отчет #${phase1Escape(report.id || '')}</b>
+                <span>${phase1Escape(report.finalized_at || report.created_at || '')}</span>
+              </div>
+              <div class="phase1-row-side">
+                <strong>${phase1Money(total.remaining || 0)}</strong>
+                <span>Cash ${phase1Money(cash.remaining || 0)} · Card ${phase1Money(card.spent || 0)}</span>
+                <span class="phase1-row-actions">
+                  <button class="phase1-secondary-action" type="button" data-phase-report-open="${phase1Escape(report.id)}">Открыть</button>
+                  <button class="phase1-secondary-action" type="button" data-phase-report-export="${phase1Escape(report.id)}">Экспорт</button>
+                </span>
+              </div>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Финализированных отчетов пока нет.</p>'}
+      </section>
+      ${phase1ReportDetailLoading ? `
+        <section class="phase1-list-panel">
+          <h2>Открываю отчет</h2>
+          <p class="phase1-empty">Загружаю состав отчета...</p>
+        </section>
+      ` : ''}
+      ${detailReport ? `
+        <section class="phase1-report-detail">
+          <div class="phase1-report-detail-head">
+            <div>
+              <span class="phase1-kicker">Report Detail</span>
+              <h2>Отчет #${phase1Escape(detailReport.id || '')}</h2>
+              <p>${phase1Escape(detailReport.finalized_at || detailReport.created_at || '')}</p>
+            </div>
+            <div class="phase1-action-row">
+              <button class="phase1-secondary-action" type="button" data-phase-report-export="${phase1Escape(detailReport.id)}">Экспорт JSON</button>
+              <button class="phase1-secondary-action" type="button" data-phase-action="report-detail-clear">Закрыть</button>
+            </div>
+          </div>
+          <section class="phase1-report-total">
+            ${phase1Metric('Cash', phase1Money((detailReport.cash_summary || {}).remaining || 0))}
+            ${phase1Metric('Card / Non-cash', phase1Money((detailReport.card_summary || {}).spent || 0))}
+            ${phase1Metric('Total', phase1Money((detailReport.total_summary || {}).remaining || 0))}
+          </section>
+          <section class="phase1-list-panel">
+            <h2>Cash Section</h2>
+            ${phase1RenderReportRows(detailCashItems)}
+          </section>
+          <section class="phase1-list-panel">
+            <h2>Card / Non-cash Section</h2>
+            ${phase1RenderReportRows(detailCardItems)}
+          </section>
+        </section>
+      ` : ''}
+      <section class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-screen="assembly">Собрать отчет</button>
+        <button class="phase1-secondary-action" type="button" data-phase-action="report-archive-export"${reports.length ? '' : ' disabled'}>Экспорт архива</button>
+      </section>
+      <p id="phase1ReportsStatus" class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+    </div>
+  `;
+}
+
+function phase1RenderProtected() {
+  return `
+    <div class="phase1-page phase1-page-protected">
+      ${phase1Header('Protected Actions', 'Удаление, архивирование и финализация проходят через явное подтверждение.', '')}
+      <section class="phase1-list-panel">
+        <h2>Защищенный контур</h2>
+        <article class="phase1-row-card">
+          <div>
+            <b>Удаление журнала</b>
+            <span>Причина, предварительный просмотр последствий, фраза подтверждения.</span>
+          </div>
+          <strong>locked</strong>
+        </article>
+        <article class="phase1-row-card">
+          <div>
+            <b>Финализация отчета</b>
+            <span>Один общий отчет фиксирует Cash, Card и Total.</span>
+          </div>
+          <strong>locked</strong>
+        </article>
+        <article class="phase1-row-card">
+          <div>
+            <b>Архивирование</b>
+            <span>Действие должно попадать в честный лог.</span>
+          </div>
+          <strong>locked</strong>
+        </article>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderProfile() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Профиль', 'Служебные действия аккаунта. Деньги и отчеты здесь не ведутся.', '')}
+      <section class="phase1-list-panel">
+        <article class="phase1-row-card">
+          <div>
+            <b>${phase1Escape(phase1UserLabel())}</b>
+            <span>Аккаунт FinDesk</span>
+          </div>
+          <strong>active</strong>
+        </article>
+        <div class="phase1-action-row">
+          <button class="phase1-secondary-action" type="button" data-open-install="auto">Install Web App</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="welcome">Workspace</button>
+          <button class="phase1-primary-action" type="button" data-phase-logout>Выйти</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function phase1Render(screen, loading) {
+  const target = phase1NormalizeScreen(screen || phase1CurrentScreen || 'welcome');
+  const node = phase1ScreenNode();
+  const shell = phase1Shell();
+  if (!node || !shell) return;
+  shell.dataset.phaseCurrent = target;
+
+  if (loading && !phase1SnapshotLoadedAt) {
+    node.innerHTML = '<div class="phase1-quiet-panel"><span class="phase1-kicker">FinDesk</span><h1>Загружаю данные</h1></div>';
+    return;
+  }
+
+  if (target === 'solo') node.innerHTML = phase1RenderSolo();
+  else if (target === 'templates') node.innerHTML = phase1RenderTemplates();
+  else if (target === 'yacht') node.innerHTML = phase1RenderYacht();
+  else if (target === 'journal-choice') node.innerHTML = phase1RenderJournalChoice();
+  else if (target === 'journal') node.innerHTML = phase1RenderJournal();
+  else if (target === 'team') node.innerHTML = phase1RenderTeam();
+  else if (target === 'admin') node.innerHTML = phase1RenderAdmin();
+  else if (target === 'employee') node.innerHTML = phase1RenderEmployee();
+  else if (target === 'assembly') node.innerHTML = phase1RenderAssembly();
+  else if (target === 'reports') node.innerHTML = phase1RenderReports();
+  else if (target === 'protected') node.innerHTML = phase1RenderProtected();
+  else if (target === 'profile') node.innerHTML = phase1RenderProfile();
+  else node.innerHTML = phase1RenderWelcome();
+  phase1SyncShell(target);
+}
+
+async function phase1LoadSnapshot(options) {
+  const opts = options || {};
+  if (phase1SnapshotLoading) return;
+  if (!opts.force && phase1SnapshotLoadedAt && Date.now() - phase1SnapshotLoadedAt < 6000) return;
+  phase1SnapshotLoading = true;
+  try {
+    const groupsData = await qlApi('group_list', {});
+    if (groupsData.ok) {
+      qlGroups = groupsData.groups || [];
+      phase1Snapshot.groups = qlGroups;
+    }
+    const group = phase1SelectedGroup();
+    phase1Snapshot.group = group;
+    if (!phase1WorkspaceReady()) {
+      phase1Snapshot.members = [];
+      phase1Snapshot.advances = [];
+      phase1Snapshot.transfers = [];
+      phase1Snapshot.cards = [];
+      phase1Snapshot.tapes = [];
+      phase1Snapshot.ledger = null;
+      phase1Snapshot.journalItems = [];
+      phase1Snapshot.assembly = null;
+      phase1Snapshot.reports = [];
+      phase1SnapshotLoadedAt = Date.now();
+      return;
+    }
+    const groupPayload = group && group.id ? {group_id: Number(group.id)} : {};
+    const results = await Promise.all([
+      group && group.id ? qlApi('group_members', groupPayload) : Promise.resolve({ok: true, members: []}),
+      group && group.id ? qlApi('advance_list', Object.assign({limit: 150}, groupPayload)) : Promise.resolve({ok: true, advances: []}),
+      group && group.id ? qlApi('findesk_transfer_list', Object.assign({limit: 150}, groupPayload)) : Promise.resolve({ok: true, transfers: []}),
+      qlApi('on_the_go_card_list', Object.assign({limit: 80, include_archived: 1}, groupPayload)),
+      qlApi('on_the_go_tape_list', Object.assign({stream_type: phase1Stream}, groupPayload)),
+      qlApi('ledger_balance', groupPayload),
+      qlApi('on_the_go_list', {session_type: phase1Stream, limit: 200}),
+      group && group.id ? qlApi('findesk_report_assembly_get', groupPayload) : Promise.resolve({ok: false}),
+      group && group.id ? qlApi('findesk_report_list', groupPayload) : Promise.resolve({ok: false, reports: []})
+    ]);
+    const membersData = results[0] || {};
+    const advancesData = results[1] || {};
+    const transfersData = results[2] || {};
+    const cardsData = results[3] || {};
+    const tapesData = results[4] || {};
+    const ledgerData = results[5] || {};
+    const journalData = results[6] || {};
+    const assemblyData = results[7] || {};
+    const reportsData = results[8] || {};
+    phase1Snapshot.members = membersData.ok ? (membersData.members || []) : [];
+    phase1Snapshot.advances = advancesData.ok ? (advancesData.advances || []) : [];
+    phase1Snapshot.transfers = transfersData.ok ? (transfersData.transfers || []) : [];
+    phase1Snapshot.cards = cardsData.ok ? (cardsData.cards || []) : [];
+    phase1Snapshot.tapes = tapesData.ok ? (tapesData.tapes || []) : [];
+    phase1Snapshot.ledger = ledgerData.ok ? ledgerData : null;
+    phase1Snapshot.journalItems = journalData.ok ? (journalData.items || []) : [];
+    phase1Snapshot.assembly = assemblyData.ok ? assemblyData : null;
+    phase1Snapshot.reports = reportsData.ok ? (reportsData.reports || []) : [];
+    phase1SnapshotLoadedAt = Date.now();
+  } catch (error) {
+    const node = phase1ScreenNode();
+    if (node) {
+      node.innerHTML = '<div class="phase1-quiet-panel"><span class="phase1-kicker">FinDesk</span><h1>Не удалось загрузить данные</h1><p>' + phase1Escape(error && error.message ? error.message : 'Ошибка') + '</p></div>';
+    }
+  } finally {
+    phase1SnapshotLoading = false;
+  }
+}
+
+async function phase1Refresh(options) {
+  await phase1LoadSnapshot(Object.assign({force: true}, options || {}));
+  phase1Render(phase1CurrentScreen);
+}
+
+function qlOpenPhaseScreen(screen, options) {
+  const opts = options || {};
+  const target = phase1NormalizeScreen(screen || 'welcome');
+  const previous = phase1NormalizeScreen(phase1CurrentScreen || 'welcome');
+
+  if (target === 'solo' && (!phase1Workspace || phase1Workspace.mode !== 'solo')) {
+    phase1SetGroup('solo');
+    phase1SnapshotLoadedAt = 0;
+  }
+  if ((target === 'journal-choice' || target === 'journal') && (!phase1Workspace || phase1Workspace.mode === 'none')) {
+    phase1SetGroup('solo');
+    phase1SnapshotLoadedAt = 0;
+  }
+
+  if (target !== previous && opts.stack !== false && !qlBrowserHistoryApplying) {
+    phase1ScreenStack.push(previous);
+    if (phase1ScreenStack.length > 24) phase1ScreenStack = phase1ScreenStack.slice(-24);
+  }
+  phase1CurrentScreen = target;
+  qlSetPhaseNavActive(target);
+  phase1ShowShell();
+  phase1Render(target, true);
+  phase1LoadSnapshot({force: !phase1SnapshotLoadedAt}).then(function() {
+    if (phase1CurrentScreen === target) phase1Render(target);
+  });
+  qlSaveModuleState('product', {phase_screen: target, stream_type: phase1Stream});
+  qlWriteBrowserState('product', {phase_screen: target, stream_type: phase1Stream}, opts.history || 'push');
+}
+
+function phase1GoBack() {
+  const previous = phase1ScreenStack.pop();
+  if (previous) {
+    qlOpenPhaseScreen(previous, {stack: false, history: 'replace'});
+    return;
+  }
+  if (phase1NormalizeScreen(phase1CurrentScreen) !== 'welcome') {
+    qlOpenPhaseScreen('welcome', {stack: false, history: 'replace'});
+  }
+}
+
+async function phase1SaveJournal(mode) {
+  const requestedMode = mode === true ? 'submit' : (mode === false ? 'add' : String(mode || 'add'));
+  const status = document.getElementById('phase1JournalStatus');
+  const lineEl = document.getElementById('phase1JournalLine');
+  const line = lineEl ? lineEl.value.trim() : '';
+  const notes = phase1BuildJournalNotes(line);
+  const group = phase1Snapshot.group;
+  const isFix = requestedMode === 'fix';
+  const isSubmit = requestedMode === 'submit';
+  const activeTape = phase1ActiveTape();
+  const activeSummary = phase1ActiveSummary();
+  const cashStart = phase1Stream === 'card'
+    ? 0
+    : Number(activeTape && activeTape.cash_received !== undefined && activeTape.cash_received !== null
+      ? activeTape.cash_received
+      : (activeSummary.before_amount ?? activeSummary.admin_cash_in ?? 0));
+  if (!phase1WorkspaceReady()) {
+    phase1Notice = 'Выберите рабочую среду.';
+    if (status) status.textContent = 'Выберите рабочую среду.';
+    return;
+  }
+  if (!notes) {
+    phase1Notice = 'Введите хотя бы одну строку.';
+    if (status) status.textContent = 'Введите хотя бы одну строку.';
+    return;
+  }
+  if (isSubmit && (!group || !group.id)) {
+    phase1Notice = 'Для сдачи выберите группу.';
+    if (status) status.textContent = 'Для сдачи выберите группу.';
+    return;
+  }
+  if (status) status.textContent = isFix ? 'Фиксирую журнал...' : (isSubmit ? 'Сохраняю и сдаю...' : 'Записываю...');
+  const payload = {
+    stream_type: phase1Stream,
+    notes,
+    cash_received: cashStart,
+    replace_tape: 1,
+    start_next: isFix ? 1 : 0,
+    client_operation_id: 'phase1-' + Date.now() + '-' + Math.random().toString(16).slice(2)
+  };
+  if (activeTape && Number(activeTape.id || 0) > 0) {
+    payload.tape_id = Number(activeTape.id);
+  }
+  if (group && group.id) payload.group_id = Number(group.id);
+  const saved = await qlApi('on_the_go_signed_sync', payload);
+  if (!saved.ok) {
+    phase1Notice = 'Не сохранено: ' + (saved.message || saved.error || 'ошибка');
+    if (status) status.textContent = 'Не сохранено: ' + (saved.message || saved.error || 'ошибка');
+    return;
+  }
+  let submitResult = null;
+  if (isSubmit) {
+    submitResult = await qlApi('on_the_go_card_submit', {
+      id: Number(saved.tape_id || 0),
+      group_id: Number(group.id)
+    });
+    if (!submitResult.ok) {
+      phase1Notice = 'Сохранено, но не сдано: ' + (submitResult.message || submitResult.error || 'ошибка');
+      if (status) status.textContent = 'Сохранено, но не сдано: ' + (submitResult.message || submitResult.error || 'ошибка');
+      await phase1Refresh({force: true});
+      return;
+    }
+  }
+  phase1JournalTouched[phase1Stream] = false;
+  phase1JournalDraft[phase1Stream] = '';
+  phase1JournalLineDraft[phase1Stream] = '';
+  phase1Notice = isFix ? 'Журнал зафиксирован. Новый журнал начат.' : (isSubmit ? 'Журнал сдан администратору.' : 'Записано.');
+  if (status) status.textContent = phase1Notice;
+  await phase1Refresh({force: true});
+}
+
+async function phase1CreateGroup() {
+  const input = document.getElementById('phase1NewGroupName');
+  const name = input ? input.value.trim() : '';
+  if (!name) {
+    phase1Notice = 'Введите название группы.';
+    phase1Render('team');
+    return;
+  }
+  phase1Notice = 'Создаю группу...';
+  phase1Render('team');
+  const created = await qlApi('group_create', {name});
+  if (!created.ok || !created.group) {
+    phase1Notice = 'Группа не создана: ' + (created.message || created.error || 'ошибка');
+    phase1Render('team');
+    return;
+  }
+  const groupId = Number(created.group.id || 0);
+  phase1SetGroup('group:' + groupId);
+  await qlApi('findesk_workspace_set', {mode: 'group', group_id: groupId});
+  phase1Notice = 'Группа создана.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('team', {history: 'replace', stack: false});
+}
+
+async function phase1PickGroup(groupId) {
+  const id = Number(groupId || 0);
+  if (!id) return;
+  phase1SetGroup('group:' + id);
+  await qlApi('findesk_workspace_set', {mode: 'group', group_id: id});
+  phase1Notice = '';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('team', {history: 'replace', stack: false});
+}
+
+async function phase1AdminAddMoney() {
+  const group = phase1Snapshot.group;
+  const groupId = Number(group && group.id || 0);
+  const amountEl = document.getElementById('phase1AdminMoneyAmount');
+  const sourceEl = document.getElementById('phase1AdminMoneySource');
+  const noteEl = document.getElementById('phase1AdminMoneyNote');
+  const amountValue = amountEl ? amountEl.value.trim() : '';
+  const amount = phase1Number(amountValue);
+  const source = sourceEl ? sourceEl.value.trim() : '';
+  const note = noteEl ? noteEl.value.trim() : '';
+  if (!groupId || amount <= 0) {
+    phase1Notice = 'Введите сумму для активной группы.';
+    phase1Render('admin');
+    return;
+  }
+  phase1Notice = 'Добавляю деньги...';
+  phase1Render('admin');
+
+  const tapesData = await qlApi('on_the_go_tape_list', {group_id: groupId, stream_type: 'cash'});
+  if (!tapesData.ok) {
+    phase1Notice = 'Не удалось открыть cash-журнал: ' + (tapesData.message || tapesData.error || 'ошибка');
+    phase1Render('admin');
+    return;
+  }
+  const cashTape = (tapesData.tapes || [])[0] || null;
+  if (!cashTape || Number(cashTape.id || 0) <= 0) {
+    phase1Notice = 'Cash-журнал активной группы не найден.';
+    phase1Render('admin');
+    return;
+  }
+  const details = [source || 'Получено', note].filter(Boolean).join(' - ');
+  const result = await qlApi('on_the_go_create', {
+    tape_id: Number(cashTape.id),
+    capture_type: 'cash_in',
+    amount: phase1MoneyInput(amount),
+    description: details,
+    currency: 'EUR'
+  });
+  if (!result.ok) {
+    phase1Notice = 'Деньги не добавлены: ' + (result.message || result.error || 'ошибка');
+    phase1Render('admin');
+    return;
+  }
+  phase1Notice = 'Деньги добавлены в журнал администратора.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('admin', {history: 'replace', stack: false});
+}
+
+async function phase1IssueTransfer() {
+  const group = phase1Snapshot.group;
+  const employee = document.getElementById('phase1IssueEmployee');
+  const stream = document.getElementById('phase1IssueStream');
+  const amount = document.getElementById('phase1IssueAmount');
+  const description = document.getElementById('phase1IssueDescription');
+  const groupId = Number(group && group.id || 0);
+  const assignedTo = Number(employee && employee.value || 0);
+  const value = amount ? amount.value.trim() : '';
+  if (!groupId || !assignedTo || !value) {
+    phase1Notice = 'Выберите сотрудника и сумму.';
+    phase1Render('admin');
+    return;
+  }
+  phase1Notice = 'Создаю выдачу...';
+  phase1Render('admin');
+  const result = await qlApi('findesk_transfer_create', {
+    group_id: groupId,
+    assigned_to_user_id: assignedTo,
+    stream_type: stream && stream.value === 'card' ? 'card' : 'cash',
+    amount: value,
+    description: description ? description.value.trim() : ''
+  });
+  if (!result.ok) {
+    phase1Notice = 'Выдача не создана: ' + (result.message || result.error || 'ошибка');
+    phase1Render('admin');
+    return;
+  }
+  phase1Notice = 'Выдача создана. Сотрудник должен подтвердить получение.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('admin', {history: 'replace', stack: false});
+}
+
+function phase1StartPendingAction(mode, transferId) {
+  const transfer = phase1TransferById(transferId);
+  if (!transfer) {
+    phase1Notice = 'Выдача не найдена.';
+    phase1Render('admin');
+    return;
+  }
+  phase1PendingAction = {
+    mode: mode === 'cancel' ? 'cancel' : 'edit',
+    transferId: Number(transfer.id || 0)
+  };
+  phase1Notice = '';
+  phase1Render('admin');
+}
+
+function phase1ClearPendingAction() {
+  phase1PendingAction = null;
+  phase1Notice = '';
+  phase1Render('admin');
+}
+
+async function phase1ApplyPendingAction() {
+  const action = phase1PendingAction || {};
+  const transfer = phase1TransferById(action.transferId);
+  if (!transfer) {
+    phase1PendingAction = null;
+    phase1Notice = 'Выдача не найдена.';
+    phase1Render('admin');
+    return;
+  }
+  const mode = action.mode === 'cancel' ? 'cancel' : 'edit';
+  const reasonEl = document.getElementById('phase1PendingReason');
+  const confirmEl = document.getElementById('phase1PendingConfirm');
+  const reason = reasonEl ? reasonEl.value.trim() : '';
+  const confirm = confirmEl ? confirmEl.value.trim() : '';
+  const required = mode === 'cancel' ? 'ОТМЕНИТЬ' : 'ИЗМЕНИТЬ';
+  if (!reason || confirm !== required) {
+    phase1Notice = 'Укажите причину и напишите ' + required + '.';
+    phase1Render('admin');
+    return;
+  }
+  const amountEl = document.getElementById('phase1PendingAmount');
+  const streamEl = document.getElementById('phase1PendingStream');
+  const descriptionEl = document.getElementById('phase1PendingDescription');
+  const nextAmount = amountEl ? amountEl.value.trim() : '';
+  const nextStream = streamEl && streamEl.value === 'card' ? 'card' : 'cash';
+  const nextDescription = descriptionEl ? descriptionEl.value.trim() : '';
+  phase1Notice = mode === 'cancel' ? 'Отменяю выдачу...' : 'Изменяю выдачу...';
+  phase1Render('admin');
+  const payload = {transfer_id: Number(transfer.id || 0), reason, confirm_phrase: confirm};
+  let result;
+  if (mode === 'cancel') {
+    result = await qlApi('findesk_transfer_cancel', payload);
+  } else {
+    payload.amount = nextAmount;
+    payload.stream_type = nextStream;
+    payload.description = nextDescription;
+    result = await qlApi('findesk_transfer_update', payload);
+  }
+  if (!result.ok) {
+    phase1Notice = 'Действие не выполнено: ' + (result.message || result.error || 'ошибка');
+    phase1Render('admin');
+    return;
+  }
+  phase1PendingAction = null;
+  phase1Notice = mode === 'cancel' ? 'Выдача отменена.' : 'Выдача изменена.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('admin', {history: 'replace', stack: false});
+}
+
+async function phase1CreateInvite() {
+  const group = phase1Snapshot.group;
+  const email = document.getElementById('phase1InviteEmail');
+  const access = document.getElementById('phase1InviteAccess');
+  const groupId = Number(group && group.id || 0);
+  if (!groupId) {
+    phase1Notice = 'Выберите группу.';
+    phase1Render('admin');
+    return;
+  }
+  phase1Notice = 'Создаю приглашение...';
+  phase1Render('admin');
+  const result = await qlApi('group_invite_create', {
+    group_id: groupId,
+    invited_email: email ? email.value.trim() : '',
+    access_level: access && access.value === 'manager' ? 'manager' : 'base',
+    channel: 'copy'
+  });
+  if (!result.ok || !result.invite) {
+    phase1Notice = 'Приглашение не создано: ' + (result.message || result.error || 'ошибка');
+    phase1Render('admin');
+    return;
+  }
+  phase1InviteUrl = result.invite.url || '';
+  phase1Notice = 'Приглашение создано.';
+  phase1Render('admin');
+}
+
+async function phase1ConfirmTransfer(transferId) {
+  const id = Number(transferId || 0);
+  if (!id) return;
+  phase1Notice = 'Подтверждаю выдачу...';
+  phase1Render('employee');
+  const result = await qlApi('findesk_transfer_confirm', {transfer_id: id});
+  if (!result.ok) {
+    phase1Notice = 'Не подтверждено: ' + (result.message || result.error || 'ошибка');
+    phase1Render('employee');
+    return;
+  }
+  phase1Notice = 'Подписано. Деньги активны.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('employee', {history: 'replace', stack: false});
+}
+
+async function phase1AttachReportItem(tapeId) {
+  const group = phase1Snapshot.group;
+  const groupId = Number(group && group.id || 0);
+  const id = Number(tapeId || 0);
+  if (!groupId || !id) return;
+  phase1Notice = 'Включаю журнал в отчет...';
+  phase1Render('assembly');
+  const result = await qlApi('findesk_report_item_attach', {
+    group_id: groupId,
+    tape_id: id
+  });
+  if (!result.ok) {
+    phase1Notice = 'Журнал не включен: ' + (result.message || result.error || 'ошибка');
+    phase1Render('assembly');
+    return;
+  }
+  phase1Notice = 'Журнал включен в отчет.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('assembly', {history: 'replace', stack: false});
+}
+
+async function phase1FinalizeReport(reportId) {
+  const group = phase1Snapshot.group;
+  const groupId = Number(group && group.id || 0);
+  const reasonEl = document.getElementById('phase1ReportFinalizeReason');
+  const confirmEl = document.getElementById('phase1ReportFinalizeConfirm');
+  const reason = reasonEl ? reasonEl.value.trim() : '';
+  const confirm = confirmEl ? confirmEl.value.trim() : '';
+  const id = Number(reportId || 0);
+  if (!groupId || !id) {
+    phase1Notice = 'Сначала включите хотя бы один журнал.';
+    phase1Render('assembly');
+    return;
+  }
+  if (!reason || confirm !== 'УТВЕРДИТЬ') {
+    phase1Notice = 'Укажите причину и напишите УТВЕРДИТЬ.';
+    phase1Render('assembly');
+    return;
+  }
+  phase1Notice = 'Финализирую отчет...';
+  phase1Render('assembly');
+  const result = await qlApi('findesk_report_finalize', {
+    group_id: groupId,
+    report_id: id,
+    reason,
+    confirm_phrase: confirm
+  });
+  if (!result.ok) {
+    phase1Notice = 'Отчет не утвержден: ' + (result.message || result.error || 'ошибка');
+    phase1Render('assembly');
+    return;
+  }
+  phase1Notice = 'Общий отчет создан и утвержден.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('reports', {history: 'replace', stack: false});
+}
+
+async function phase1LoadReportDetail(reportId) {
+  const id = Number(reportId || 0);
+  if (!id) return null;
+  phase1ReportDetailLoading = true;
+  phase1Notice = '';
+  phase1Render('reports');
+  const result = await qlApi('findesk_report_detail', {report_id: id});
+  phase1ReportDetailLoading = false;
+  if (!result.ok) {
+    phase1Notice = 'Отчет не открыт: ' + (result.message || result.error || 'ошибка');
+    phase1ReportDetail = null;
+    phase1Render('reports');
+    return null;
+  }
+  phase1ReportDetail = result;
+  phase1Notice = 'Отчет открыт.';
+  phase1Render('reports');
+  return result;
+}
+
+async function phase1ExportReport(reportId) {
+  const id = Number(reportId || 0);
+  if (!id) return;
+  let detail = phase1ReportDetail && phase1ReportDetail.report && Number(phase1ReportDetail.report.id || 0) === id
+    ? phase1ReportDetail
+    : null;
+  if (!detail) {
+    detail = await phase1LoadReportDetail(id);
+  }
+  if (!detail || !detail.report) return;
+  const filename = 'findesk-report-' + id + '.json';
+  phase1DownloadJson(filename, phase1ReportExportPayload(detail));
+  phase1Notice = 'Пакет отчета выгружен: ' + filename;
+  phase1Render('reports');
+}
+
+async function phase1ExportReportArchive() {
+  const group = phase1Snapshot.group;
+  const groupId = Number(group && group.id || 0);
+  if (!groupId) return;
+  phase1Notice = 'Готовлю архив отчетов...';
+  phase1Render('reports');
+  const result = await qlApi('findesk_report_archive_export', {group_id: groupId});
+  if (!result.ok || !result.package) {
+    phase1Notice = 'Архив не выгружен: ' + (result.message || result.error || 'ошибка');
+    phase1Render('reports');
+    return;
+  }
+  const filename = 'findesk-archive-' + groupId + '.json';
+  phase1DownloadJson(filename, result.package);
+  phase1Notice = 'Архив отчетов выгружен: ' + filename;
+  phase1Render('reports');
+}
+
+function phase1ClearReportDetail() {
+  phase1ReportDetail = null;
+  phase1ReportDetailLoading = false;
+  phase1Notice = '';
+  phase1Render('reports');
+}
+
+function phase1SyncYachtFromDom() {
+  const profile = Object.assign({}, phase1YachtState.profile || {});
+  const order = Object.assign({}, phase1YachtState.order || {});
+  document.querySelectorAll('[data-yacht-field]').forEach(function(field) {
+    const key = field.getAttribute('data-yacht-field') || '';
+    if (!key) return;
+    profile[key] = field.value || '';
+  });
+  document.querySelectorAll('[data-yacht-order]').forEach(function(field) {
+    const key = field.getAttribute('data-yacht-order') || '';
+    if (!key) return;
+    if (key === 'show_prices') {
+      order.show_prices = !!field.checked;
+    } else if (key === 'use_reference_prices') {
+      order.use_reference_prices = !!field.checked;
+    } else {
+      order[key] = field.value || '';
+    }
+  });
+  const rows = Array.isArray(order.rows) ? order.rows.map(function(row) {
+    return Object.assign({}, row);
+  }) : [];
+  document.querySelectorAll('[data-yacht-row]').forEach(function(rowNode) {
+    const row = {enabled: true, category: '', item: '', qty: 0, unit: '', price: 0};
+    const index = Number(rowNode.getAttribute('data-yacht-row') || rows.length);
+    rowNode.querySelectorAll('[data-yacht-row-field]').forEach(function(field) {
+      const key = field.getAttribute('data-yacht-row-field') || '';
+      if (!key) return;
+      if (key === 'enabled') row.enabled = !!field.checked;
+      else if (key === 'qty' || key === 'price') row[key] = phase1Number(field.value || 0);
+      else row[key] = field.value || '';
+    });
+    rows[index] = row;
+  });
+  if (rows.length) order.rows = rows;
+  phase1YachtState = {
+    profile,
+    crew_roles: Object.assign({}, phase1YachtState.crew_roles || {}),
+    order
+  };
+  phase1WriteYachtState();
+}
+
+function phase1UpdateYachtTotalDom() {
+  const total = document.querySelector('[data-yacht-total]');
+  if (total) total.textContent = phase1Money(phase1YachtOrderTotal());
+  const modeTotal = document.querySelector('[data-yacht-mode-total]');
+  if (modeTotal) modeTotal.textContent = phase1Money(phase1YachtOrderModeTotal(String((phase1YachtState.order || {}).mode || 'all')));
+  const order = document.querySelector('.phase1-yacht-order');
+  if (order) order.classList.toggle('hide-prices', (phase1YachtState.order || {}).show_prices === false);
+  document.querySelectorAll('[data-yacht-row]').forEach(function(rowNode) {
+    const qty = phase1Number((rowNode.querySelector('[data-yacht-row-field="qty"]') || {}).value || 0);
+    const price = phase1Number((rowNode.querySelector('[data-yacht-row-field="price"]') || {}).value || 0);
+    const rowTotal = rowNode.querySelector('.phase1-yacht-row-total');
+    if (rowTotal) rowTotal.textContent = phase1Money(qty * price);
+  });
+}
+
+async function phase1CreateYachtWorkspace() {
+  phase1SyncYachtFromDom();
+  const profile = phase1YachtState.profile || {};
+  const name = String(profile.name || '').trim();
+  if (!name) {
+    phase1Notice = 'Введите название яхты.';
+    phase1Render('yacht');
+    return;
+  }
+  phase1Notice = 'Создаю среду яхты...';
+  phase1Render('yacht');
+  const created = await qlApi('group_create', {
+    name: 'Yacht: ' + name,
+    description: 'Yacht template workspace'
+  });
+  if (!created.ok || !created.group) {
+    phase1Notice = 'Среда яхты не создана: ' + (created.message || created.error || 'ошибка');
+    phase1Render('yacht');
+    return;
+  }
+  const groupId = Number(created.group.id || 0);
+  phase1SetGroup('group:' + groupId);
+  await qlApi('findesk_workspace_set', {mode: 'group', group_id: groupId});
+  phase1Notice = 'Среда яхты создана.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('team', {history: 'replace', stack: false});
+}
+
+function phase1AddYachtRow() {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  const mode = String(order.mode || 'all');
+  order.rows = Array.isArray(order.rows) ? order.rows : [];
+  if (mode === 'fuel') order.rows.push({enabled: true, category: 'Топливо', item: 'Топливо', qty: 0, unit: 'л', price: 0});
+  else if (mode === 'technical') order.rows.push({enabled: true, category: 'Техника', item: '', qty: 1, unit: 'шт.', price: 0});
+  else order.rows.push({enabled: true, category: mode === 'food' ? 'Еда' : '', item: '', qty: 1, unit: 'шт.', price: 0});
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Render('yacht');
+}
+
+function phase1AddYachtTypedRow(type) {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  order.rows = Array.isArray(order.rows) ? order.rows : [];
+  if (type === 'fuel') {
+    order.mode = 'fuel';
+    order.rows.push({enabled: true, category: 'Топливо', item: 'Дизель', qty: 0, unit: 'л', price: 0});
+  } else if (type === 'technical') {
+    order.mode = 'technical';
+    order.rows.push({enabled: true, category: 'Техника', item: 'Запчасть / расходник', qty: 1, unit: 'шт.', price: 0});
+  } else {
+    order.mode = 'food';
+    order.rows.push({enabled: true, category: 'Еда', item: 'Позиция магазина', qty: 1, unit: 'шт.', price: 0});
+  }
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Render('yacht');
+}
+
+function phase1ApplyYachtReferencePrices() {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  if (phase1YachtOrderLocked(order)) {
+    phase1Notice = 'Цены уже зафиксированы для печати. Создайте новую копию, чтобы применить свежие цены.';
+    phase1Render('yacht');
+    return;
+  }
+  if (!order.use_reference_prices) {
+    phase1Notice = 'Сначала включите справочные цены.';
+    phase1Render('yacht');
+    return;
+  }
+  order.rows = (Array.isArray(order.rows) ? order.rows : []).map(function(row) {
+    const next = Object.assign({}, row);
+    const enginePrice = phase1YachtEnginePrice(next, order);
+    if (enginePrice !== null) {
+      next.price = enginePrice;
+    }
+    return next;
+  });
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Notice = 'Справочные цены подставлены. Проверьте вручную перед печатью.';
+  phase1Render('yacht');
+}
+
+async function phase1LoadYachtApprovedCatalog(options) {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  const render = !options || options.render !== false;
+  if (render) {
+    phase1YachtApprovedLoading = true;
+    phase1Render('yacht');
+  }
+  const result = await qlApi('yacht_price_approved_catalog', {
+    region: String(order.price_region || 'adriatic_balkans'),
+    family: 'fuel'
+  });
+  phase1YachtApprovedLoading = false;
+  if (!result.ok) {
+    phase1Notice = 'Approved prices не загружены: ' + (result.message || result.error || 'ошибка');
+    if (render) phase1Render('yacht');
+    return null;
+  }
+  if (!result.catalog) {
+    phase1YachtApprovedCatalog = null;
+    phase1Notice = 'Approved prices для региона пока нет.';
+    if (render) phase1Render('yacht');
+    return null;
+  }
+  phase1YachtApprovedCatalog = result.catalog;
+  phase1Notice = 'Approved prices загружены. Подстановка не выполнена автоматически.';
+  if (render) phase1Render('yacht');
+  return result.catalog;
+}
+
+async function phase1ApplyYachtApprovedPrices() {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  if (phase1YachtOrderLocked(order)) {
+    phase1Notice = 'Цены уже зафиксированы для печати. Создайте новую копию, чтобы применить approved prices.';
+    phase1Render('yacht');
+    return;
+  }
+  const catalog = phase1YachtApprovedCatalog || await phase1LoadYachtApprovedCatalog({render: false});
+  if (!catalog) {
+    phase1Render('yacht');
+    return;
+  }
+  let applied = 0;
+  let skipped = 0;
+  order.rows = (Array.isArray(order.rows) ? order.rows : []).map(function(row) {
+    const next = Object.assign({}, row);
+    const approvedPrice = phase1YachtApprovedPriceFor(next, order);
+    if (approvedPrice !== null) {
+      next.price = approvedPrice;
+      applied++;
+    } else if (phase1YachtApprovedItemKey(next)) {
+      skipped++;
+    }
+    return next;
+  });
+  order.price_catalog_version = 'approved:' + String(catalog.region || '') + ':' + String(catalog.family || '');
+  order.price_catalog_updated_at = catalog.approved_at ? new Date(catalog.approved_at).toLocaleString('ru-RU') : new Date().toLocaleString('ru-RU');
+  order.approved_price_catalog = {
+    status: catalog.status || '',
+    approved_at: catalog.approved_at || '',
+    region: catalog.region || '',
+    family: catalog.family || '',
+    source_candidate: catalog.source_candidate || '',
+    source_snapshot: catalog.source_snapshot || ''
+  };
+  order.use_reference_prices = true;
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Notice = applied
+    ? 'Approved prices подставлены: ' + applied + '. Пропущено: ' + skipped + '.'
+    : 'В текущих строках нет совпадений с approved prices.';
+  phase1Render('yacht');
+}
+
+function phase1NewYachtPriceDraft() {
+  phase1SyncYachtFromDom();
+  const order = Object.assign({}, phase1YachtState.order || {});
+  order.price_locked_at = '';
+  order.price_snapshot = null;
+  order.price_catalog_updated_at = new Date().toLocaleString('ru-RU');
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Notice = 'Создана новая рабочая копия. Теперь можно применять свежие цены.';
+  phase1Render('yacht');
+}
+
+function phase1RefreshYachtPriceCatalog() {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  order.price_catalog_version = PHASE1_YACHT_PRICE_CATALOG_VERSION;
+  order.price_catalog_updated_at = new Date().toLocaleString('ru-RU');
+  if (!PHASE1_YACHT_PRICE_ENGINE[order.price_region]) {
+    order.price_region = 'adriatic_balkans';
+  }
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Notice = 'Справочник обновлен локально. Строки наряда не изменены.';
+  phase1Render('yacht');
+}
+
+function phase1ResetYachtPackage() {
+  phase1SyncYachtFromDom();
+  phase1YachtState.order.rows = PHASE1_YACHT_PACKAGE_DEFAULTS.map(function(row) {
+    return Object.assign({}, row);
+  });
+  phase1YachtState.order.price_locked_at = '';
+  phase1YachtState.order.price_snapshot = null;
+  phase1WriteYachtState();
+  phase1Render('yacht');
+}
+
+function phase1PrintYachtOrder() {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  if (!phase1YachtOrderLocked(order)) {
+    order.price_locked_at = new Date().toLocaleString('ru-RU');
+    order.price_snapshot = {
+      locked_at: order.price_locked_at,
+      price_catalog_version: order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION,
+      price_catalog_updated_at: order.price_catalog_updated_at || '',
+      approved_price_catalog: order.approved_price_catalog || null,
+      rows: (Array.isArray(order.rows) ? order.rows : []).map(function(row) {
+        return {
+          category: row.category || '',
+          item: row.item || '',
+          qty: phase1Number(row.qty || 0),
+          unit: row.unit || '',
+          price: phase1Number(row.price || 0)
+        };
+      })
+    };
+    phase1YachtState.order = order;
+    phase1WriteYachtState();
+  }
+  phase1Render('yacht');
+  setTimeout(function() {
+    document.body.classList.add('phase1-print-yacht-order');
+    window.print();
+    setTimeout(function() {
+      document.body.classList.remove('phase1-print-yacht-order');
+    }, 500);
+  }, 80);
+}
+
+window.qlOpenPhaseScreen = qlOpenPhaseScreen;
+
 document.addEventListener('click', function(event) {
+  const shellBack = event.target.closest('[data-phase-back]');
+  if (shellBack) {
+    event.preventDefault();
+    if (!shellBack.disabled) phase1GoBack();
+    return;
+  }
+
+  const shellLogout = event.target.closest('[data-phase-logout]');
+  if (shellLogout) {
+    event.preventDefault();
+    qlLogout();
+    return;
+  }
+
+  const journalStream = event.target.closest('[data-phase-journal-stream]');
+  if (journalStream) {
+    event.preventDefault();
+    phase1Stream = journalStream.getAttribute('data-phase-journal-stream') === 'card' ? 'card' : 'cash';
+    phase1Notice = '';
+    phase1SnapshotLoadedAt = 0;
+    qlOpenPhaseScreen('journal');
+    return;
+  }
+
+  const yachtMode = event.target.closest('[data-yacht-mode]');
+  if (yachtMode) {
+    event.preventDefault();
+    phase1SyncYachtFromDom();
+    const mode = yachtMode.getAttribute('data-yacht-mode') || 'all';
+    phase1YachtState.order = Object.assign({}, phase1YachtState.order || {}, {mode});
+    phase1WriteYachtState();
+    phase1Render('yacht');
+    return;
+  }
+
+  const phaseAction = event.target.closest('[data-phase-action]');
+  if (phaseAction) {
+    event.preventDefault();
+    phase1Notice = '';
+    const action = phaseAction.getAttribute('data-phase-action');
+    if (action === 'journal-add' || action === 'journal-save') {
+      phase1SaveJournal('add');
+      return;
+    }
+    if (action === 'journal-fix') {
+      phase1SaveJournal('fix');
+      return;
+    }
+    if (action === 'journal-submit') {
+      phase1SaveJournal('submit');
+      return;
+    }
+    if (action === 'journal-attach') {
+      phase1Notice = 'Вложения подключим следующим шагом Sprint 2.';
+      phase1Render(phase1CurrentScreen);
+      return;
+    }
+    if (action === 'journal-refresh') {
+      phase1Refresh({force: true});
+      return;
+    }
+    if (action === 'admin-add-money') {
+      phase1AdminAddMoney();
+      return;
+    }
+    if (action === 'team-create-group') {
+      phase1CreateGroup();
+      return;
+    }
+    if (action === 'issue-transfer') {
+      phase1IssueTransfer();
+      return;
+    }
+    if (action === 'invite-member') {
+      phase1CreateInvite();
+      return;
+    }
+    if (action === 'pending-action-apply') {
+      phase1ApplyPendingAction();
+      return;
+    }
+    if (action === 'pending-action-clear') {
+      phase1ClearPendingAction();
+      return;
+    }
+    if (action === 'report-finalize') {
+      phase1FinalizeReport(phaseAction.getAttribute('data-phase-report-id'));
+      return;
+    }
+    if (action === 'report-detail-clear') {
+      phase1ClearReportDetail();
+      return;
+    }
+    if (action === 'report-archive-export') {
+      phase1ExportReportArchive();
+      return;
+    }
+    if (action === 'yacht-save') {
+      phase1SyncYachtFromDom();
+      phase1Notice = 'Яхта сохранена.';
+      phase1Render('yacht');
+      return;
+    }
+    if (action === 'yacht-create-workspace') {
+      phase1CreateYachtWorkspace();
+      return;
+    }
+    if (action === 'yacht-scroll-bunkering') {
+      phase1FocusYachtBunkering();
+      return;
+    }
+    if (action === 'yacht-add-row') {
+      phase1AddYachtRow();
+      return;
+    }
+    if (action === 'yacht-add-food') {
+      phase1AddYachtTypedRow('food');
+      return;
+    }
+    if (action === 'yacht-add-fuel') {
+      phase1AddYachtTypedRow('fuel');
+      return;
+    }
+    if (action === 'yacht-add-tech') {
+      phase1AddYachtTypedRow('technical');
+      return;
+    }
+    if (action === 'yacht-apply-prices') {
+      phase1ApplyYachtReferencePrices();
+      return;
+    }
+    if (action === 'yacht-load-approved-prices') {
+      phase1LoadYachtApprovedCatalog();
+      return;
+    }
+    if (action === 'yacht-apply-approved-prices') {
+      phase1ApplyYachtApprovedPrices();
+      return;
+    }
+    if (action === 'yacht-refresh-price-catalog') {
+      phase1RefreshYachtPriceCatalog();
+      return;
+    }
+    if (action === 'yacht-reset-package') {
+      phase1ResetYachtPackage();
+      return;
+    }
+    if (action === 'yacht-new-price-draft') {
+      phase1NewYachtPriceDraft();
+      return;
+    }
+    if (action === 'yacht-print-order') {
+      phase1PrintYachtOrder();
+      return;
+    }
+  }
+
+  const stream = event.target.closest('[data-phase-stream]');
+  if (stream) {
+    event.preventDefault();
+    const nextStream = stream.getAttribute('data-phase-stream') === 'card' ? 'card' : 'cash';
+    if (nextStream !== phase1Stream) {
+      phase1Stream = nextStream;
+      phase1Notice = '';
+      phase1Render(phase1CurrentScreen, true);
+      phase1Refresh({force: true});
+    }
+    return;
+  }
+
+  const employee = event.target.closest('[data-phase-employee]');
+  if (employee) {
+    event.preventDefault();
+    phase1SelectedEmployeeId = Number(employee.getAttribute('data-phase-employee') || 0);
+    qlOpenPhaseScreen('employee');
+    return;
+  }
+
+  const groupPick = event.target.closest('[data-phase-group-pick]');
+  if (groupPick) {
+    event.preventDefault();
+    phase1PickGroup(groupPick.getAttribute('data-phase-group-pick'));
+    return;
+  }
+
+  const transferConfirm = event.target.closest('[data-phase-transfer-confirm]');
+  if (transferConfirm) {
+    event.preventDefault();
+    phase1ConfirmTransfer(transferConfirm.getAttribute('data-phase-transfer-confirm'));
+    return;
+  }
+
+  const transferEdit = event.target.closest('[data-phase-transfer-edit]');
+  if (transferEdit) {
+    event.preventDefault();
+    phase1StartPendingAction('edit', transferEdit.getAttribute('data-phase-transfer-edit'));
+    return;
+  }
+
+  const transferCancel = event.target.closest('[data-phase-transfer-cancel]');
+  if (transferCancel) {
+    event.preventDefault();
+    phase1StartPendingAction('cancel', transferCancel.getAttribute('data-phase-transfer-cancel'));
+    return;
+  }
+
+  const reportAttach = event.target.closest('[data-phase-report-attach]');
+  if (reportAttach) {
+    event.preventDefault();
+    phase1AttachReportItem(reportAttach.getAttribute('data-phase-report-attach'));
+    return;
+  }
+
+  const reportOpen = event.target.closest('[data-phase-report-open]');
+  if (reportOpen) {
+    event.preventDefault();
+    phase1LoadReportDetail(reportOpen.getAttribute('data-phase-report-open'));
+    return;
+  }
+
+  const reportExport = event.target.closest('[data-phase-report-export]');
+  if (reportExport) {
+    event.preventDefault();
+    phase1ExportReport(reportExport.getAttribute('data-phase-report-export'));
+    return;
+  }
+
+  const phase = event.target.closest('[data-phase-screen]');
+  if (phase) {
+    qlOpenPhaseScreen(phase.getAttribute('data-phase-screen'));
+    const panel = phase.closest('[data-module-menu-panel]');
+    if (panel) {
+      panel.classList.add('hidden');
+      document.querySelectorAll('[data-module-menu-toggle]').forEach(function(btn) {
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    }
+    return;
+  }
+
   const tab = event.target.closest('[data-module-tab]');
   if (!tab) return;
 
-  qlSetModule(tab.getAttribute('data-module-tab') || 'ledger', {
-    screen: tab.getAttribute('data-module-screen') || '',
-    focus: tab.getAttribute('data-module-focus') || '',
-    label: tab.textContent ? tab.textContent.trim() : '',
-    history: 'push'
-  });
-
-  const panel = tab.closest('[data-module-menu-panel]');
-  if (panel) {
-    panel.classList.add('hidden');
+  event.preventDefault();
+  qlOpenPhaseScreen(qlProductScreenForLegacyModule(
+    tab.getAttribute('data-module-tab') || '',
+    tab.getAttribute('data-module-screen') || ''
+  ));
+  const phasePanel = tab.closest('[data-module-menu-panel]');
+  if (phasePanel) {
+    phasePanel.classList.add('hidden');
     document.querySelectorAll('[data-module-menu-toggle]').forEach(function(btn) {
       btn.setAttribute('aria-expanded', 'false');
     });
   }
+});
+
+document.addEventListener('change', function(event) {
+  const groupSelect = event.target.closest('[data-phase-group-select]');
+  if (groupSelect) {
+    phase1SetGroup(groupSelect.value);
+    phase1SnapshotLoadedAt = 0;
+    phase1Refresh({force: true});
+  }
+  const crewRole = event.target.closest('[data-yacht-crew-role]');
+  if (crewRole) {
+    phase1YachtSetCrewRole(crewRole.getAttribute('data-yacht-crew-role'), crewRole.value);
+    phase1Render('employee');
+    return;
+  }
+  if (event.target.closest('[data-yacht-field], [data-yacht-order], [data-yacht-row-field]')) {
+    phase1SyncYachtFromDom();
+    phase1UpdateYachtTotalDom();
+  }
+});
+
+document.addEventListener('input', function(event) {
+  if (event.target && event.target.id === 'phase1JournalNotes') {
+    phase1JournalTouched[phase1Stream] = true;
+    phase1JournalDraft[phase1Stream] = event.target.value;
+  }
+  if (event.target && event.target.id === 'phase1JournalLine') {
+    phase1JournalLineDraft[phase1Stream] = event.target.value;
+  }
+  const crewCustom = event.target.closest('[data-yacht-crew-custom]');
+  if (crewCustom) {
+    phase1YachtSetCrewRole(crewCustom.getAttribute('data-yacht-crew-custom'), crewCustom.value);
+  }
+  if (event.target.closest('[data-yacht-field], [data-yacht-order], [data-yacht-row-field]')) {
+    phase1SyncYachtFromDom();
+    phase1UpdateYachtTotalDom();
+  }
+});
+
+document.addEventListener('keydown', function(event) {
+  if (!event.target || event.target.id !== 'phase1JournalLine') return;
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  phase1SaveJournal('add');
 });
 
 document.addEventListener('click', function(event) {
@@ -3569,7 +6907,8 @@ document.addEventListener('click', function(event) {
   const mode = event.target.closest('[data-mode-open]');
   if (!mode) return;
 
-  qlSetModule(mode.getAttribute('data-mode-open') || 'ledger', {history: 'push'});
+  event.preventDefault();
+  qlOpenPhaseScreen(qlProductScreenForLegacyModule(mode.getAttribute('data-mode-open') || 'ledger', ''));
 });
 
 window.qlSetModule = qlSetModule;
@@ -3588,17 +6927,32 @@ function qlAdvanceStatus(message) {
   if (el) el.textContent = message || '';
 }
 
-function qlAdvanceStatusLabel(status) {
-  if (status === 'issued') return 'Выдано';
+function qlAdvanceIsPending(advance) {
+  return !!(advance && advance.transfer_pending);
+}
+
+function qlAdvanceStatusLabel(status, advance) {
+  if (status && typeof status === 'object') {
+    advance = status;
+    status = advance.status || '';
+  }
+
+  if (qlAdvanceIsPending(advance)) return 'Ждет подтверждения';
+  if (status === 'issued') return 'Активно';
   if (status === 'submitted') return 'На проверке';
   if (status === 'accepted') return 'Принято';
-  if (status === 'returned') return 'Возврат';
+  if (status === 'returned') return 'На доработке';
   if (status === 'discrepancy') return 'Расхождение';
   if (status === 'closed') return 'Закрыто';
   return status || 'Под отчет';
 }
 
-function qlAdvanceIsWaiting(status) {
+function qlAdvanceIsWaiting(status, advance) {
+  if (status && typeof status === 'object') {
+    advance = status;
+    status = advance.status || '';
+  }
+  if (qlAdvanceIsPending(advance)) return true;
   return ['issued', 'submitted', 'returned', 'discrepancy'].includes(status);
 }
 
@@ -3692,7 +7046,8 @@ function qlAdvanceRenderSummary() {
   qlAdvances.forEach(function(advance) {
     const s = advance.summary || {};
     const status = advance.status || '';
-    if (status !== 'accepted' && status !== 'closed') {
+    const pending = qlAdvanceIsPending(advance);
+    if (status !== 'accepted' && status !== 'closed' && !pending) {
       issued += Number(advance.amount || 0);
       spent += Number(s.cash_out || 0) + Number(s.card_out || 0);
       expectedLeft += qlAdvanceEffectiveCashLeft(advance);
@@ -3701,7 +7056,7 @@ function qlAdvanceRenderSummary() {
       closedSpent += Number(s.cash_out || 0) + Number(s.card_out || 0);
       closedCount += 1;
     }
-    if (qlAdvanceIsWaiting(status)) waiting += 1;
+    if (qlAdvanceIsWaiting(status, advance)) waiting += 1;
   });
 
   const totals = qlAdvanceTotals || {};
@@ -3747,7 +7102,8 @@ function qlAdvanceComputeStats() {
   qlAdvances.forEach(function(advance) {
     const s = advance.summary || {};
     const status = advance.status || '';
-    const isOpen = status !== 'accepted' && status !== 'closed';
+    const pending = qlAdvanceIsPending(advance);
+    const isOpen = status !== 'accepted' && status !== 'closed' && !pending;
 
     if (isOpen) {
       stats.issued += Number(advance.amount || 0);
@@ -3758,7 +7114,7 @@ function qlAdvanceComputeStats() {
       stats.records += Number(s.records_count || 0);
     }
 
-    if (qlAdvanceIsWaiting(status)) stats.waiting += 1;
+    if (qlAdvanceIsWaiting(status, advance)) stats.waiting += 1;
     if (status === 'submitted') stats.submitted += 1;
     if (status === 'discrepancy') stats.discrepancy += 1;
     if (status === 'submitted' || status === 'discrepancy') {
@@ -3766,8 +7122,8 @@ function qlAdvanceComputeStats() {
       stats.reviewCardSpent += Number(s.card_out || 0);
     }
     if (status === 'returned') stats.returned += 1;
-    if (status === 'issued') stats.active += 1;
-    if (status === 'accepted') {
+    if (status === 'issued' && !pending) stats.active += 1;
+  if (status === 'accepted') {
       stats.accepted += 1;
       stats.acceptedSpent += Number(s.cash_out || 0) + Number(s.card_out || 0);
       stats.acceptedCashSpent += Number(s.cash_out || 0);
@@ -4685,19 +8041,42 @@ async function qlAdvancedRunAi() {
 function qlAdvanceActionHtml(advance) {
   const status = advance.status || '';
   const s = advance.summary || {};
+  const pending = qlAdvanceIsPending(advance);
   const effectiveLeft = qlAdvanceEffectiveCashLeft(advance);
   const isAssigned = qlCurrentUser && String(advance.assigned_to_user_id) === String(qlCurrentUser.id);
-  const canSubmit = isAssigned && ['issued', 'returned', 'discrepancy'].includes(status);
+  const canConfirm = isAssigned && pending;
+  const canSubmit = isAssigned && !pending && ['issued', 'returned', 'discrepancy'].includes(status);
   const canModerate = !!(qlAdvanceScope && qlAdvanceScope.can_moderate && ['submitted', 'discrepancy'].includes(status));
+  const canEditPending = !!(qlAdvanceScope && qlAdvanceScope.can_manage_money && pending);
   const canCancel = !!(qlAdvanceScope && qlAdvanceScope.can_manage_money && ['issued', 'submitted', 'returned', 'discrepancy'].includes(status));
   const canReturnCash = !!(
     qlAdvanceScope
     && qlAdvanceScope.can_manage_money
+    && !pending
     && ['issued', 'returned'].includes(status)
     && Number(s.records_count || 0) === 0
     && effectiveLeft > 0
   );
   let html = '';
+
+  if (canConfirm) {
+    html += `
+      <div class="advance-moderate-row">
+        <button class="primary-btn" type="button" data-advance-confirm="${escapeHtml(advance.id)}">Подтвердить получение</button>
+      </div>
+    `;
+  }
+
+  if (canEditPending) {
+    html += `
+      <div class="advance-submit-row">
+        <input class="ql-input" type="text" value="${escapeHtml(advance.title || '')}" placeholder="От кого или за что" data-advance-pending-title="${escapeHtml(advance.id)}">
+        <input class="ql-input" type="text" inputmode="decimal" value="${escapeHtml(String(advance.amount || '').replace(/\\.00$/, ''))}" placeholder="Сумма" data-advance-pending-amount="${escapeHtml(advance.id)}">
+        <button class="ghost-btn" type="button" data-advance-update-pending="${escapeHtml(advance.id)}">Сохранить</button>
+        ${canCancel ? '<button class="ghost-btn danger-soft-btn" type="button" data-advance-cancel="' + escapeHtml(advance.id) + '">Отменить</button>' : ''}
+      </div>
+    `;
+  }
 
   if (canSubmit) {
     html += `
@@ -4718,7 +8097,7 @@ function qlAdvanceActionHtml(advance) {
         ${canCancel ? '<button class="ghost-btn danger-soft-btn" type="button" data-advance-cancel="' + escapeHtml(advance.id) + '">Отменить выдачу</button>' : ''}
       </div>
     `;
-  } else if (canCancel || canReturnCash) {
+  } else if (!pending && (canCancel || canReturnCash)) {
     html += `
       <div class="advance-moderate-row">
         ${canReturnCash ? '<button class="ghost-btn" type="button" data-advance-return-cash="' + escapeHtml(advance.id) + '">В кассу</button>' : ''}
@@ -4772,11 +8151,15 @@ function qlAdvanceRenderList() {
   list.innerHTML = visibleAdvances.map(function(advance) {
     const s = advance.summary || {};
     const status = advance.status || 'issued';
+    const pending = qlAdvanceIsPending(advance);
     const employee = advance.assigned_to_display_name || advance.assigned_to_email || 'Сотрудник';
     const diff = Number(advance.difference_amount || 0);
     const effectiveLeft = qlAdvanceEffectiveCashLeft(advance);
     const differenceHtml = advance.actual_remaining !== null && advance.actual_remaining !== undefined
       ? `<div><span>Расчет</span><b>${qlCurrency(s.cash_left || 0)}</b></div><div class="${Math.abs(diff) > 0.009 ? 'metric-alert' : ''}"><span>Разница</span><b>${qlCurrency(diff)}</b></div>`
+      : '';
+    const noteHtml = pending
+      ? '<p class="advance-note moderator">Перевод еще не подтвержден сотрудником. До подтверждения журнал недоступен.</p>'
       : '';
 
     return `
@@ -4784,7 +8167,7 @@ function qlAdvanceRenderList() {
         <div class="advance-row-top">
           <div>
             <div class="advance-status-line">
-              <span>${escapeHtml(qlAdvanceStatusLabel(status))}</span>
+              <span>${escapeHtml(qlAdvanceStatusLabel(status, advance))}</span>
               <small>${escapeHtml(advance.created_at || '')}</small>
             </div>
             <h3>${escapeHtml(advance.title || 'Pocket advance')}</h3>
@@ -4796,11 +8179,12 @@ function qlAdvanceRenderList() {
         <div class="advance-metrics">
           <div><span>Наличные</span><b>${qlCurrency(s.cash_out || 0)}</b></div>
           <div><span>Безнал</span><b>${qlCurrency(s.card_out || 0)}</b></div>
-          <div><span>Остаток</span><b>${qlCurrency(effectiveLeft)}</b></div>
+          <div><span>Остаток</span><b>${qlCurrency(pending ? 0 : effectiveLeft)}</b></div>
           <div><span>Записи</span><b>${Number(s.records_count || 0)}</b></div>
           ${differenceHtml}
         </div>
 
+        ${noteHtml}
         ${advance.submitted_note ? '<p class="advance-note">' + escapeHtml(advance.submitted_note) + '</p>' : ''}
         ${advance.moderation_note ? '<p class="advance-note moderator">' + escapeHtml(advance.moderation_note) + '</p>' : ''}
         ${qlAdvanceActionHtml(advance)}
@@ -4893,8 +8277,56 @@ async function qlAdvanceCreate() {
   if (titleEl) titleEl.value = '';
   if (amountEl) amountEl.value = '';
 
-  qlAdvanceStatus('Деньги выданы.');
+  qlAdvanceStatus('Выдача создана. Сотрудник должен подтвердить получение.');
   await qlLoadAdvances();
+  if (typeof window.qlLoadCaptainAdminDesk === 'function') await window.qlLoadCaptainAdminDesk();
+}
+
+async function qlAdvanceConfirm(id) {
+  qlAdvanceStatus('Подтверждаю получение...');
+
+  const data = await qlApi('advance_confirm', {
+    id: Number(id)
+  });
+
+  if (!data.ok) {
+    qlAdvanceStatus('Ошибка подтверждения: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvanceStatus('Получение подтверждено. Журнал открыт.');
+  await qlLoadAdvances();
+  if (typeof window.qlLoadCaptainAdminDesk === 'function') await window.qlLoadCaptainAdminDesk();
+  if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
+}
+
+async function qlAdvanceUpdatePending(id) {
+  const title = (qlAdvanceField('data-advance-pending-title', id)?.value || '').trim();
+  const amount = (qlAdvanceField('data-advance-pending-amount', id)?.value || '').trim();
+
+  if (!amount) {
+    qlAdvanceStatus('Введите сумму.');
+    return;
+  }
+
+  qlAdvanceStatus('Обновляю выдачу...');
+
+  const data = await qlApi('advance_update_pending', {
+    id: Number(id),
+    title: title || 'Деньги сотруднику',
+    amount: amount,
+    currency: 'EUR'
+  });
+
+  if (!data.ok) {
+    qlAdvanceStatus('Ошибка обновления: ' + (data.error || 'unknown'));
+    return;
+  }
+
+  qlAdvanceStatus('Выдача обновлена.');
+  await qlLoadAdvances();
+  if (typeof window.qlLoadCaptainAdminDesk === 'function') await window.qlLoadCaptainAdminDesk();
+  if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
 }
 
 async function qlAdvanceSubmit(id) {
@@ -4915,12 +8347,16 @@ async function qlAdvanceSubmit(id) {
   });
 
   if (!data.ok) {
-    qlAdvanceStatus('Ошибка сдачи: ' + (data.error || 'unknown'));
+    const message = data.error === 'advance_transfer_pending_confirmation_required'
+      ? 'Сначала подтвердите получение денег.'
+      : (data.error || 'unknown');
+    qlAdvanceStatus('Ошибка сдачи: ' + message);
     return;
   }
 
   qlAdvanceStatus(data.advance && data.advance.status === 'discrepancy' ? 'Сдано с расхождением.' : 'Сдано на проверку.');
   await qlLoadAdvances();
+  if (typeof window.qlLoadCaptainAdminDesk === 'function') await window.qlLoadCaptainAdminDesk();
   if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
 }
 
@@ -5056,6 +8492,8 @@ document.addEventListener('click', function(event) {
   const ai = event.target.closest('#advancedAiRunBtn');
   const screen = event.target.closest('[data-advanced-screen]');
   const submit = event.target.closest('[data-advance-submit]');
+  const confirmTransfer = event.target.closest('[data-advance-confirm]');
+  const updatePending = event.target.closest('[data-advance-update-pending]');
   const accept = event.target.closest('[data-advance-accept]');
   const ret = event.target.closest('[data-advance-return]');
   const returnCash = event.target.closest('[data-advance-return-cash]');
@@ -5074,6 +8512,8 @@ document.addEventListener('click', function(event) {
   if (ai) qlAdvancedRunAi();
   if (screen) qlAdvancedSetScreen(screen.getAttribute('data-advanced-screen'), {history: 'push'});
   if (submit) qlAdvanceSubmit(submit.getAttribute('data-advance-submit'));
+  if (confirmTransfer) qlAdvanceConfirm(confirmTransfer.getAttribute('data-advance-confirm'));
+  if (updatePending) qlAdvanceUpdatePending(updatePending.getAttribute('data-advance-update-pending'));
   if (accept) qlAdvanceAccept(accept.getAttribute('data-advance-accept'));
   if (ret) qlAdvanceReturn(ret.getAttribute('data-advance-return'));
   if (returnCash) qlAdvanceReturnCash(returnCash.getAttribute('data-advance-return-cash'));
@@ -5099,6 +8539,8 @@ window.qlSetModule = function(moduleName, options) {
   if (typeof qlAdvancePreviousSetModule === 'function') {
     qlAdvancePreviousSetModule(moduleName, options);
   }
+
+  if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
 
   if (moduleName === 'money') {
     setTimeout(function() {
@@ -6113,6 +9555,7 @@ function qlBindOnTheGoControls() {
 }
 
 document.addEventListener('click', function(event) {
+  if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
   const tab = event.target.closest('[data-module-tab]');
   const tape = event.target.closest('[data-otr-tape]');
 
@@ -6136,6 +9579,8 @@ window.qlSetModule = function(moduleName, options) {
   if (typeof qlOtrCleanPreviousSetModule === 'function') {
     qlOtrCleanPreviousSetModule(moduleName, options);
   }
+
+  if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
 
   if (moduleName === 'ontherun') {
     setTimeout(function() {
@@ -6191,6 +9636,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   }
 
   document.addEventListener('click', async function(event) {
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     const tab = event.target.closest('[data-module-tab]');
     if (!tab) return;
 
@@ -6202,6 +9648,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (typeof prevSetModule === 'function') {
       prevSetModule(moduleName, options);
     }
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     setTimeout(qlSyncOtrBodyMode, 80);
   };
 
@@ -6610,6 +10057,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   }
 
   document.addEventListener('click', function(event) {
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     const tab = event.target.closest('[data-module-tab]');
     const tape = event.target.closest('[data-otr-tape]');
 
@@ -7295,9 +10743,9 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     return typeof window.cfT === 'function' ? window.cfT(key) : key;
   }
 
-  function statusLabel(status) {
-    if (typeof qlAdvanceStatusLabel === 'function') return qlAdvanceStatusLabel(status);
-    return status || '';
+  function statusLabel(advanceOrStatus) {
+    if (typeof qlAdvanceStatusLabel === 'function') return qlAdvanceStatusLabel(advanceOrStatus);
+    return (advanceOrStatus && advanceOrStatus.status) ? advanceOrStatus.status : (advanceOrStatus || '');
   }
 
   function renderCurrentReport(data, ledgerData, groupId, canSubmitGroup) {
@@ -7398,7 +10846,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         <article class="captain-review-row status-${escapeHtml(advance.status || '')}">
           <b>${escapeHtml(advance.title || 'FinDesk')}</b>
           <small>${escapeHtml(group)} · ${escapeHtml(employee)}</small>
-          <small>${escapeHtml(statusLabel(advance.status))} · ${qlCurrency(advance.amount || 0)} · ${records} ${escapeHtml(t('captain.records'))}</small>
+          <small>${escapeHtml(statusLabel(advance))} · ${qlCurrency(advance.amount || 0)} · ${records} ${escapeHtml(t('captain.records'))}</small>
         </article>
       `;
     }).join('');
@@ -7472,6 +10920,8 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       previousSetModule(moduleName, options);
     }
 
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
+
     if (moduleName === 'captain') {
       setTimeout(qlLoadCaptainFin, 80);
     }
@@ -7505,21 +10955,84 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   let captainCurrentReviewStatus = '';
   let captainLoading = false;
   let captainLedgerData = null;
+  let captainTapeData = null;
   let captainFinalizing = false;
+  let captainLastFinalizedReportId = 0;
   let captainParticipantRows = [];
   let captainActiveCard = {type: 'board', id: ''};
+  const captainCardHistoryKey = 'qlCaptainCard';
 
   function captainStatus(message) {
     const el = document.getElementById('captainStatus');
     if (el) el.textContent = message || '';
   }
 
+  function currentCaptainHistoryState() {
+    const state = window.history && window.history.state ? window.history.state[captainCardHistoryKey] : null;
+    if (!state || !state.type || state.type === 'board') return null;
+    return {
+      type: String(state.type || 'participant'),
+      id: String(state.id || '')
+    };
+  }
+
+  function buildCaptainHistoryBaseState() {
+    if (typeof qlBuildBrowserState === 'function') {
+      return qlBuildBrowserState('captain', {});
+    }
+
+    const fallback = Object.assign({}, window.history && window.history.state ? window.history.state : {});
+    fallback.findesk_app = true;
+    fallback.module = 'captain';
+    fallback.screen = '';
+    fallback.focus = '';
+    return fallback;
+  }
+
+  function syncCaptainHistoryState() {
+    if (!window.history || typeof window.history.pushState !== 'function' || typeof window.history.replaceState !== 'function') {
+      return;
+    }
+
+    const currentState = buildCaptainHistoryBaseState();
+    const existing = currentCaptainHistoryState();
+    const isOpen = captainActiveCard && captainActiveCard.type && captainActiveCard.type !== 'board';
+
+    if (!isOpen) {
+      delete currentState[captainCardHistoryKey];
+      window.history.replaceState(currentState, '', '/app.php');
+      return;
+    }
+
+    const next = {
+      type: String(captainActiveCard.type || 'participant'),
+      id: String(captainActiveCard.id || '')
+    };
+    currentState[captainCardHistoryKey] = next;
+    if (!existing) {
+      window.history.pushState(currentState, '', '/app.php');
+      return;
+    }
+
+    if (existing.type !== next.type || existing.id !== next.id) {
+      window.history.replaceState(currentState, '', '/app.php');
+    }
+  }
+
+  function syncFinDeskFocusMode(active) {
+    if (document.body) {
+      document.body.classList.toggle('findesk-focus-mode', !!active);
+    }
+  }
+
   function money(value) {
     return typeof qlCurrency === 'function' ? qlCurrency(value || 0) : '€' + Number(value || 0).toFixed(2);
   }
 
-  function statusLabel(status) {
-    return typeof qlAdvanceStatusLabel === 'function' ? qlAdvanceStatusLabel(status) : (status || 'Отчет');
+  function statusLabel(advanceOrStatus) {
+    return typeof qlAdvanceStatusLabel === 'function'
+      ? qlAdvanceStatusLabel(advanceOrStatus)
+      : ((advanceOrStatus && advanceOrStatus.status) ? advanceOrStatus.status : (advanceOrStatus || 'Отчет'));
   }
 
   function typeLabel(type) {
@@ -7688,145 +11201,58 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     );
   }
 
-  function captainRowStatusClass(row) {
-    if (!row) return '';
-    if (row.submitted > 0) return 'is-submitted';
-    if (row.included > 0) return 'is-included';
-    if (row.assigned > 0) return 'is-assigned';
-    return 'is-passive';
+  function captainEmployeeCashValue() {
+    const summary = captainLedgerData && captainLedgerData.ok && captainLedgerData.summary ? captainLedgerData.summary : {};
+    return firstNumber(summary.accountable_cash_left_open, 0);
   }
 
-  function captainRowStatusDots(row) {
-    const dots = [];
-    if (row && row.submitted > 0) dots.push('<span class="captain-card-dot orange" title="Отчет сдан"></span>');
-    if (row && row.assigned > 0 && row.submitted <= 0 && row.included <= 0) dots.push('<span class="captain-card-dot red" title="Деньги на руках"></span>');
-    if (row && row.included > 0 && row.submitted <= 0) dots.push('<span class="captain-card-dot green" title="Проверено"></span>');
-    return dots.length ? '<span class="captain-card-dots">' + dots.join('') + '</span>' : '';
+  function captainDeskTitle() {
+    const group = selectedGroup();
+    return group && group.name ? group.name : 'Активная рабочая группа';
   }
 
-  function renderCaptainBoard(rows) {
-    const box = document.getElementById('captainSubmittedList');
-    if (!box) return;
-    const adminCash = captainAdminCashValue();
-    const participantButtons = (rows || []).filter(function(row) {
-      return row.id !== currentUserId();
-    }).slice(0, 8).map(function(row) {
-      return `
-        <button class="captain-card-button person ${captainRowStatusClass(row)}" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(row.id)}">
-          <span><b>${escapeHtml(row.name)}</b></span>
-          <strong>${money(row.left)}</strong>
-          ${captainRowStatusDots(row)}
-        </button>
-      `;
-    }).join('');
-    const redLamp = '<span class="captain-ref-lamp red"></span>';
-
-    box.innerHTML = `
-      <section class="captain-ref-work">
-        <div class="captain-ref-top">
-          <div>
-            <h2>Входящие отчеты</h2>
-            <p>Проверка живых отчетов, подотчетов и сбор общего пакета.</p>
-          </div>
-          <button class="captain-ref-pill" type="button" data-mode-open="ontherun">${redLamp} Живой отчет</button>
-        </div>
-
-        <div class="captain-ref-switchboard">
-          <button class="captain-ref-card main-card" type="button" data-captain-open-card="admin" data-captain-card-id="admin">
-            <span class="card-title">Администратор</span>
-            <span class="card-sub">${money(adminCash)}</span>
-            <span class="captain-ref-lamp red floating-lamp"></span>
-          </button>
-        </div>
-
-        <div class="captain-ref-subtitle"><strong>Карточки сотрудников</strong><span></span></div>
-
-        <div class="captain-ref-tree people-tree">
-          <div class="captain-ref-subgrid people-grid">
-            ${participantButtons || '<p class="soft-note">Карточек сотрудников пока нет.</p>'}
-          </div>
-        </div>
-      </section>
-    `;
+  function renderCaptainDeskTitle() {
+    const title = document.getElementById('captainDeskTitle');
+    if (title) title.textContent = captainDeskTitle();
   }
 
-  function closeCaptainCardView() {
-    captainActiveCard = {type: 'board', id: ''};
-    renderCaptainCardView();
+  function captainMemberById(id) {
+    return (captainMembers || []).find(function(member) {
+      return String(member.user_id) === String(id);
+    }) || null;
   }
 
-  function openCaptainCardView(type, id) {
-    captainActiveCard = {type: type || 'participant', id: String(id || '')};
-    renderCaptainCardView();
+  function captainMemberPosition(member) {
+    const access = String(member && (member.access_level || member.role || '') || '').toLowerCase();
+    if (access === 'advanced' || access === 'admin') return 'Администратор';
+    if (access === 'manager') return 'Координатор';
+    return 'Сотрудник';
   }
 
-  function renderCaptainCardView() {
-    const home = document.getElementById('captainBoardHome');
-    const view = document.getElementById('captainCardView');
-    const adminWork = document.getElementById('captainAdminWork');
-    const participantWork = document.getElementById('captainParticipantWork');
-    const details = document.getElementById('captainDetailsPanel');
-    const module = document.getElementById('moduleCaptain');
-    const title = document.getElementById('captainCardViewTitle');
-    const kicker = document.getElementById('captainCardViewKicker');
-    const amount = document.getElementById('captainCardViewAmount');
-    if (!home || !view) return;
-
-    const isOpen = captainActiveCard && captainActiveCard.type && captainActiveCard.type !== 'board';
-    home.classList.toggle('hidden', isOpen);
-    view.classList.toggle('hidden', !isOpen);
-    if (details) details.classList.toggle('hidden', isOpen);
-    if (module) {
-      module.querySelectorAll('.captain-ref-brand, .captain-balance-strip, .captain-admin-bar').forEach(function(el) {
-        el.classList.toggle('hidden', isOpen);
-      });
-    }
-    if (!isOpen) return;
-
-    const isAdmin = captainActiveCard.type === 'admin';
-    const row = !isAdmin ? captainParticipantRows.find(function(item) {
-      return String(item.id) === String(captainActiveCard.id);
-    }) : null;
-
-    if (adminWork) adminWork.classList.toggle('hidden', !isAdmin);
-    if (participantWork) participantWork.classList.toggle('hidden', isAdmin);
-
-    if (isAdmin) {
-      if (kicker) kicker.textContent = 'Карточка администратора';
-      if (title) title.textContent = 'Администратор';
-      if (amount) amount.textContent = money(captainAdminCashValue());
-      return;
-    }
-
-    if (!row) {
-      closeCaptainCardView();
-      return;
-    }
-
-    if (kicker) kicker.textContent = row.submitted > 0 ? 'Отчет сдан' : row.included > 0 ? 'Проверено' : 'Карточка сотрудника';
-    if (title) title.textContent = row.name || 'Участник';
-    if (amount) amount.textContent = money(row.left);
-    if (participantWork) participantWork.innerHTML = renderEmployeeCard(row);
+  function captainMemberPositionById(id) {
+    return captainMemberPosition(captainMemberById(id));
   }
 
-  function renderCurrentReport(data, ledgerData) {
-    const box = document.getElementById('captainCurrentSummary');
-    if (!box) return;
-
-    if (!data.ok) {
-      box.innerHTML = '<p class="soft-note">' + escapeHtml(data.error || 'unknown') + '</p>';
-      return;
-    }
-
+  function captainCurrentOwnTape() {
+    const data = captainTapeData && captainTapeData.ok ? captainTapeData : {};
     const tapes = Array.isArray(data.tapes) ? data.tapes : [];
     const activeId = data.active_tape_id || null;
-    const tape = tapes.find(function(item) { return activeId && String(item.id) === String(activeId); })
-      || tapes.find(function(item) { return item.status === 'active' && !item.submitted_at; })
-      || tapes[0]
-      || null;
+    return tapes.find(function(item) {
+      return activeId && String(item.id) === String(activeId);
+    }) || tapes.find(function(item) {
+      return item.status === 'active' && !item.submitted_at;
+    }) || tapes[0] || null;
+  }
+
+  function captainTapeMetrics(tape, ledgerData) {
     if (!tape) {
-      box.innerHTML = '<p class="soft-note">Нет текущего живого отчета.</p>';
-      return;
+      return {
+        base: 0,
+        extraIncome: 0,
+        spent: 0,
+        left: 0,
+        records: 0
+      };
     }
 
     const s = tape.summary || {};
@@ -7845,42 +11271,539 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const extraIncome = Number(s.extra_cash_in || 0);
     const spent = Number(s.cash_out || 0) + Number(s.card_out || 0);
     const left = base + extraIncome - spent;
+
+    return {base, extraIncome, spent, left, records};
+  }
+
+  function captainOwnReportState() {
+    const ownId = String(currentUserId());
+    const included = (captainOtrReports || []).find(function(report) {
+      return String(reportOwnerId(report)) === ownId && report.card_state === 'included' && !report.ui_archived;
+    }) || null;
+    if (included) {
+      return {
+        label: 'В общем отчете',
+        tone: 'attached',
+        report: included
+      };
+    }
+
+    const submitted = (captainOtrReports || []).find(function(report) {
+      return String(reportOwnerId(report)) === ownId && report.card_state === 'submitted';
+    }) || null;
+    if (submitted) {
+      return {
+        label: 'Ждет сборки',
+        tone: 'ready',
+        report: submitted
+      };
+    }
+
+    const tape = captainCurrentOwnTape();
+    const metrics = captainTapeMetrics(tape, captainLedgerData);
+    if (tape && metrics.records > 0) {
+      return {
+        label: 'Журнал зафиксирован',
+        tone: 'live',
+        report: tape
+      };
+    }
+    if (tape) {
+      return {
+        label: 'Журнал открыт',
+        tone: 'active',
+        report: tape
+      };
+    }
+    return {
+      label: 'Журнал не открыт',
+      tone: 'passive',
+      report: null
+    };
+  }
+
+  function captainRowState(row) {
+    const member = row ? captainMemberById(row.id) : null;
+    if (!row) return {label: 'Нет записей', tone: 'passive'};
+    if (row.submitted > 0) return {label: 'Готов отчет', tone: 'ready'};
+    if (row.included > 0) return {label: 'Готов отчет', tone: 'ready'};
+    if (row.assigned > 0 || row.received > 0 || row.left > 0) return {label: 'Живой журнал', tone: 'live'};
+    if (row.pending > 0) return {label: 'Нет записей', tone: 'pending'};
+    if (member && member.status && member.status !== 'active') return {label: 'Нет записей', tone: 'invited'};
+    return {label: 'Нет записей', tone: 'passive'};
+  }
+
+  function captainRowStateLabel(row) {
+    return captainRowState(row).label;
+  }
+
+  function captainRowStatusClass(row) {
+    const tone = captainRowState(row).tone;
+    if (tone === 'ready') return 'is-submitted';
+    if (tone === 'live') return 'is-assigned';
+    if (tone === 'pending') return 'is-pending';
+    if (tone === 'invited') return 'is-invited';
+    return 'is-passive';
+  }
+
+  function captainRowStatusDots(row) {
+    const state = captainRowState(row);
+    if (state.tone === 'ready') return '<span class="captain-card-dots"><span class="captain-card-dot orange" title="Готов отчет"></span></span>';
+    if (state.tone === 'live') return '<span class="captain-card-dots"><span class="captain-card-dot blue" title="Живой журнал"></span></span>';
+    if (state.tone === 'pending') return '<span class="captain-card-dots"><span class="captain-card-dot red" title="Ждет подтверждения"></span></span>';
+    if (state.tone === 'invited') return '<span class="captain-card-dots"><span class="captain-card-dot yellow" title="Приглашен"></span></span>';
+    return '<span class="captain-card-dots"><span class="captain-card-dot gray" title="Нет записей"></span></span>';
+  }
+
+  function renderCaptainInbox(submittedOtr, submittedAdvances) {
+    const box = document.getElementById('captainAdminInbox');
+    if (!box) return;
+
+    const rows = []
+      .concat((submittedOtr || []).map(renderOtrSubmittedRow))
+      .concat((submittedAdvances || []).map(renderAdvanceRow));
+
+    box.innerHTML = rows.length
+      ? rows.join('')
+      : '<p class="soft-note">На проверке сейчас пусто.</p>';
+  }
+
+  function captainCardScopeRows(rows) {
+    const group = selectedGroup();
+    if (!group) return [];
+    if (groupCanModerate(group)) {
+      return (rows || []).filter(function(row) {
+        return String(row.id) !== String(currentUserId());
+      });
+    }
+    return (rows || []).filter(function(row) {
+      return String(row.id) === String(currentUserId());
+    });
+  }
+
+  function captainWorkspaceMessage(group, rows) {
+    const canModerate = groupCanModerate(group);
+    const ready = (rows || []).filter(function(row) { return row.submitted > 0; }).length;
+    if (!canModerate) return 'Открывайте только свою карточку и свой журнал.';
+    if (ready > 0) return 'Есть готовые журналы. Откройте карточку сотрудника или карточку администратора.';
+    if (captainAdminCashValue() <= 0.009 && captainEmployeeCashValue() <= 0.009) {
+      return 'Сначала откройте карточку администратора и зафиксируйте стартовую сумму.';
+    }
+    return 'Откройте нужную карточку и работайте только внутри нее.';
+  }
+
+  function captainWorkspaceStats(rows) {
+    const scoped = captainCardScopeRows(rows);
+    return {
+      participants: scoped.length,
+      active: scoped.filter(function(row) { return row.assigned > 0; }).length,
+      ready: scoped.filter(function(row) { return row.submitted > 0; }).length,
+      attached: scoped.filter(function(row) { return row.included > 0 && row.submitted === 0; }).length
+    };
+  }
+
+  function captainAssemblyRows() {
+    return (captainParticipantRows || []).filter(function(row) {
+      return String(row.id) !== String(currentUserId()) && (row.received > 0 || row.submitted > 0 || row.included > 0 || row.assigned > 0);
+    });
+  }
+
+  function renderCaptainAssembly() {
+    const box = document.getElementById('captainAssemblySummary');
+    const status = document.getElementById('captainAssemblyStatus');
+    const group = selectedGroup();
+    if (!box) return;
+
+    if (!group || !groupCanModerate(group)) {
+      box.innerHTML = '<p class="soft-note">Сборка общего отчета доступна администратору группы.</p>';
+      if (status) status.textContent = '';
+      return;
+    }
+
+    const ownState = captainOwnReportState();
+    const metrics = captainTapeMetrics(captainCurrentOwnTape(), captainLedgerData);
+    const rows = captainAssemblyRows();
+    const attachedCount = rows.filter(function(row) { return row.included > 0 && row.submitted === 0; }).length;
+    const readyCount = rows.filter(function(row) { return row.submitted > 0; }).length;
+    const groupTotal = captainAdminCashValue() + captainEmployeeCashValue();
+
+    const roster = rows.length
+      ? rows.slice(0, 8).map(function(row) {
+        const state = captainRowState(row);
+        const attachLabel = row.included > 0 && row.submitted === 0
+          ? 'Прикреплен'
+          : row.submitted > 0
+            ? 'Готов'
+            : 'Не прикреплен';
+        return `
+          <article class="captain-assembly-row ${captainRowStatusClass(row)}">
+            <div class="captain-assembly-row-main">
+              <b>${escapeHtml(row.name || 'Сотрудник')}</b>
+              <small>${escapeHtml(state.label)} · ${escapeHtml(attachLabel)}</small>
+            </div>
+            <div class="captain-assembly-row-side">
+              <strong>${money(row.left)}</strong>
+              <button class="ghost-btn small-btn" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(row.id)}">Открыть</button>
+            </div>
+          </article>
+        `;
+      }).join('')
+      : '<p class="soft-note">Сотрудники с готовыми или выданными суммами появятся здесь автоматически.</p>';
+
+    box.innerHTML = `
+      <div class="captain-assembly-metrics">
+        <div>
+          <span>Журнал администратора</span>
+          <b>${escapeHtml(ownState.label)}</b>
+          <small>${ownState.report ? money(metrics.left) : '—'}</small>
+        </div>
+        <div>
+          <span>Готовы к сборке</span>
+          <b>${escapeHtml(String(readyCount))}</b>
+          <small>ждут проверки</small>
+        </div>
+        <div>
+          <span>Прикреплено</span>
+          <b>${escapeHtml(String(attachedCount))}</b>
+          <small>уже в пакете</small>
+        </div>
+        <div>
+          <span>Текущая сумма группы</span>
+          <b>${money(groupTotal)}</b>
+          <small>админ + сотрудники</small>
+        </div>
+      </div>
+      <div class="captain-assembly-roster">
+        <div class="captain-current-head">
+          <span>Статусы журналов сотрудников</span>
+          <b>${escapeHtml(String(rows.length))}</b>
+        </div>
+        ${roster}
+      </div>
+    `;
+
+    if (status) {
+      status.textContent = attachedCount > 0
+        ? 'В пакете уже есть прикрепленные журналы. После сохранения общий отчет уйдет в архив итоговых отчетов.'
+        : readyCount > 0
+          ? 'Сначала откройте готовые журналы сотрудников и прикрепите нужные.'
+          : 'Пакет пока пуст. Откройте карточку администратора или сотрудников и подготовьте журналы.';
+    }
+  }
+
+  function renderCaptainBoard(rows) {
+    const box = document.getElementById('captainSubmittedList');
+    if (!box) return;
+    const group = selectedGroup();
+    const canModerate = groupCanModerate(group);
+    const canManage = groupCanManage(group);
+    const adminCash = captainAdminCashValue();
+    const employeeCash = captainEmployeeCashValue();
+    const visibleRows = captainCardScopeRows(rows).slice(0, 12);
+    const stats = captainWorkspaceStats(rows);
+    const participantButtons = visibleRows.map(function(row) {
+      const state = captainRowState(row);
+      const position = captainMemberPositionById(row.id);
+      const meta = row.pending > 0
+        ? position + ' · ' + state.label + ' · ждет подтверждения'
+        : position + ' · ' + state.label;
+      return `
+        <button class="captain-card-button person ${captainRowStatusClass(row)}" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(row.id)}">
+          <span class="captain-card-button-name">${escapeHtml(row.name || 'Участник')}</span>
+          <span class="captain-card-button-state">${escapeHtml(meta)}</span>
+          <strong class="captain-card-button-amount">${money(row.left)}</strong>
+          ${captainRowStatusDots(row)}
+        </button>
+      `;
+    }).join('');
+
+    if (!group) {
+      box.innerHTML = `
+        <section class="findesk-empty-state findesk-start-state">
+          <b>Создайте рабочую группу</b>
+          <p class="soft-note">Сначала создается группа. После этого появится карточка администратора, а сотрудников можно будет подключить приглашениями.</p>
+          <div class="findesk-create-group-form">
+            <label class="form-label" for="captainGroupName">Название группы</label>
+            <input id="captainGroupName" class="ql-input" type="text" placeholder="Например: Работа, Дом, Поездка">
+            <div class="captain-current-actions">
+              <button id="captainCreateGroupBtn" class="primary-btn" type="button">Создать группу</button>
+              <button class="ghost-btn" type="button" data-module-tab="groups">Открыть группы</button>
+            </div>
+          </div>
+        </section>
+      `;
+      return;
+    }
+
+    const workspaceActions = canModerate ? `
+      <button class="primary-btn" type="button" data-captain-open-card="admin" data-captain-card-id="admin">Карточка администратора</button>
+      <button class="ghost-btn" type="button" data-captain-open-quick="editor">Открыть живой журнал</button>
+      <button class="ghost-btn" type="button" data-captain-open-report>Общий отчет</button>
+      ${canManage ? '<button class="ghost-btn" type="button" data-captain-open-archive>Архив</button>' : ''}
+    ` : `
+      <button class="primary-btn" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(currentUserId())}">Моя карточка</button>
+      <button class="ghost-btn" type="button" data-captain-open-quick="editor">Открыть живой журнал</button>
+    `;
+
+    box.innerHTML = `
+      <section class="findesk-workspace-shell">
+        <section class="findesk-workspace-summary">
+          <div class="findesk-workspace-summary-copy">
+            <span class="findesk-shell-kicker">Рабочая группа</span>
+            <b>${escapeHtml(captainDeskTitle())}</b>
+            <p class="soft-note">${escapeHtml(captainWorkspaceMessage(group, rows))}</p>
+          </div>
+          <div class="findesk-workspace-stats">
+            <div><span>У администратора</span><b>${money(adminCash)}</b></div>
+            <div><span>У сотрудников</span><b>${money(employeeCash)}</b></div>
+            <div><span>Готово к отчету</span><b>${escapeHtml(String(stats.ready))}</b></div>
+            <div><span>Участников</span><b>${escapeHtml(String(stats.participants))}</b></div>
+          </div>
+        </section>
+        <div class="findesk-workspace-actions">
+          ${workspaceActions}
+        </div>
+        <section class="findesk-board-stage">
+        ${canModerate ? `
+          <div class="findesk-card-lane">
+            <button class="captain-card-button admin is-admin" type="button" data-captain-open-card="admin" data-captain-card-id="admin">
+              <span class="captain-card-button-name">Администратор</span>
+              <span class="captain-card-button-state">Управление группой</span>
+              <strong class="captain-card-button-amount">${money(adminCash)}</strong>
+              <span class="captain-card-dots"><span class="captain-card-dot blue" title="Карточка администратора"></span></span>
+            </button>
+          </div>
+        ` : ''}
+        <div class="findesk-section-head">
+          <span>${canModerate ? 'Карточки сотрудников' : 'Моя карточка'}</span>
+          <b>${escapeHtml(String(visibleRows.length))}</b>
+        </div>
+        <div class="findesk-card-grid">
+          ${participantButtons || '<p class="soft-note">' + escapeHtml(canModerate ? 'Сотрудников пока нет. Пригласите их через раздел «Детали».' : 'Ваша карточка появится после первой записи.') + '</p>'}
+        </div>
+        </section>
+      </section>
+    `;
+  }
+
+  function closeCaptainCardView(fromHistory) {
+    captainActiveCard = {type: 'board', id: ''};
+    renderCaptainCardView();
+    syncCaptainHistoryState();
+  }
+
+  function openCaptainCardView(type, id) {
+    captainActiveCard = {type: type || 'participant', id: String(id || '')};
+    renderCaptainCardView();
+    syncCaptainHistoryState();
+  }
+
+  function renderCaptainCardView() {
+    const home = document.getElementById('captainBoardHome');
+    const view = document.getElementById('captainCardView');
+    const adminWork = document.getElementById('captainAdminWork');
+    const participantWork = document.getElementById('captainParticipantWork');
+    const module = document.getElementById('moduleCaptain');
+    const title = document.getElementById('captainCardViewTitle');
+    const kicker = document.getElementById('captainCardViewKicker');
+    const amount = document.getElementById('captainCardViewAmount');
+    if (!home || !view) return;
+
+    const isOpen = captainActiveCard && captainActiveCard.type && captainActiveCard.type !== 'board';
+    home.classList.toggle('hidden', isOpen);
+    view.classList.toggle('hidden', !isOpen);
+    if (module) module.classList.toggle('captain-card-mode', isOpen);
+    if (!isOpen) return;
+
+    const isAdmin = captainActiveCard.type === 'admin';
+    const row = !isAdmin ? captainParticipantRows.find(function(item) {
+      return String(item.id) === String(captainActiveCard.id);
+    }) : null;
+
+    if (adminWork) adminWork.classList.toggle('hidden', !isAdmin);
+    if (participantWork) participantWork.classList.toggle('hidden', isAdmin);
+
+    if (isAdmin) {
+      if (kicker) kicker.textContent = 'Карточка администратора';
+      if (title) title.textContent = 'Администратор';
+      if (amount) amount.textContent = money(captainAdminCashValue());
+      return;
+    }
+
+    if (!row) {
+      closeCaptainCardView(true);
+      return;
+    }
+
+    if (kicker) kicker.textContent = row.id === currentUserId() ? 'Моя карточка' : captainRowStateLabel(row);
+    if (title) title.textContent = row.name || 'Участник';
+    if (amount) amount.textContent = money(row.left);
+    if (participantWork) participantWork.innerHTML = renderParticipantWorkspace(row);
+  }
+
+  function archivedJournalRowsForUser(userId, limit) {
+    return (captainOtrArchive || [])
+      .filter(function(report) {
+        return String(reportOwnerId(report)) === String(userId);
+      })
+      .sort(function(a, b) {
+        const aDate = String(a.archived_at || a.submitted_at || a.updated_at || a.created_at || '');
+        const bDate = String(b.archived_at || b.submitted_at || b.updated_at || b.created_at || '');
+        if (aDate === bDate) return 0;
+        return aDate < bDate ? 1 : -1;
+      })
+      .slice(0, limit || 3);
+  }
+
+  function renderFixedJournalList(userId, title, emptyText) {
+    const rows = archivedJournalRowsForUser(userId, 3);
+    return `
+      <section class="captain-session-panel captain-session-panel-details">
+        <div class="captain-session-panel-head">
+          <div>
+            <span>История</span>
+            <h4>${escapeHtml(title)}</h4>
+          </div>
+        </div>
+        <div class="captain-fixed-list">
+          ${rows.length ? rows.map(function(report) {
+            const reportId = escapeHtml(report.id || report.tape_id || '');
+            const reportDate = report.archived_at || report.submitted_at || report.updated_at || report.created_at || '—';
+            return `
+              <article class="captain-fixed-item">
+                <div>
+                  <b>${escapeHtml(reportDisplayTitle(report, 'Журнал'))}</b>
+                  <small>${escapeHtml(reportDate)}</small>
+                </div>
+                <div class="captain-fixed-item-side">
+                  <strong>${money(reportMainAmount(report))}</strong>
+                  ${reportId ? '<button class="ghost-btn small-btn" type="button" data-captain-open-otr-card="' + reportId + '">Открыть</button>' : ''}
+                </div>
+              </article>
+            `;
+          }).join('') : '<p class="soft-note">' + escapeHtml(emptyText) + '</p>'}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderCurrentReport(data, ledgerData) {
+    const box = document.getElementById('captainCurrentSummary');
+    if (!box) return;
+
+    captainTapeData = data && data.ok ? data : null;
+    if (!data.ok) {
+      box.innerHTML = '<p class="soft-note">' + escapeHtml(data.error || 'unknown') + '</p>';
+      renderCaptainAssembly();
+      return;
+    }
+
+    const tape = captainCurrentOwnTape();
+    const fixedJournalsHtml = renderFixedJournalList(currentUserId(), 'Мои зафиксированные журналы', 'Пока нет зафиксированных журналов.');
+    if (!tape) {
+      box.innerHTML = `
+        <div class="captain-current-head captain-admin-current-head">
+          <span>Мой живой журнал</span>
+          <b>Журнал не открыт</b>
+        </div>
+        <div class="captain-current-actions">
+          <button class="primary-btn wide-btn" type="button" data-captain-open-quick="editor">Открыть живой журнал</button>
+        </div>
+        ${fixedJournalsHtml}
+      `;
+      renderCaptainAssembly();
+      return;
+    }
+
+    const metrics = captainTapeMetrics(tape, ledgerData);
+    const records = metrics.records;
+    const base = metrics.base;
+    const extraIncome = metrics.extraIncome;
+    const spent = metrics.spent;
+    const left = metrics.left;
     const canSubmitCurrent = qlCaptainCanWriteGroup(selectedGroup());
     const submitAction = records > 0 && captainGroupId && canSubmitCurrent ? `
-      <button class="primary-btn wide-btn captain-submit-current-btn" type="button" data-captain-submit-current="${escapeHtml(captainGroupId)}" data-captain-submit-tape="${escapeHtml(tape.id || '')}">Сдать в FinDesk</button>
+      <button class="primary-btn wide-btn captain-submit-current-btn" type="button" data-captain-submit-current="${escapeHtml(captainGroupId)}" data-captain-submit-tape="${escapeHtml(tape.id || '')}">Отправить в FinDesk</button>
     ` : `
-      <p class="soft-note captain-current-note">${records > 0 ? (captainGroupId ? 'Для сдачи нужен доступ FinDesk/Advanced с правом записи.' : 'Выберите рабочую группу, чтобы сдать отчет.') : 'Сохраните строки в “Живом отчете”, и они появятся здесь как черновик.'}</p>
+      <p class="soft-note captain-current-note">${records > 0 ? (captainGroupId ? 'Для отправки нужен доступ с правом управления деньгами.' : 'Выберите рабочую группу, чтобы отправить журнал.') : 'Откройте живой журнал и зафиксируйте первую запись.'}</p>
     `;
     const cardActions = records > 0 ? `
-      <button class="ghost-btn wide-btn" type="button" data-otr-card-open="${escapeHtml(tape.id || '')}">Открыть</button>
+      <button class="ghost-btn wide-btn" type="button" data-captain-open-quick="editor">Открыть живой журнал</button>
       ${submitAction}
-      <button class="ghost-btn wide-btn danger-soft-btn" type="button" data-otr-card-delete="${escapeHtml(tape.id || '')}">Удалить</button>
-    ` : submitAction;
+      <button class="ghost-btn wide-btn danger-soft-btn" type="button" data-otr-card-delete="${escapeHtml(tape.id || '')}">Удалить журнал</button>
+    ` : `
+      <button class="primary-btn wide-btn" type="button" data-captain-open-quick="editor">Открыть живой журнал</button>
+      ${submitAction}
+    `;
     const amountEl = document.getElementById('captainAdminReportAmount');
     if (amountEl) {
       amountEl.dataset.liveAmount = '1';
       amountEl.textContent = money(left);
     }
 
+    const headState = records ? 'Готов к отправке' : 'Журнал открыт';
+    const baseLabel = 'Старт';
+    const incomeLabel = 'Приходы';
+    const spentLabel = 'Потрачено';
+    const leftLabel = 'Осталось';
+
     box.innerHTML = `
       <div class="captain-current-head captain-admin-current-head">
-        <span>Быстрая запись администратора</span>
-        <b>${records ? 'Готова к сдаче' : 'Ожидает строк'}</b>
+        <span>Мой живой журнал</span>
+        <b>${headState}</b>
       </div>
       <div class="captain-mini-metrics">
-        <div><span>Общий остаток</span><b>${money(base + extraIncome)}</b></div>
-        <div><span>Потрачено</span><b>${money(spent)}</b></div>
-        <div><span>Остаток</span><b>${money(left)}</b></div>
+        <div><span>${baseLabel}</span><b>${money(base)}</b></div>
+        <div><span>${incomeLabel}</span><b>${money(extraIncome)}</b></div>
+        <div><span>${spentLabel}</span><b>${money(spent)}</b></div>
+        <div><span>${leftLabel}</span><b>${money(left)}</b></div>
       </div>
       <div class="captain-current-actions">${cardActions}</div>
+      ${fixedJournalsHtml}
     `;
+    renderCaptainAssembly();
   }
 
-  function memberByUserId(userId) {
-    const id = String(userId || '');
-    return captainMembers.find(function(member) {
-      return String(member.user_id || '') === id;
-    }) || null;
+  function participantSourceTimestamp(item) {
+    if (!item) return '';
+    const session = item.session_snapshot || {};
+    return String(
+      item.submitted_at
+      || item.closed_at
+      || item.updated_at
+      || session.closed_at
+      || session.started_at
+      || item.created_at
+      || session.created_at
+      || ''
+    );
+  }
+
+  function participantSourcePriority(type) {
+    if (type === 'otr-submitted') return 60;
+    if (type === 'advance-submitted') return 55;
+    if (type === 'otr-included') return 40;
+    if (type === 'advance-accepted') return 35;
+    if (type === 'advance-pending') return 25;
+    if (type === 'advance-open') return 20;
+    return 0;
+  }
+
+  function participantAdoptSource(row, item, type, received, left) {
+    if (!row || !item || !type) return;
+    const nextPriority = participantSourcePriority(type);
+    const currentPriority = participantSourcePriority(row.latestType || '');
+    const nextStamp = participantSourceTimestamp(item);
+    const currentStamp = participantSourceTimestamp(row.latest || null);
+    const shouldAdopt = !row.latest
+      || nextPriority > currentPriority
+      || (nextPriority === currentPriority && nextStamp > currentStamp);
+    if (!shouldAdopt) return;
+
+    row.latest = item;
+    row.latestType = type;
+    row.primaryReceived = received;
+    row.primaryLeft = left;
   }
 
   function participantRows(submittedOtr, submittedAdvances, includedOtr, acceptedAdvances, assignedAdvances) {
@@ -7897,11 +11820,18 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           submitted: 0,
           included: 0,
           assigned: 0,
+          pending: 0,
+          pendingAmount: 0,
           received: 0,
           left: 0,
+          primaryReceived: 0,
+          primaryLeft: 0,
           latest: null,
           latestType: ''
         });
+      }
+      if (role && !rows.get(key).role) {
+        rows.get(key).role = role;
       }
       return rows.get(key);
     }
@@ -7921,8 +11851,13 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       row.submitted++;
       row.received += firstNumber(report.cash_received, s.before_amount, s.cash_in, 0);
       row.left += firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0);
-      row.latest = report;
-      row.latestType = 'otr-submitted';
+      participantAdoptSource(
+        row,
+        report,
+        'otr-submitted',
+        firstNumber(report.cash_received, s.before_amount, s.cash_in, 0),
+        firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0)
+      );
     });
 
     (submittedAdvances || []).forEach(function(advance) {
@@ -7931,8 +11866,13 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       row.submitted++;
       row.received += firstNumber(advance.amount, s.cash_in, 0);
       row.left += firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0);
-      row.latest = advance;
-      row.latestType = 'advance-submitted';
+      participantAdoptSource(
+        row,
+        advance,
+        'advance-submitted',
+        firstNumber(advance.amount, s.cash_in, 0),
+        firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0)
+      );
     });
 
     (includedOtr || []).forEach(function(report) {
@@ -7941,10 +11881,13 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       row.included++;
       row.received += firstNumber(report.cash_received, s.before_amount, s.cash_in, 0);
       row.left += firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0);
-      if (!row.latest) {
-        row.latest = report;
-        row.latestType = 'otr-included';
-      }
+      participantAdoptSource(
+        row,
+        report,
+        'otr-included',
+        firstNumber(report.cash_received, s.before_amount, s.cash_in, 0),
+        firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0)
+      );
     });
 
     (acceptedAdvances || []).forEach(function(advance) {
@@ -7953,22 +11896,40 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       row.included++;
       row.received += firstNumber(advance.amount, s.cash_in, 0);
       row.left += firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0);
-      if (!row.latest) {
-        row.latest = advance;
-        row.latestType = 'advance-accepted';
-      }
+      participantAdoptSource(
+        row,
+        advance,
+        'advance-accepted',
+        firstNumber(advance.amount, s.cash_in, 0),
+        firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0)
+      );
     });
 
     (assignedAdvances || []).forEach(function(advance) {
       const s = advance.summary || {};
       const row = ensure(advanceOwnerId(advance), advanceOwnerName(advance), advance.assigned_to_email || '', '');
+      if (advance.transfer_pending) {
+        row.pending++;
+        row.pendingAmount += firstNumber(advance.amount, s.pending_amount, 0);
+        participantAdoptSource(
+          row,
+          advance,
+          'advance-pending',
+          firstNumber(advance.amount, s.pending_amount, 0),
+          0
+        );
+        return;
+      }
       row.assigned++;
       row.received += firstNumber(advance.amount, s.cash_in, 0);
       row.left += firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0);
-      if (!row.latest) {
-        row.latest = advance;
-        row.latestType = 'advance-open';
-      }
+      participantAdoptSource(
+        row,
+        advance,
+        'advance-open',
+        firstNumber(advance.amount, s.cash_in, 0),
+        firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0)
+      );
     });
 
     return Array.from(rows.values()).sort(function(a, b) {
@@ -8033,36 +11994,104 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     `;
   }
 
-  function renderEmployeeCard(row) {
+  function findeskSessionLabel(session) {
+    if (!session || !session.id) return '—';
+    const type = session.session_type === 'card' ? 'Карта' : 'Наличные';
+    const status = session.status === 'active'
+      ? 'активна'
+      : session.status === 'closed'
+        ? 'закрыта'
+        : session.status || '—';
+    return type + ' · ' + status;
+  }
+
+  function renderParticipantWorkspace(row) {
     const isOwn = row.id === currentUserId();
     const latest = row.latest || {};
     const type = row.latestType || '';
-    const submitted = row.submitted > 0;
-    const included = row.included > 0 && !submitted;
-    const passive = !submitted && !included && row.assigned <= 0;
-    const title = isOwn ? 'Администратор' : row.name;
+    const title = row.name || 'Участник';
+    const member = captainMemberById(row.id);
+    const position = captainMemberPosition(member);
+    const session = latest.session_snapshot || {};
+    const sessionDate = latest.submitted_at || latest.updated_at || latest.created_at || latest.assigned_at || session.closed_at || session.started_at || '';
+    const summary = latest.summary || {};
+    const hasPending = type === 'advance-pending' && !!latest.id;
+    const issuedAmount = Number(row.received || 0) + Number(row.pendingAmount || 0);
+    const remainingAmount = Number(row.left || 0);
+    const reportTitle = !type
+      ? 'Нет активного отчета'
+      : hasPending
+        ? (latest.title || 'Выдача денег')
+      : type.indexOf('otr') === 0
+        ? reportDisplayTitle(latest, 'Живой отчет')
+        : (latest.title || 'Подотчет');
+    let reportMeta = 'У сотрудника пока нет активных записей.';
+    let reportAmount = money(remainingAmount);
     let actions = '';
-    if (type === 'otr-submitted') actions = liveReportActions(latest, false);
-    if (type === 'otr-included') actions = liveReportActions(latest, true);
-    if (type === 'advance-submitted') actions = advanceActions(latest, false);
-    if (type === 'advance-accepted') actions = advanceActions(latest, true);
-    if (type === 'advance-open' && latest.id) actions = '<button class="ghost-btn" type="button" data-captain-open-review="' + escapeHtml(latest.id) + '">Открыть</button>';
+    if (hasPending) {
+      reportMeta = 'Выдано ' + money(firstNumber(latest.amount, row.pendingAmount, 0))
+        + '. Сначала подтвердите получение. До подтверждения журнал недоступен.';
+      reportAmount = money(firstNumber(latest.amount, row.pendingAmount, 0));
+      if (isOwn) {
+        actions = '<button class="primary-btn" type="button" data-advance-confirm="' + escapeHtml(latest.id) + '">Подтвердить получение</button>';
+      } else {
+        actions = '<button class="ghost-btn" type="button" data-captain-open-review="' + escapeHtml(latest.id) + '">Открыть выдачу</button>';
+      }
+    } else if (!isOwn) {
+      if (type === 'otr-submitted') actions = liveReportActions(latest, false);
+      if (type === 'otr-included') actions = liveReportActions(latest, true);
+      if (type === 'advance-submitted') actions = advanceActions(latest, false);
+      if (type === 'advance-accepted') actions = advanceActions(latest, true);
+      if (type === 'advance-open' && latest.id) actions = '<button class="ghost-btn" type="button" data-captain-open-review="' + escapeHtml(latest.id) + '">Открыть</button>';
+    }
+
+    if (type === 'otr-submitted' || type === 'otr-included') {
+      reportMeta = reportMoneyLine(latest);
+      reportAmount = money(reportMainAmount(latest));
+    } else if (type === 'advance-submitted' || type === 'advance-accepted' || type === 'advance-open') {
+      reportMeta = 'Выдано ' + money(firstNumber(latest.amount, summary.cash_in, 0))
+        + ' · остаток ' + money(firstNumber(summary.effective_cash_left, summary.cash_left, latest.actual_remaining, row.left));
+      reportAmount = money(firstNumber(summary.effective_cash_left, summary.cash_left, latest.actual_remaining, row.left));
+    }
+
+    if (isOwn && !hasPending) {
+      actions = '<button class="ghost-btn" type="button" data-captain-open-quick="editor">Открыть быстрые записи</button>';
+    }
 
     return `
-      <article class="captain-employee-card ${submitted ? 'is-submitted' : ''} ${included ? 'is-included' : ''} ${passive ? 'is-passive' : ''} ${isOwn ? 'is-admin' : ''}">
-        <div class="captain-employee-head">
-          <span class="captain-employee-avatar">${escapeHtml(participantInitials(title))}</span>
-          <div>
-            <b>${escapeHtml(title)}</b>
-            <small>${escapeHtml(submitted ? 'Сдано на проверку' : included ? 'Проверен' : row.assigned > 0 ? 'Деньги на руках' : 'Пассивен')}</small>
+      <div class="findesk-workspace-stack">
+        <section class="captain-session-panel captain-session-panel-primary">
+          <div class="captain-session-panel-head">
+            <div>
+              <span>${escapeHtml(isOwn ? 'Моя карточка' : 'Карточка участника')}</span>
+              <h4>${escapeHtml(title)}</h4>
+            </div>
           </div>
-        </div>
-        <div class="captain-employee-money">
-          <span>Принял <b>${money(row.received)}</b></span>
-          <span>Остаток <b>${money(row.left)}</b></span>
-        </div>
-        ${actions ? '<div class="captain-row-actions">' + actions + '</div>' : ''}
-      </article>
+          <div class="findesk-detail-list">
+            <div><span>Имя</span><b>${escapeHtml(title)}</b></div>
+            <div><span>Должность</span><b>${escapeHtml(position)}</b></div>
+            <div><span>Выдано</span><b>${money(issuedAmount)}</b></div>
+            <div><span>Остаток</span><b>${money(remainingAmount)}</b></div>
+          </div>
+        </section>
+
+        <section class="captain-session-panel">
+          <div class="captain-session-panel-head">
+            <div>
+              <span>${escapeHtml(hasPending ? 'Ожидает подтверждения' : (isOwn ? 'Живой журнал' : 'Текущий отчет'))}</span>
+              <h4>${escapeHtml(reportTitle)}</h4>
+            </div>
+            <strong class="captain-panel-amount">${reportAmount}</strong>
+          </div>
+          <div class="findesk-report-card ${row.submitted > 0 ? 'is-submitted' : ''} ${hasPending ? 'is-pending' : ''}">
+            <p>${escapeHtml(reportMeta)}</p>
+            <small>${escapeHtml(sessionDate || (hasPending ? 'Дата выдачи появится после подтверждения' : 'Дата появится после первой записи'))}</small>
+            ${actions ? '<div class="captain-row-actions">' + actions + '</div>' : ''}
+          </div>
+        </section>
+
+        ${renderFixedJournalList(row.id, isOwn ? 'Мои журналы' : 'Журналы сотрудника', isOwn ? 'Пока нет зафиксированных журналов.' : 'У сотрудника пока нет зафиксированных журналов.')}
+      </div>
     `;
   }
 
@@ -8072,7 +12101,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       const s = report.summary || {};
       rows.push(`
         <article class="captain-child-card">
-          <span>Дочерний отчет · Проверен</span>
+          <span>Живая карточка · Принята</span>
           <b>${escapeHtml(reportOwnerName(report))}</b>
           <small>Принял ${money(firstNumber(report.cash_received, s.before_amount, s.cash_in, 0))} · остаток ${money(firstNumber(s.after_amount, s.cash_left, report.actual_remaining, 0))}</small>
         </article>
@@ -8082,7 +12111,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       const s = advance.summary || {};
       rows.push(`
         <article class="captain-child-card">
-          <span>Подотчет · Проверен</span>
+          <span>Подотчет · Принят</span>
           <b>${escapeHtml(advanceOwnerName(advance))}</b>
           <small>Принял ${money(firstNumber(advance.amount, s.cash_in, 0))} · остаток ${money(firstNumber(s.effective_cash_left, s.cash_left, advance.actual_remaining, 0))}</small>
         </article>
@@ -8091,7 +12120,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     return rows.length
       ? rows.slice(0, 8).join('')
-      : '<p class="soft-note">После утверждения отчеты сотрудников прикрепятся сюда как дочерние карточки.</p>';
+      : '<p class="soft-note">После проверки здесь соберутся принятые карточки и подотчеты.</p>';
   }
 
   function renderCaptainMembers() {
@@ -8099,9 +12128,16 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const issueSelect = document.getElementById('captainIssueMemberSelect');
     const group = selectedGroup();
     const canManage = groupCanManage(group);
+    const canModerate = groupCanModerate(group);
+    const rosterMembers = (captainMembers || []).filter(function(member) {
+      return !canModerate || String(member.user_id) !== String(currentUserId());
+    });
+    const rowMap = new Map((captainParticipantRows || []).map(function(row) {
+      return [String(row.id), row];
+    }));
 
     if (issueSelect) {
-      issueSelect.innerHTML = '<option value="">Выберите исполнителя</option>' + captainMembers.map(function(member) {
+      issueSelect.innerHTML = '<option value="">Выберите сотрудника</option>' + rosterMembers.map(function(member) {
         const label = (member.display_name || member.email || 'Участник') + ' · ' + (member.access_level || member.role || 'base');
         return '<option value="' + escapeHtml(member.user_id) + '">' + escapeHtml(label) + '</option>';
       }).join('');
@@ -8118,26 +12154,47 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       return;
     }
 
-    if (!captainMembers.length) {
-      box.innerHTML = '<p class="soft-note">Участники пока не загружены.</p>';
+    if (!rosterMembers.length) {
+      box.innerHTML = '<p class="soft-note">Сотрудников пока нет. Пригласите первого сотрудника через раздел «Детали».</p>';
       return;
     }
 
-    box.innerHTML = captainMembers.map(function(member) {
+    box.innerHTML = rosterMembers.map(function(member) {
+      const row = rowMap.get(String(member.user_id)) || {
+        id: String(member.user_id),
+        name: member.display_name || member.email || 'Участник',
+        received: 0,
+        left: 0,
+        submitted: 0,
+        included: 0,
+        assigned: 0,
+        pending: 0,
+        pendingAmount: 0
+      };
+      const state = captainRowState(row);
       const access = member.access_level || member.role || 'base';
+      const position = captainMemberPosition(member);
       const control = canManage ? `
-        <select class="ql-input" data-captain-member-access="${escapeHtml(member.user_id)}">
-          <option value="base" ${access === 'base' ? 'selected' : ''}>Живой отчет</option>
-          <option value="manager" ${access === 'manager' ? 'selected' : ''}>FinDesk</option>
-          <option value="advanced" ${access === 'advanced' ? 'selected' : ''}>Advanced</option>
-        </select>
-      ` : '<small>' + escapeHtml(access) + '</small>';
+        <div class="captain-member-row-side">
+          <button class="ghost-btn small-btn" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(member.user_id)}">Открыть</button>
+          <select class="ql-input" data-captain-member-access="${escapeHtml(member.user_id)}">
+            <option value="base" ${access === 'base' ? 'selected' : ''}>Сотрудник</option>
+            <option value="manager" ${access === 'manager' ? 'selected' : ''}>Проверка</option>
+            <option value="advanced" ${access === 'advanced' ? 'selected' : ''}>Полный доступ</option>
+          </select>
+        </div>
+      ` : `
+        <div class="captain-member-row-side">
+          <button class="ghost-btn small-btn" type="button" data-captain-open-card="participant" data-captain-card-id="${escapeHtml(member.user_id)}">Открыть</button>
+          <small>${escapeHtml(access)}</small>
+        </div>
+      `;
 
       return `
         <article class="captain-member-row">
           <span>
             <b>${escapeHtml(member.display_name || member.email || 'Участник')}</b>
-            <small>${escapeHtml(member.email || '')} · ${escapeHtml(member.role || '')}</small>
+            <small>${escapeHtml(position)} · ${escapeHtml(state.label)} · на руках ${money(row.left)}</small>
           </span>
           ${control}
         </article>
@@ -8148,6 +12205,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   function rowActions(advance) {
     const status = advance.status || '';
     const s = advance.summary || {};
+    const pending = qlAdvanceIsPending(advance);
     const canReview = ['submitted', 'discrepancy'].includes(status);
     const canOpen = !!advance.id;
     const group = selectedGroup();
@@ -8156,6 +12214,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const canReturnCash = !!(
       canOpen
       && groupCanManage(group)
+      && !pending
       && ['issued', 'returned'].includes(status)
       && Number(s.records_count || 0) === 0
       && Number(s.cash_left || advance.amount || 0) > 0
@@ -8187,12 +12246,15 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   function renderAdvanceRow(advance) {
     const s = advance.summary || {};
     const status = advance.status || 'issued';
+    const pending = qlAdvanceIsPending(advance);
     const employee = advance.assigned_to_display_name || advance.assigned_to_email || 'Исполнитель';
     const spent = Number(s.cash_out || 0) + Number(s.card_out || 0);
     const reviewAmount = ['submitted', 'discrepancy', 'accepted', 'closed'].includes(status)
       ? spent
       : Number(advance.amount || 0);
-    const amountLabel = ['submitted', 'discrepancy'].includes(status)
+    const amountLabel = pending
+      ? 'Ждет подтверждения'
+      : ['submitted', 'discrepancy'].includes(status)
       ? 'К утверждению'
       : ['accepted', 'closed'].includes(status)
         ? 'Принято'
@@ -8205,7 +12267,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           <strong>${money(reviewAmount)}</strong>
         </div>
         <small>${escapeHtml(employee)} · ${escapeHtml(advance.assigned_to_email || '')}</small>
-        <small>${escapeHtml(amountLabel)} · выдано ${money(advance.amount || 0)} · остаток ${money(s.cash_left || 0)}</small>
+        <small>${escapeHtml(amountLabel)} · выдано ${money(advance.amount || 0)} · остаток ${money(pending ? 0 : (s.cash_left || 0))}</small>
         ${rowActions(advance)}
       </article>
     `;
@@ -8489,7 +12551,6 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   function renderCaptainAdvances() {
     const submittedBox = document.getElementById('captainSubmittedList');
-    const assignedBox = document.getElementById('captainAssignedList');
     const acceptedBox = document.getElementById('captainReportPack');
     const archiveBox = document.getElementById('captainArchivePack');
     const journalOpen = document.getElementById('captainJournalExportBtn');
@@ -8514,16 +12575,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     if (submittedBox) {
       captainParticipantRows = participants;
+      renderCaptainDeskTitle();
       renderCaptainBoard(participants);
     }
+    renderCaptainInbox(submittedOtr, submitted);
     renderCaptainCardView();
-
-    if (assignedBox) {
-      const assignedRows = assigned.slice(0, 8).map(renderAdvanceRow);
-      assignedBox.innerHTML = assignedRows.length
-        ? assignedRows.join('')
-        : '<p class="soft-note">Активных назначенных отчетов пока нет.</p>';
-    }
 
     if (acceptedBox) {
       acceptedBox.innerHTML = renderCaptainChildReports(includedOtr, accepted);
@@ -8533,6 +12589,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       archiveBox.innerHTML = renderArchivePackSummary(captainOtrArchive || [], canSeeArchive);
     }
     if (journalOpen) journalOpen.classList.toggle('hidden', !canSeeArchive);
+    renderCaptainAssembly();
     renderCaptainIncludedModal();
     renderCaptainArchiveModal();
   }
@@ -8641,8 +12698,15 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       }
 
       renderCaptainGroupSelect();
+      renderCaptainDeskTitle();
       const group = selectedGroup();
-      captainStatus(group ? ((groupCanManage(group) ? 'Администратор группы.' : groupCanModerate(group) ? 'Режим проверки отчетов.' : 'Ограниченный доступ.') + ' ' + (group.name || '')) : 'Создайте группу или войдите по приглашению.');
+      captainStatus(group
+        ? (groupCanManage(group)
+          ? 'Здесь вы видите деньги, сотрудников и отчеты текущей группы.'
+          : groupCanModerate(group)
+            ? 'Здесь вы проверяете отчеты текущей группы.'
+            : 'Здесь видна только ваша карточка и ваш отчет.')
+        : 'Создайте группу или войдите по приглашению.');
 
       const ledgerPayload = captainGroupId ? {group_id: Number(captainGroupId)} : {};
       const results = await Promise.all([
@@ -8834,6 +12898,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const s = advance.summary || {};
     const items = data.items || [];
     const status = advance.status || '';
+    const pending = qlAdvanceIsPending(advance);
     const canModerate = data.scope && data.scope.can_moderate && ['submitted', 'discrepancy'].includes(status);
     const canUnaccept = data.scope && data.scope.can_moderate && status === 'accepted';
     captainCurrentReviewStatus = status;
@@ -8847,13 +12912,16 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const ret = document.getElementById('captainReviewReturnBtn');
     const modalStatus = document.getElementById('captainReviewStatus');
 
-    if (kicker) kicker.textContent = statusLabel(status);
+    if (kicker) kicker.textContent = statusLabel(advance);
     if (title) title.textContent = advance.title || 'Отчет исполнителя';
     if (amount) amount.textContent = money(advance.amount || 0);
     if (meta) {
-      meta.textContent = (advance.assigned_to_display_name || advance.assigned_to_email || 'Исполнитель')
-        + ' · потрачено ' + money(Number(s.cash_out || 0) + Number(s.card_out || 0))
-        + ' · остаток ' + money(s.cash_left || 0);
+      meta.textContent = pending
+        ? ((advance.assigned_to_display_name || advance.assigned_to_email || 'Исполнитель')
+          + ' · ждет подтверждения · сумма ' + money(advance.amount || 0))
+        : ((advance.assigned_to_display_name || advance.assigned_to_email || 'Исполнитель')
+          + ' · потрачено ' + money(Number(s.cash_out || 0) + Number(s.card_out || 0))
+          + ' · остаток ' + money(s.cash_left || 0));
     }
     if (modalStatus) modalStatus.textContent = '';
     if (accept) accept.classList.toggle('hidden', !canModerate);
@@ -9056,16 +13124,16 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (typeof qlLoadOtrTapes === 'function') qlLoadOtrTapes();
   }
 
-  async function finalizeCaptainReport() {
+  async function finalizeCaptainReport(options) {
     if (captainFinalizing) return;
     if (!captainGroupId) {
       captainStatus('Сначала выберите группу.');
-      return;
+      return {ok: false, reason: 'no_group'};
     }
     const group = selectedGroup();
     if (!groupCanManage(group)) {
       captainStatus('Создать сводный отчет может администратор группы.');
-      return;
+      return {ok: false, reason: 'access_denied'};
     }
 
     const includedOtr = (captainOtrReports || []).filter(function(row) {
@@ -9078,7 +13146,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const ok = confirm(total
       ? 'Создать и утвердить сводный отчет? Финансовые суммы будут зафиксированы, а включенные быстрые карточки уйдут в архив.'
       : 'В рабочем пакете нет дочерних карточек. Все равно проверить фиксацию сводного отчета?');
-    if (!ok) return;
+    if (!ok) return {ok: false, reason: 'cancelled'};
 
     captainFinalizing = true;
     captainStatus('Фиксирую сводный отчет...');
@@ -9087,8 +13155,10 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     if (!data.ok) {
       captainStatus('Не удалось зафиксировать отчет: ' + (data.message || data.error || 'unknown'));
-      return;
+      return {ok: false, reason: 'api_failed', data: data};
     }
+
+    captainLastFinalizedReportId = Number(data.report_id || 0);
 
     captainStatus(Number(data.finalized || 0)
       ? 'Сводный отчет создан. Карточек закрыто: ' + Number(data.finalized || 0) + '.'
@@ -9097,11 +13167,23 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (typeof qlLoadFinalReports === 'function') qlLoadFinalReports();
     if (typeof qlLoadLedger === 'function') qlLoadLedger();
     if (typeof window.qlOtrSimpleLoad === 'function') window.qlOtrSimpleLoad({force: true});
+    if (options && options.openReport && captainLastFinalizedReportId) {
+      await openCaptainFinalReportPackage(captainLastFinalizedReportId, options.openReport);
+    }
+    return {
+      ok: true,
+      reportId: captainLastFinalizedReportId,
+      finalized: Number(data.finalized || 0)
+    };
   }
 
   function printCaptainReport() {
     if (!captainGroupId) {
       captainStatus('Сначала выберите группу.');
+      return;
+    }
+    if (captainLastFinalizedReportId) {
+      openCaptainFinalReportPackage(captainLastFinalizedReportId, 'print');
       return;
     }
     openCaptainGroupReport();
@@ -9148,6 +13230,66 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     }, 120);
   }
 
+  async function openCaptainFinalReportPackage(reportId, mode) {
+    if (!reportId) {
+      openCaptainGroupReport();
+      return;
+    }
+
+    qlLedgerScopeMode = 'group';
+    qlLedgerGroupId = Number(captainGroupId);
+
+    const select = document.getElementById('ledgerGroupSelect');
+    if (select) {
+      select.classList.remove('hidden');
+      select.value = String(captainGroupId);
+    }
+
+    document.querySelectorAll('[data-scope-mode]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-scope-mode') === 'group');
+    });
+
+    if (typeof window.qlSetModule === 'function') {
+      window.qlSetModule('reports');
+    } else if (typeof qlSetModule === 'function') {
+      qlSetModule('reports');
+    }
+
+    const panel = document.getElementById('reportPanel');
+    if (panel) panel.classList.remove('hidden');
+
+    setTimeout(async function() {
+      if (typeof qlLoadFinalReports === 'function') {
+        await qlLoadFinalReports();
+      }
+      if (typeof qlOpenFinalReport === 'function') {
+        await qlOpenFinalReport(reportId, {silent: true});
+      }
+      if (mode === 'print' && typeof qlPrintFinalReportPackage === 'function') {
+        qlPrintFinalReportPackage();
+      }
+      if (mode === 'send' && typeof qlOpenFinalReportGoogleSheet === 'function') {
+        await qlOpenFinalReportGoogleSheet(reportId);
+      }
+    }, 180);
+  }
+
+  async function sendCaptainReport() {
+    if (!captainGroupId) {
+      captainStatus('Сначала выберите группу.');
+      return;
+    }
+
+    if (captainLastFinalizedReportId) {
+      await openCaptainFinalReportPackage(captainLastFinalizedReportId, 'send');
+      return;
+    }
+
+    const proceed = confirm('Сначала сохранить общий отчет и сразу открыть отправку?');
+    if (!proceed) return;
+    await finalizeCaptainReport({openReport: 'send'});
+  }
+
   async function exportCaptainJournal() {
     if (!captainGroupId) {
       captainStatus('Сначала выберите группу.');
@@ -9188,7 +13330,9 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   });
 
   document.addEventListener('click', function(event) {
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     const openCard = event.target.closest('[data-captain-open-card]');
+    const openQuick = event.target.closest('[data-captain-open-quick]');
     const closeCard = event.target.closest('#captainCardBackBtn');
     const createGroup = event.target.closest('#captainCreateGroupBtn');
     const invite = event.target.closest('#captainCreateInviteBtn');
@@ -9199,6 +13343,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     const journal = event.target.closest('#captainJournalExportBtn, #captainArchiveJournalExportBtn');
     const finalize = event.target.closest('[data-captain-finalize-report]');
     const print = event.target.closest('[data-captain-print]');
+    const send = event.target.closest('[data-captain-send-report]');
     const openReview = event.target.closest('[data-captain-open-review]');
     const accept = event.target.closest('[data-captain-accept]');
     const ret = event.target.closest('[data-captain-return]');
@@ -9208,6 +13353,15 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     if (openCard) {
       openCaptainCardView(openCard.getAttribute('data-captain-open-card'), openCard.getAttribute('data-captain-card-id'));
+      return;
+    }
+    if (openQuick) {
+      const screen = openQuick.getAttribute('data-captain-open-quick') || 'editor';
+      if (typeof window.qlSetModule === 'function') {
+        window.qlSetModule('ontherun', {screen: screen, history: 'push'});
+      } else if (typeof qlSetModule === 'function') {
+        qlSetModule('ontherun', {screen: screen, history: 'push'});
+      }
       return;
     }
     if (closeCard) {
@@ -9227,6 +13381,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (journal) exportCaptainJournal();
     if (finalize) finalizeCaptainReport();
     if (print) printCaptainReport();
+    if (send) sendCaptainReport();
     if (openReview) openCaptainReview(openReview.getAttribute('data-captain-open-review'));
     if (accept) acceptCaptainAdvance(accept.getAttribute('data-captain-accept'));
     if (ret) returnCaptainAdvance(ret.getAttribute('data-captain-return'));
@@ -9235,7 +13390,26 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (cancel) cancelCaptainAdvance(cancel.getAttribute('data-captain-cancel'));
   });
 
+  window.addEventListener('popstate', function() {
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
+    const module = document.getElementById('moduleCaptain');
+    if (!module || module.classList.contains('hidden')) return;
+
+    const state = currentCaptainHistoryState();
+    if (state) {
+      captainActiveCard = {type: state.type, id: state.id};
+      renderCaptainCardView();
+      return;
+    }
+
+    if (captainActiveCard && captainActiveCard.type && captainActiveCard.type !== 'board') {
+      captainActiveCard = {type: 'board', id: ''};
+      renderCaptainCardView();
+    }
+  });
+
   document.addEventListener('click', function(event) {
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     if (event.target.closest('[data-close-captain-review]')) {
       closeCaptainReview();
       return;
@@ -9277,8 +13451,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       previousSetModule(moduleName, options);
     }
 
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
+
+    syncFinDeskFocusMode(moduleName === 'captain');
     if (moduleName === 'captain') {
       setTimeout(loadCaptainAdminDesk, 220);
+    } else {
+      captainActiveCard = {type: 'board', id: ''};
+      syncCaptainHistoryState();
     }
   };
 
@@ -9293,10 +13473,16 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     const module = document.getElementById('moduleCaptain');
     if (module && !module.classList.contains('hidden')) {
+      syncFinDeskFocusMode(true);
       setTimeout(loadCaptainAdminDesk, 80);
+    } else {
+      syncFinDeskFocusMode(false);
     }
   };
 
+  window.qlCaptainOpenCard = function(type, id) {
+    openCaptainCardView(type, id);
+  };
   window.qlLoadCaptainAdminDesk = loadCaptainAdminDesk;
 })();
 
@@ -10153,7 +14339,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           title: 'Живой отчет: карта',
           amountLabel: 'Карта',
           amountHelp: 'Карточные расходы ведутся от нуля и не меняют кассу.',
-          placeholder: '-45 продукты\n-67 топливо\n-120 расход по карте'
+          placeholder: '± Сумма и заметка...'
         }
       : {
           type,
@@ -10162,7 +14348,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           title: 'Живой отчет',
           amountLabel: 'Дали',
           amountHelp: 'Сумма на руках для этого отчета. Дополнительные приходы пишите строками со знаком +.',
-          placeholder: '-45 продукты\n-67 топливо\n+100 получил от руководителя'
+          placeholder: '± Сумма и заметка...'
         };
   }
 
@@ -10223,23 +14409,19 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   function showStreamGate(options) {
     const opts = options || {};
-    const gate = document.getElementById('otrStreamGate');
-    if (gate) {
-      gate.classList.remove('hidden');
-      gate.setAttribute('aria-hidden', 'false');
-    }
-    hideSimpleEditor();
+    const nextStream = normalizeSimpleStream(opts.stream_type || simpleCurrentStream || 'cash');
+    setSimpleStream(nextStream, {chosen: true});
+    hideStreamGate();
     const cards = document.getElementById('otrReportCardsPanel');
     if (cards) {
       cards.classList.add('hidden');
       cards.setAttribute('aria-hidden', 'true');
     }
     document.body.classList.remove('otr-cards-open');
-    document.body.classList.add('otr-stream-gate-open');
-    if (typeof qlSaveModuleState === 'function') {
-      qlSaveModuleState('ontherun', {screen: 'stream_gate', stream_type: simpleCurrentStream});
-    }
-    qlWriteBrowserState('ontherun', {screen: 'stream_gate', stream_type: simpleCurrentStream}, opts.history || '');
+    showSimpleEditor({history: opts.history || ''});
+    setTimeout(function() {
+      loadSimpleOnTheGo({force: !!opts.force, stream_type: nextStream});
+    }, 0);
   }
 
   function showSimpleEditor(options) {
@@ -10410,9 +14592,9 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (edit) {
       edit.classList.remove('hidden');
       edit.classList.toggle('is-fixing', simpleEditMode);
-      edit.textContent = simpleEditMode ? 'Готово' : 'Редактировать';
-      edit.setAttribute('aria-label', simpleEditMode ? 'Зафиксировать записи' : 'Начать редактирование');
-      edit.setAttribute('title', simpleEditMode ? 'Зафиксировать' : 'Редактировать');
+      edit.textContent = simpleEditMode ? 'Зафиксировать журнал' : 'Редактировать';
+      edit.setAttribute('aria-label', simpleEditMode ? 'Зафиксировать журнал' : 'Редактировать журнал');
+      edit.setAttribute('title', simpleEditMode ? 'Зафиксировать журнал' : 'Редактировать журнал');
     }
     if (card) card.classList.toggle('is-view-mode', !simpleEditMode);
     attachButtons.forEach(function(button) {
@@ -10432,14 +14614,49 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     }
   }
 
+  async function openSimpleStream(stream, options) {
+    const opts = options || {};
+    const nextStream = normalizeSimpleStream(stream || simpleCurrentStream || 'cash');
+    simpleDirty = false;
+    simpleOpenedCardId = 0;
+    qlOtrActiveTapeId = 0;
+    window.qlOtrActiveTapeId = 0;
+    setSimpleStream(nextStream, {chosen: true});
+    hideStreamGate();
+
+    const recovered = await recoverStoredSimpleFieldDraft(nextStream, {force: true});
+    if (recovered) {
+      showSimpleEditor({history: opts.history || ''});
+      return;
+    }
+
+    simpleClientDraftId = '';
+    simpleDraftId = 0;
+    simpleSessionId = 0;
+    simpleProofStates = [];
+    simpleSelectedUploadId = '';
+    clearSimpleProofRetryContext(nextStream);
+    simpleLastAutosaveSignature = '';
+    simplePendingOperationId = '';
+    simplePendingOperationSignature = '';
+    renderSimpleProofStates([]);
+    await loadSimpleOnTheGo({force: true, stream_type: nextStream});
+    await autosaveSimpleDraft({force: true, silent: true});
+    showSimpleEditor({history: opts.history || ''});
+  }
+
   async function openDefaultOnTheGoScreen(options) {
-    const requestedScreen = options && (options.ontherun_screen || options.screen)
+    let requestedScreen = options && (options.ontherun_screen || options.screen)
       ? String(options.ontherun_screen || options.screen)
       : '';
     if (requestedScreen === 'stream_gate') {
-      if (options && options.stream_type) setSimpleStream(options.stream_type, {chosen: true});
-      showStreamGate();
-      return;
+      const nextStream = normalizeSimpleStream((options && options.stream_type) || simpleCurrentStream || 'cash');
+      options = Object.assign({}, options || {}, {
+        screen: 'editor',
+        ontherun_screen: 'editor',
+        stream_type: nextStream
+      });
+      requestedScreen = 'editor';
     }
     if (requestedScreen === 'cards' && typeof window.qlOpenOtrReportCards === 'function') {
       if (options && options.stream_type) setSimpleStream(options.stream_type, {chosen: true});
@@ -10467,7 +14684,9 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         showSimpleEditor();
         return;
       }
-      showStreamGate();
+      setSimpleStream('cash', {chosen: true});
+      await loadSimpleOnTheGo(Object.assign({}, options || {}, {force: false, stream_type: 'cash'}));
+      showSimpleEditor();
       return;
     }
     if (document.body.classList.contains('otr-editor-open') && simpleOpenedCardId > 0 && !(options && (options.tape_id || options.tapeId))) {
@@ -10475,14 +14694,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       return;
     }
     await loadSimpleOnTheGo(options || {force: false});
-    const notes = document.getElementById('otrSimpleNotes');
-    if ((requestedScreen === 'editor') || (notes && notes.value.trim())) {
-      showSimpleEditor();
-    } else if (typeof window.qlOpenOtrReportCards === 'function') {
-      await window.qlOpenOtrReportCards();
-    } else {
-      hideSimpleEditor();
-    }
+    showSimpleEditor();
   }
 
   function simpleStatus(message) {
@@ -10544,6 +14756,21 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   function simpleMoney(value) {
     return typeof qlOtrCurrency === 'function' ? qlOtrCurrency(value || 0) : qlCurrency(value || 0);
+  }
+
+  function simpleFormatDate(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const normalized = raw.replace(' ', 'T');
+    const date = new Date(normalized);
+    if (!Number.isNaN(date.getTime())) {
+      return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }).format(date);
+    }
+    return raw.slice(0, 10);
   }
 
   function simpleAdminAmount() {
@@ -10674,11 +14901,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   function renderSimpleResult() {
     const result = document.getElementById('otrSimpleResult');
     const preview = document.getElementById('otrSimplePreview');
+    const baseLabel = document.getElementById('otrAdminAmountLabel');
+    const baseHelp = document.getElementById('otrAdminAmountHelp');
     const notes = document.getElementById('otrSimpleNotes')?.value || '';
     const streamType = normalizeSimpleStream(simpleCurrentStream);
     const parsed = parseSimpleSignedNotes(notes, streamType);
     const admin = streamType === 'card' ? 0 : simpleAdminAmount();
-    const isAdminMode = simpleIsAdminMode();
+    const pendingTransfer = !!(simpleCurrentCard && simpleCurrentCard.transfer_pending && simpleCurrentCard.viewer_is_owner);
+    const manualCardBalance = streamType === 'card' && Math.abs(Number(simpleCurrentCard && simpleCurrentCard.cash_received || 0)) > 0.009;
     let income = 0;
     let expense = 0;
 
@@ -10688,28 +14918,46 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     });
 
     const left = streamType === 'card' ? 0 - expense : admin + income - expense;
+    const currentLabel = streamType === 'card' ? 'Потрачено сейчас' : 'Сейчас осталось';
+    const currentValue = streamType === 'card' ? expense : left;
+    const lastFixedAt = simpleCurrentCard && simpleCurrentCard.last_fixed_at ? String(simpleCurrentCard.last_fixed_at) : '';
 
     if (result) {
-      result.innerHTML = streamType === 'card'
-        ? `
-          <div><span>Было</span><b>${simpleMoney(0)}</b></div>
-          <div><span>Карта</span><b>${simpleMoney(expense)}</b></div>
-          <div><span>Касса</span><b>${simpleMoney(0)}</b></div>
-          <div class="is-negative"><span>Стало</span><b>${simpleMoney(left)}</b></div>
-        `
-        : `
-          <div><span>Было</span><b>${simpleMoney(admin)}</b></div>
-          <div><span>Приход</span><b>${simpleMoney(income)}</b></div>
-          <div><span>Расход</span><b>${simpleMoney(expense)}</b></div>
-          <div class="${left < 0 ? 'is-negative' : ''}"><span>Стало</span><b>${simpleMoney(left)}</b></div>
-        `;
+      result.innerHTML = `
+        <div class="${streamType === 'cash' && left < 0 ? 'is-negative' : ''}">
+          <span>${currentLabel}</span>
+          <b>${simpleMoney(currentValue)}</b>
+        </div>
+        <div>
+          <span>Записей</span>
+          <b>${parsed.items.length}</b>
+        </div>
+      `;
+    }
+
+    if (baseLabel) {
+      baseLabel.textContent = lastFixedAt ? 'Последняя фиксация' : 'Старт журнала';
+    }
+
+    if (baseHelp) {
+      if (lastFixedAt) {
+        baseHelp.textContent = 'Зафиксировано ' + simpleFormatDate(lastFixedAt) + '.';
+      } else if (pendingTransfer) {
+        baseHelp.textContent = 'Сначала подтвердите получение денег в карточке сотрудника.';
+      } else if (manualCardBalance) {
+        baseHelp.textContent = 'Внимание: у карточного журнала задан стартовый остаток. Для обычной работы он должен быть 0.';
+      } else if (streamType === 'card') {
+        baseHelp.textContent = 'Карточный поток ведется отдельно. История фиксаций появится после первой сдачи.';
+      } else {
+        baseHelp.textContent = 'Это стартовая сумма текущего журнала.';
+      }
     }
 
     if (preview) {
       if (!parsed.items.length) {
         preview.innerHTML = streamType === 'card'
-          ? '<p class="soft-note">Карта ведется отдельным потоком: только строки со знаком -. Пример: -45 продукты, -67 топливо.</p>'
-          : '<p class="soft-note">Введите строки со знаком + или -. Пример: -45 продукты, -67 топливо, +100 получил от руководителя.</p>';
+          ? '<p class="soft-note">Пока нет строк. Для карты пишите только расход со знаком -. Пример: -45 продукты.</p>'
+          : '<p class="soft-note">Пока нет строк. Пишите одной строкой: +500 получил, -45 продукты, -67 топливо.</p>';
       } else {
         preview.innerHTML = parsed.items.map(function(item) {
           const cls = item.type === 'cash_in' ? 'income' : (item.type === 'noncash_out' ? 'card-expense' : 'expense');
@@ -10734,10 +14982,12 @@ window.qlSelectOtrTape = qlSelectOtrTape;
     if (pill) {
       const cardState = simpleCurrentCard && simpleCurrentCard.card_state ? String(simpleCurrentCard.card_state) : '';
       const tapeStatus = simpleCurrentCard && simpleCurrentCard.status ? String(simpleCurrentCard.status) : '';
-      if (cardState === 'submitted') pill.textContent = 'На проверке';
+      if (pendingTransfer) pill.textContent = 'Ждет подтверждения';
+      else if (cardState === 'submitted') pill.textContent = 'На проверке';
       else if (cardState === 'included') pill.textContent = 'В отчете';
       else if (tapeStatus === 'closed') pill.textContent = 'Закрыто';
-      else pill.textContent = parsed.items.length ? 'Заполнено' : 'Черновик';
+      else if (!simpleEditMode && parsed.items.length) pill.textContent = 'Зафиксировано';
+      else pill.textContent = parsed.items.length ? 'В работе' : 'Черновик';
     }
 
     return {admin, income, expense, left, parsed};
@@ -11282,10 +15532,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
       notes.value = signedTextFromCaptures(activeItems, streamType);
     }
 
+    const blockedByPending = !!(activeTape && activeTape.transfer_pending && activeTape.viewer_is_owner);
     renderSimpleResult();
     syncSimpleEditorActions(activeTape);
-    setSimpleEditMode(opts.viewOnly ? false : true);
-    simpleStatus('');
+    setSimpleEditMode(opts.viewOnly ? false : !blockedByPending);
+    simpleStatus(blockedByPending ? 'Сначала подтвердите получение денег в карточке сотрудника.' : '');
   }
 
   async function loadSimpleOnTheGo(options) {
@@ -11388,10 +15639,11 @@ window.qlSelectOtrTape = qlSelectOtrTape;
         amountInput.value = await simpleBaseAmount(activeTape, isAdminMode);
       }
 
+      const blockedByPending = !!(activeTape && activeTape.transfer_pending && activeTape.viewer_is_owner);
       renderSimpleResult();
       syncSimpleEditorActions(activeTape);
-      setSimpleEditMode(options && options.viewOnly ? false : true);
-      simpleStatus('');
+      setSimpleEditMode(options && options.viewOnly ? false : !blockedByPending);
+      simpleStatus(blockedByPending ? 'Сначала подтвердите получение денег в карточке сотрудника.' : '');
       await recoverSimpleFieldDraft({force: !!(options && options.force)});
     } finally {
       simpleLoading = false;
@@ -11462,7 +15714,10 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
     if (!data || !data.ok) {
       setSimpleSyncState('retry_needed', 'Сохранение не ушло');
-      simpleStatus('Ошибка сохранения: ' + ((data && data.error) || 'unknown'));
+      const saveError = data && data.error === 'advance_transfer_pending_confirmation_required'
+        ? 'Сначала подтвердите получение денег.'
+        : ((data && data.error) || 'unknown');
+      simpleStatus('Ошибка сохранения: ' + saveError);
       return false;
     }
     if (data.stream_type) {
@@ -11617,7 +15872,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 	    }
     if (opts.stayInEditor) {
       setSimpleEditMode(false);
-      simpleStatus('Зафиксировано.');
+      simpleStatus('Журнал зафиксирован.');
       return true;
     }
     if (typeof window.qlOpenOtrReportCards === 'function') {
@@ -11770,39 +16025,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 	    if (streamChoice) {
       event.preventDefault();
       const nextStream = normalizeSimpleStream(streamChoice.getAttribute('data-otr-stream-choice'));
-      simpleDirty = false;
-      simpleOpenedCardId = 0;
-      qlOtrActiveTapeId = 0;
-      window.qlOtrActiveTapeId = 0;
-      setSimpleStream(nextStream, {chosen: true});
-      hideStreamGate();
-      const recovered = await recoverStoredSimpleFieldDraft(nextStream, {force: true});
-      if (recovered) {
-        showSimpleEditor({history: 'push'});
-        return;
-      }
-      simpleClientDraftId = '';
-      simpleDraftId = 0;
-      simpleSessionId = 0;
-      simpleProofStates = [];
-      simpleSelectedUploadId = '';
-      clearSimpleProofRetryContext(nextStream);
-      simpleLastAutosaveSignature = '';
-      simplePendingOperationId = '';
-      simplePendingOperationSignature = '';
-      renderSimpleProofStates([]);
-      await loadSimpleOnTheGo({force: true, stream_type: nextStream});
-      await autosaveSimpleDraft({force: true, silent: true});
-      if (typeof window.qlOpenOtrReportCards === 'function') {
-        await window.qlOpenOtrReportCards({history: 'push'});
-      } else {
-        showSimpleEditor({history: 'push'});
-      }
+      await openSimpleStream(nextStream, {history: 'push'});
       return;
     }
     if (event.target.closest('#otrStreamSwitchBtn')) {
       event.preventDefault();
-      showStreamGate({history: 'push'});
+      const nextStream = normalizeSimpleStream(simpleCurrentStream === 'card' ? 'cash' : 'card');
+      await openSimpleStream(nextStream, {history: 'push'});
+      simpleStatus(nextStream === 'card' ? 'Открыт журнал карты.' : 'Открыт журнал наличных.');
       return;
     }
     const quickLine = event.target.closest('[data-otr-quick-line]');
@@ -11908,10 +16138,14 @@ window.qlSelectOtrTape = qlSelectOtrTape;
           await saveSimpleOnTheGo({stayInEditor: true});
           return;
         }
+        if (simpleCurrentCard && simpleCurrentCard.transfer_pending && simpleCurrentCard.viewer_is_owner) {
+          simpleStatus('Сначала подтвердите получение денег в карточке сотрудника.');
+          return;
+        }
         setSimpleEditMode(true);
         const notes = document.getElementById('otrSimpleNotes');
         if (notes) notes.focus();
-        simpleStatus('Редактирование включено.');
+        simpleStatus('Журнал снова открыт для правки.');
       }, {label: 'Фиксирую…'});
       return;
     }
@@ -11992,10 +16226,12 @@ window.qlSelectOtrTape = qlSelectOtrTape;
 
   const previousSetModule = window.qlSetModule || (typeof qlSetModule === 'function' ? qlSetModule : null);
   window.qlSetModule = function(moduleName, options) {
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     if (moduleName !== 'ontherun' && simpleDirty) {
       autosaveSimpleDraft({force: true, silent: true});
     }
     if (typeof previousSetModule === 'function') previousSetModule(moduleName, options);
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     if (moduleName === 'ontherun') {
       setTimeout(function() {
         openDefaultOnTheGoScreen(Object.assign({force: false}, options || {}));
@@ -13219,6 +17455,7 @@ window.qlSelectOtrTape = qlSelectOtrTape;
   const previousSetModule = window.qlSetModule || (typeof qlSetModule === 'function' ? qlSetModule : null);
   window.qlSetModule = function(moduleName, options) {
     if (typeof previousSetModule === 'function') previousSetModule(moduleName, options);
+    if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
     if (moduleName === 'ontherun') {
       setTimeout(loadCards, 240);
     }

@@ -3,6 +3,7 @@ app/config.local.php.*
 storage/
 backups/
 zip-archives/
+test-results/
 cgi-bin/
 .well-known/
 error_log
@@ -11,4 +12,3 @@ error_log
 *.bak.*
 .DS_Store
 Thumbs.db
-

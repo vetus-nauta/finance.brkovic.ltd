@@ -1,6 +1,6 @@
 # AI Team Office: Start Here
 
-Date: 2026-06-02
+Date: 2026-06-03
 Project: `finance.brkovic.ltd / FinDesk`
 Local path: `/home/alexey/GitHub/finance.brkovic.ltd`
 
@@ -10,6 +10,39 @@ This folder is the working office for specialist AI chats. Each chat acts as one
 
 The office exists because FinDesk must be prepared for release as a finance control product, not as a collection of patched screens.
 
+## Current Beacon
+
+Highest-level product source:
+
+```text
+docs/AI_TEAM/63_PRODUCT_BIBLE_V1_INTAKE_2026-06-02.md
+```
+
+Product Bible V1 now stands above Phase 1, Phase 2, Phase 3, QA, audit and handoff documents. Do not implement features, navigation, wording, or UI patterns that contradict it unless the CEO explicitly changes the product direction.
+
+Current Phase 2 source:
+
+```text
+docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md
+```
+
+Phase 2 is the current working gate. It turns the approved FinDesk idea into clear logic, navigation, backend state and QA checks before implementation.
+
+Previous Phase 1 product reset source:
+
+```text
+docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md
+```
+
+Phase 1 remains the conceptual base. Phase 2 is now the active execution gate.
+
+Meaning:
+
+- do not continue patching the rejected mixed FinDesk screen;
+- do not start with visual redesign;
+- first expose the approved product hierarchy and first-class state;
+- preserve auth, backend, database, PWA, and attachment foundations unless an audited additive patch is approved.
+
 ## Local Dashboard
 
 Open the six-cabinet dashboard:
@@ -18,12 +51,43 @@ Open the six-cabinet dashboard:
 docs/AI_TEAM/OFFICE_DASHBOARD.html
 ```
 
+Universal new-chat launch page:
+
+```text
+docs/AI_TEAM/CHAT_START_PORTAL.html
+```
+
 It contains the tech deputy cabinet plus specialist role cabinets (including Web Designer), links to documents, and copy-ready starter prompts for new chats.
 
 Latest Project Director start handoff:
 
 ```text
-docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md
+docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-03.md
+```
+
+Yacht section handoff:
+
+```text
+docs/AI_TEAM/88_YACHT_TEMPLATE_SECTION_HANDOFF_2026-06-03.md
+```
+
+Local FinDesk start page:
+
+```text
+http://127.0.0.1:18889/app.php
+```
+
+Desktop shortcut:
+
+```text
+/home/alexey/Рабочий стол/Fin Desk.desktop
+```
+
+WebStorm database note:
+
+```text
+The database for finance.brkovic.ltd is already attached in the WebStorm templates.
+Use that attached connection for schema/table/SQL checks before rediscovering DB access.
 ```
 
 Real VS Code/Codex chat anchors live in:
@@ -43,13 +107,13 @@ Run before work:
 git status --short
 git rev-parse --short HEAD
 git rev-parse --short origin/main
-php scripts/local-smoke.php http://127.0.0.1:18889
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18889/app.php
 ```
 
 Important baseline:
 
 ```text
-Last known synced base before the 2026-06-02 handoff was 459c751.
+Last known synced base before the 2026-06-03 handoff was 50b1b3b.
 Newer commits may exist after the GitHub sync; check HEAD and origin/main before work.
 The working tree can contain important local changes.
 Never reset, checkout, clean, or discard local changes unless the CEO explicitly orders it.
@@ -59,17 +123,22 @@ Never reset, checkout, clean, or discard local changes unless the CEO explicitly
 
 Read in this order:
 
-1. `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-02.md`
-2. `docs/AI_TEAM/01_PRODUCT_COMPASS.md`
-3. `docs/AI_TEAM/02_CURRENT_STATE.md`
-4. `docs/AI_TEAM/03_WORKFLOW_RULES.md`
-5. `docs/AI_TEAM/04_TASK_BOARD.md`
-6. `docs/AI_TEAM/05_DECISIONS.md`
-7. Your role file: `docs/AI_TEAM/roles/<your_role>/ROLE.md`
-8. Your status file: `docs/AI_TEAM/roles/<your_role>/STATUS.md`
-9. `docs/HANDOFF_NEW_CHAT_2026-05-22_CASH_CARD_LIVE_REPORT.md`
-10. `docs/USER_MESSAGES_DIGEST_2026-05-22.md`
-11. `docs/FINANCIAL_FLOW_ARCHITECTURE_REVIEW_2026-05-22.md`
+1. `docs/AI_TEAM/63_PRODUCT_BIBLE_V1_INTAKE_2026-06-02.md`
+2. `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-03.md`
+3. `docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`
+4. `docs/AI_TEAM/61_PHASE3_PRODUCT_IDENTITY_UX_VALIDATION_2026-06-02.md`
+5. `docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md`
+6. `docs/AI_TEAM/01_PRODUCT_COMPASS.md`
+7. `docs/AI_TEAM/02_CURRENT_STATE.md`
+8. `docs/AI_TEAM/03_WORKFLOW_RULES.md`
+9. `docs/AI_TEAM/04_TASK_BOARD.md`
+10. `docs/AI_TEAM/05_DECISIONS.md`
+11. `docs/AI_TEAM/88_YACHT_TEMPLATE_SECTION_HANDOFF_2026-06-03.md` if the task touches Yacht.
+12. Your role file: `docs/AI_TEAM/roles/<your_role>/ROLE.md`
+13. Your status file: `docs/AI_TEAM/roles/<your_role>/STATUS.md`
+14. `docs/HANDOFF_NEW_CHAT_2026-05-22_CASH_CARD_LIVE_REPORT.md`
+15. `docs/USER_MESSAGES_DIGEST_2026-05-22.md`
+16. `docs/FINANCIAL_FLOW_ARCHITECTURE_REVIEW_2026-05-22.md`
 
 ## Roles
 

@@ -1,0 +1,94 @@
+[
+  {
+    "key": "water_drinks",
+    "title_en": "Water and soft drinks",
+    "title_ru": "Вода и напитки",
+    "priority": 1
+  },
+  {
+    "key": "breakfast",
+    "title_en": "Breakfast",
+    "title_ru": "Завтраки",
+    "priority": 2
+  },
+  {
+    "key": "meat_fish_protein",
+    "title_en": "Meat, fish and protein",
+    "title_ru": "Мясо, рыба и белок",
+    "priority": 3
+  },
+  {
+    "key": "vegetables_herbs",
+    "title_en": "Vegetables and herbs",
+    "title_ru": "Овощи и зелень",
+    "priority": 4
+  },
+  {
+    "key": "fruit",
+    "title_en": "Fruit",
+    "title_ru": "Фрукты",
+    "priority": 5
+  },
+  {
+    "key": "dry_goods_sides",
+    "title_en": "Dry goods and sides",
+    "title_ru": "Гарниры, паста и крупы",
+    "priority": 6
+  },
+  {
+    "key": "dairy",
+    "title_en": "Dairy",
+    "title_ru": "Молочные продукты",
+    "priority": 7
+  },
+  {
+    "key": "snacks_antipasti",
+    "title_en": "Snacks and antipasti",
+    "title_ru": "Закуски и антипасти",
+    "priority": 8
+  },
+  {
+    "key": "canned_emergency",
+    "title_en": "Canned and emergency stock",
+    "title_ru": "Консервы и аварийный запас",
+    "priority": 9
+  },
+  {
+    "key": "oils_sauces_spices",
+    "title_en": "Oils, sauces and spices",
+    "title_ru": "Масла, соусы и специи",
+    "priority": 10
+  },
+  {
+    "key": "sweets",
+    "title_en": "Sweets and quick snacks",
+    "title_ru": "Сладкое и быстрые перекусы",
+    "priority": 11
+  },
+  {
+    "key": "children",
+    "title_en": "Children / easy food",
+    "title_ru": "Детское / лёгкое питание",
+    "priority": 12,
+    "optional": true
+  },
+  {
+    "key": "alcohol",
+    "title_en": "Alcohol",
+    "title_ru": "Алкоголь",
+    "priority": 13,
+    "optional": true
+  },
+  {
+    "key": "household",
+    "title_en": "Household consumables",
+    "title_ru": "Хозяйственные расходники",
+    "priority": 14
+  },
+  {
+    "key": "hygiene_first_aid",
+    "title_en": "Hygiene and first aid basics",
+    "title_ru": "Гигиена и аптечный минимум",
+    "priority": 15
+  }
+]

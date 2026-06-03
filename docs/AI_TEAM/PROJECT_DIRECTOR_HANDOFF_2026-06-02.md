@@ -20,6 +20,17 @@ Open the office dashboard first:
 docs/AI_TEAM/OFFICE_DASHBOARD.html
 ```
 
+Universal new-chat start page:
+
+```text
+docs/AI_TEAM/CHAT_START_PORTAL.html
+```
+
+Database note:
+
+- the database for `finance.brkovic.ltd` is already attached in the WebStorm templates;
+- if schema, tables, or SQL verification are needed, start from that attached connection instead of rebuilding DB access discovery from scratch.
+
 Start documents:
 
 1. `docs/AI_TEAM/00_START_HERE.md`
@@ -29,6 +40,28 @@ Start documents:
 5. Role status files under `docs/AI_TEAM/roles/*/STATUS.md`
 
 The office rule remains strict: role folders keep full reports; the director chat receives short reports only.
+
+## Current Beacon
+
+Current Phase 2 gate from 2026-06-02:
+
+```text
+docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md
+```
+
+Previous Phase 1 product beacon:
+
+```text
+docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md
+```
+
+Meaning:
+
+- stop extending the mixed rejected FinDesk screen;
+- Phase 2 is logic, workflow, navigation and engine gate before implementation;
+- rebuild first-class state and user flow before visual polish;
+- preserve auth/backend/DB/PWA foundations;
+- use only audited additive schema/API changes.
 
 ## Current Production Reality
 
@@ -46,18 +79,23 @@ finance.brkovic.ltd/public
 
 Do not deploy this project to another domain or subdirectory.
 
-Latest production frontend asset version:
+Latest production frontend asset version currently live:
 
 ```text
-20260601-findesk-mobilefit2
+20260602-findesk-product1
 ```
+
+Important:
+
+- this version is live, but the CEO rejected the result as a product outcome;
+- do not treat this live screen shape as the product source of truth;
+- next work must follow the Phase 1 blueprint, locally first.
 
 Production changes confirmed by HTTP:
 
 - `/app.php` returns `200`;
-- app shell loads `app.css`, `i18n.js`, and `app.js` with `20260601-findesk-mobilefit2`;
-- `service-worker.js` uses cache `findesk-20260601-findesk-mobilefit2`;
-- mobile start-screen Playwright smoke passed.
+- app shell loads `app.css`, `i18n.js`, and `app.js` with `20260602-findesk-product1`;
+- `service-worker.js` uses cache `findesk-20260602-findesk-product1`.
 
 Production files uploaded in the latest frontend cycle:
 
@@ -210,14 +248,23 @@ docs/AI_TEAM/OFFICE_DASHBOARD.html
 
 ## Next Recommended Sprint
 
-Run a controlled QA sprint on the production `mobilefit2` frontend:
+Do not continue with production cosmetics on the current FinDesk surface.
 
-1. login on real mobile;
-2. open `FinDesk`;
-3. verify brand/balance/card layout;
-4. open administrator card;
-5. open participant card;
-6. return with the in-app back button and browser Back;
-7. verify no horizontal scroll, overlap, or stuck sticky header.
+Run Phase 2 locally:
 
-Only after this QA pass should the next backend/DB production candidate be deployed.
+1. approve or refine the additive schema/API direction from `59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`;
+2. create first-class transfer, workspace, report assembly and protected-action contracts;
+3. rebuild the Phase 2 shell and remove old modules from normal navigation;
+4. expose the approved path:
+   - Welcome
+   - Solo
+   - Cash/Card Choice
+   - Live Journal
+   - Team Workspace
+   - Admin Card
+   - Employee Card
+   - Report Assembly
+   - Reports
+   - Protected Actions
+5. validate flow locally against the Phase 2 QA checklist;
+6. only then decide whether to deploy.
