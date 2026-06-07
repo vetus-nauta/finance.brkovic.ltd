@@ -3,6 +3,7 @@
     "mongodb": "^6.21.0"
   },
   "scripts": {
-    "start:atlas": "node server/findesk-atlas-server.js"
+    "start:atlas": "node server/findesk-atlas-server.js",
+    "check:atlas": "node scripts/atlas_connection_smoke.js"
   }
 }

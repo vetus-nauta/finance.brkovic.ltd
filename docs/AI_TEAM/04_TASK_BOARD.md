@@ -1781,3 +1781,32 @@ Next:
 - browser visual print QA from the actual print dialog/PDF on desktop, iPad and iPhone;
 - audit settlement math before changing report status from `preview_not_final`;
 - later add server-side PDF/export only after report structure is accepted.
+
+## Director Sprint 2026-06-07 - Atlas TLS Stability Check
+
+Status: infrastructure issue reproduced; diagnostic script added.
+
+Observed locally:
+
+- existing Atlas-connected local server `18896` remains healthy and can read `current_user`, `group_list`, active cash session and archive list;
+- new server processes on fresh ports fail when opening new Atlas connections;
+- current public IP during the check: `77.222.27.84`;
+- `mongodb+srv` host resolves correctly to three Atlas SRV records;
+- direct TLS handshake to all three Atlas shard endpoints fails with `ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR` / `tlsv1 alert internal error`;
+- MongoDB driver ping fails with the same TLS alert before useful application-level auth or collection checks.
+
+Repository support added:
+
+- `npm run check:atlas` runs `scripts/atlas_connection_smoke.js`;
+- the script prints masked URI metadata, SRV records, TLS probe results and Mongo ping status without printing credentials.
+
+Likely cause:
+
+- Atlas/network access policy or cluster-side TLS rejection for the current public IP/new handshakes;
+- not a Product Shell report bug and not a collection/schema bug.
+
+Next:
+
+- check MongoDB Atlas Network Access and allow current public IP or a stable office/VPN IP;
+- rerun `npm run check:atlas` after the Atlas access change;
+- avoid restarting the working `18896` process until new Atlas handshakes pass.
