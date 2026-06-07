@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260607-cash-archive-snapshot-routes37';
+const CACHE_NAME = 'findesk-20260607-cash-professional-report-routes38';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

@@ -147,6 +147,18 @@
   font-size: .78rem;
 }
 
+.phase1-cash-archive-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.phase1-cash-report-print-host {
+  display: none;
+}
+
 .phase1-cash-batch {
   display: grid;
   gap: 8px;
@@ -13699,6 +13711,313 @@ html[data-phase-device="phone"] body.phase1-clean-mode .phase1-yacht-provision-c
   }
 
   body.phase1-print-yacht-order .phase1-yacht-print-stamp {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid #eaecf0;
+    color: #667085;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 7.6pt;
+    line-height: 1.2;
+  }
+}
+
+@media print {
+  body.phase1-print-cash-report::before {
+    display: none !important;
+  }
+
+  body.phase1-print-cash-report * {
+    visibility: hidden !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-report-print-host,
+  body.phase1-print-cash-report .phase1-cash-report-print-host * {
+    visibility: visible !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-report-print-host {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #111827 !important;
+  }
+
+  body.phase1-print-cash-report .ql-shell,
+  body.phase1-print-cash-report .ql-shell.app-shell,
+  body.phase1-print-cash-report .phase1-product-shell,
+  body.phase1-print-cash-report .phase1-screen,
+  body.phase1-print-cash-report .phase1-page {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-document {
+    width: 100%;
+    color: #111827;
+    background: #fff !important;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 9.2pt;
+    line-height: 1.22;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+    gap: 14px;
+    align-items: start;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #111827;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-brand img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-brand b {
+    display: block;
+    color: #111827;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 17pt;
+    line-height: 1;
+    letter-spacing: -.02em;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-brand span,
+  body.phase1-print-cash-report .phase1-cash-print-title span,
+  body.phase1-print-cash-report .phase1-cash-print-party span,
+  body.phase1-print-cash-report .phase1-cash-print-meta span,
+  body.phase1-print-cash-report .phase1-cash-print-summary span,
+  body.phase1-print-cash-report .phase1-cash-print-signatures span {
+    display: block;
+    color: #667085;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 7.8pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-title {
+    text-align: right;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-title h1 {
+    margin: 4px 0 3px;
+    color: #111827;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 20pt;
+    line-height: 1.05;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-title p {
+    margin: 0;
+    color: #475467;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 9pt;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-party {
+    min-height: 70px;
+    padding: 7px 8px;
+    border: 1px solid #d0d5dd;
+    border-radius: 2px;
+    background: #fff !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-party h2 {
+    margin: 4px 0 5px;
+    color: #111827;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12.5pt;
+    line-height: 1.15;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-party p,
+  body.phase1-print-cash-report .phase1-cash-print-party small {
+    display: block;
+    margin: 2px 0 0;
+    color: #344054;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 8.8pt;
+    line-height: 1.35;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-meta,
+  body.phase1-print-cash-report .phase1-cash-print-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-top: 7px;
+    border: 1px solid #d0d5dd;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-summary {
+    margin-top: 8px;
+    border-color: #111827;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-meta div,
+  body.phase1-print-cash-report .phase1-cash-print-summary div {
+    min-height: 34px;
+    padding: 5px 7px;
+    border-right: 1px solid #d0d5dd;
+    background: #f8fafc !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-summary div {
+    background: #eef2f6 !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-meta div:last-child,
+  body.phase1-print-cash-report .phase1-cash-print-summary div:last-child {
+    border-right: 0;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-meta b,
+  body.phase1-print-cash-report .phase1-cash-print-summary b {
+    display: block;
+    margin-top: 4px;
+    color: #111827;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 9pt;
+    line-height: 1.25;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-summary b {
+    font-size: 10pt;
+    font-weight: 900;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-section-title {
+    margin: 10px 0 4px;
+    color: #111827;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12pt;
+    line-height: 1.12;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-table {
+    width: 100%;
+    margin-top: 4px;
+    border-collapse: collapse;
+    page-break-inside: auto;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-table th {
+    padding: 4px 6px;
+    border: 1px solid #111827;
+    color: #fff;
+    background: #111827 !important;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 7.8pt;
+    font-weight: 900;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-table td {
+    padding: 4px 6px;
+    border: 1px solid #d0d5dd;
+    color: #111827;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 8.8pt;
+    vertical-align: top;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-table tbody tr:nth-child(even) td {
+    background: #f8fafc !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-index {
+    width: 26px;
+    text-align: center;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-number {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-empty {
+    text-align: center;
+    color: #667085 !important;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-footer {
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid #d0d5dd;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-footer p {
+    margin: 0;
+    color: #475467;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 7.8pt;
+    line-height: 1.22;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-signatures {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-signatures div {
+    min-height: 30px;
+    padding-top: 5px;
+    border-top: 1px solid #111827;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-signatures b {
+    display: block;
+    margin-top: 4px;
+    color: #111827;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 9pt;
+  }
+
+  body.phase1-print-cash-report .phase1-cash-print-stamp {
     display: flex;
     justify-content: space-between;
     gap: 12px;

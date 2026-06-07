@@ -1947,3 +1947,21 @@ Control:
 - archive snapshot is operational history, not a final financial/audit document;
 - no production deploy;
 - no official financial formulas were changed.
+
+## 2026-06-07: Cash Report Print Is Professional Preview, Not Final Audit
+
+Decision: the first professional cash session report is a printable/PDF preview generated from active session data or archive snapshots, not a final audited financial report.
+
+Implemented locally:
+
+- Product Shell can print active cash report preview;
+- archive cards can print closed snapshot reports;
+- print layout is isolated from the UI and uses FinDesk/Vetus Nauta document structure;
+- report contains parties, meta, totals, participant balances, preliminary transfers, fixed record batches, signatures and footer.
+
+Control:
+
+- report status remains `preview_not_final`;
+- official settlement math must be audited before final status is allowed;
+- no production deploy;
+- no official financial formulas were changed.

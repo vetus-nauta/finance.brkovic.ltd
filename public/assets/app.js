@@ -5439,7 +5439,7 @@ function phase1CashParticipantLink(token) {
   url.search = '';
   url.hash = '';
   url.searchParams.set('cashToken', inviteToken);
-  url.searchParams.set('build', 'routes36');
+  url.searchParams.set('build', 'routes38');
   return url.toString();
 }
 
@@ -5454,6 +5454,263 @@ function phase1CashParticipantInviteText(participant) {
     '',
     'На этой странице видны только ваши записи и ваш расчет-превью.'
   ].join('\n');
+}
+
+function phase1CashReportDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toLocaleString('ru-RU');
+}
+
+function phase1CashReportShortDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toISOString().slice(0, 10);
+}
+
+function phase1CashAuditLabel(status) {
+  const value = String(status || 'preview_not_final');
+  if (value === 'final_audited') return 'Финальный аудированный отчет';
+  return 'Предварительный отчет - не финальный аудит';
+}
+
+function phase1CashReportModel(source) {
+  const raw = source && source.snapshot ? source.snapshot : (source || {});
+  const archive = source && source.snapshot ? source : null;
+  const totals = raw.totals || phase1CashTotals(raw);
+  const settlement = raw.settlement_preview || {};
+  const lines = Array.isArray(settlement.lines) ? settlement.lines : [];
+  const participants = Object.values(totals.participants || {});
+  const batches = Array.isArray(raw.batches) ? raw.batches : [];
+  const createdAt = raw.created_at || (archive && archive.created_at) || '';
+  const closedAt = raw.closed_at || (archive && archive.closed_at) || '';
+  const status = archive ? 'closed' : String(raw.status || 'active');
+  return {
+    id: raw.session_id || raw.id || archive && archive.id || 'LOCAL',
+    title: raw.title || archive && archive.title || phase1CashSessionTitle(),
+    preset: raw.preset || archive && archive.preset || phase1CashPreset(),
+    mode: raw.mode || archive && archive.mode || phase1CashMode(),
+    status,
+    currency: raw.currency || archive && archive.currency || 'EUR',
+    audit_status: raw.audit_status || settlement.audit_status || archive && archive.audit_status || 'preview_not_final',
+    created_at: createdAt,
+    closed_at: closedAt,
+    printed_at: new Date().toISOString(),
+    totals,
+    participants,
+    batches,
+    lines
+  };
+}
+
+function phase1CashReportParticipantsRows(model) {
+  if (!model.participants.length) {
+    return '<tr><td colspan="7" class="phase1-cash-print-empty">Участники не добавлены.</td></tr>';
+  }
+  return model.participants.map(function(item, index) {
+    return `
+      <tr>
+        <td class="phase1-cash-print-index">${index + 1}</td>
+        <td>${phase1Escape(item.display_name || 'Участник')}</td>
+        <td>${phase1Escape(phase1CashRoleLabel(item.role))}</td>
+        <td class="phase1-cash-print-number">${phase1Money(item.contributions || 0)}</td>
+        <td class="phase1-cash-print-number">${phase1Money(item.expenses || 0)}</td>
+        <td class="phase1-cash-print-number">${phase1Money(model.totals.share || 0)}</td>
+        <td class="phase1-cash-print-number">${phase1Money(item.balance || 0)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function phase1CashReportSettlementRows(model) {
+  if (!model.lines.length) {
+    return '<tr><td colspan="4" class="phase1-cash-print-empty">Переводы не требуются или данных пока недостаточно.</td></tr>';
+  }
+  return model.lines.map(function(line, index) {
+    return `
+      <tr>
+        <td class="phase1-cash-print-index">${index + 1}</td>
+        <td>${phase1Escape(line.from_display_name || 'Участник')}</td>
+        <td>${phase1Escape(line.to_display_name || 'Участник')}</td>
+        <td class="phase1-cash-print-number">${phase1Money(line.amount || 0)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function phase1CashReportBatchRows(model) {
+  if (!model.batches.length) {
+    return '<tr><td colspan="5" class="phase1-cash-print-empty">Зафиксированных записей пока нет.</td></tr>';
+  }
+  return model.batches.map(function(batch, index) {
+    const entries = Array.isArray(batch.entries) ? batch.entries : [];
+    const contribution = entries.reduce(function(sum, entry) {
+      return sum + (entry.entry_kind === 'contribution' ? Math.abs(Number(entry.amount || 0)) : 0);
+    }, 0);
+    const expense = entries.reduce(function(sum, entry) {
+      return sum + (entry.entry_kind === 'expense' ? Math.abs(Number(entry.amount || 0)) : 0);
+    }, 0);
+    return `
+      <tr>
+        <td class="phase1-cash-print-index">${index + 1}</td>
+        <td>${phase1Escape(batch.participant_display_name || phase1CashParticipantName(batch.participant_id))}</td>
+        <td>${phase1Escape(phase1CashReportDate(batch.created_at))}</td>
+        <td class="phase1-cash-print-number">${phase1Money(contribution)}</td>
+        <td class="phase1-cash-print-number">${phase1Money(expense)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function phase1CashReportPrintDocumentHtml(source) {
+  const model = phase1CashReportModel(source);
+  const contractor = phase1CompanyProfileForPrint();
+  const selectedGroup = phase1SelectedGroup();
+  const customerName = selectedGroup && selectedGroup.name ? String(selectedGroup.name).replace(/^Yacht:\s*/i, '') : phase1WorkspaceTitle();
+  const documentNo = 'FD-CSR-' + phase1CashReportShortDate(model.closed_at || model.printed_at).replace(/-/g, '') + '-' + String(model.id || 'LOCAL').padStart(3, '0');
+  const period = [
+    model.created_at ? phase1CashReportDate(model.created_at) : '',
+    model.closed_at ? phase1CashReportDate(model.closed_at) : 'active session'
+  ].filter(Boolean).join(' - ');
+  return `
+    <article class="phase1-cash-print-document">
+      <header class="phase1-cash-print-header">
+        <div class="phase1-cash-print-brand">
+          <img src="/assets/brand-mark.png?v=20260522-106" alt="FinDesk">
+          <div>
+            <b>FinDesk</b>
+            <span>Universal Cash Session</span>
+          </div>
+        </div>
+        <div class="phase1-cash-print-title">
+          <span>${phase1Escape(phase1CashAuditLabel(model.audit_status))}</span>
+          <h1>Отчет по рабочей сессии</h1>
+          <p>№ ${phase1Escape(documentNo)} · ${phase1Escape(model.status === 'closed' ? 'Archive snapshot' : 'Active preview')}</p>
+        </div>
+      </header>
+
+      <section class="phase1-cash-print-parties">
+        <div class="phase1-cash-print-party">
+          <span>Подрядчик / система учета</span>
+          <h2>${phase1Escape(contractor.name)}</h2>
+          ${contractor.address ? '<p>' + phase1Escape(contractor.address) + '</p>' : ''}
+          ${contractor.email || contractor.phone ? '<p>' + phase1Escape([contractor.email, contractor.phone].filter(Boolean).join(' · ')) + '</p>' : ''}
+          ${contractor.registration || contractor.vat ? '<small>' + phase1Escape([contractor.registration ? 'Reg: ' + contractor.registration : '', contractor.vat ? 'VAT: ' + contractor.vat : ''].filter(Boolean).join(' · ')) + '</small>' : ''}
+        </div>
+        <div class="phase1-cash-print-party">
+          <span>Заказчик / рабочее пространство</span>
+          <h2>${phase1Escape(customerName || 'Рабочее пространство')}</h2>
+          <p>${phase1Escape(model.title || 'Cash session')}</p>
+          <p>${phase1Escape(phase1CashPresetLabel(model.preset))} · ${phase1Escape(model.mode === 'personal' ? 'Personal' : 'Group')}</p>
+        </div>
+      </section>
+
+      <section class="phase1-cash-print-meta">
+        <div><span>Период</span><b>${phase1Escape(period || 'не указан')}</b></div>
+        <div><span>Статус</span><b>${phase1Escape(model.status === 'closed' ? 'Закрыта в архив' : 'Активная сессия')}</b></div>
+        <div><span>Валюта</span><b>${phase1Escape(model.currency)}</b></div>
+        <div><span>Участников</span><b>${phase1Escape(String(model.totals.participant_count || model.participants.length || 0))}</b></div>
+      </section>
+
+      <section class="phase1-cash-print-summary">
+        <div><span>Внесено</span><b>${phase1Money(model.totals.total_contributions || 0)}</b></div>
+        <div><span>Расходы</span><b>${phase1Money(model.totals.total_expenses || 0)}</b></div>
+        <div><span>Доля участника</span><b>${phase1Money(model.totals.share || 0)}</b></div>
+        <div><span>Записей</span><b>${phase1Escape(String(model.batches.length))}</b></div>
+      </section>
+
+      <h2 class="phase1-cash-print-section-title">Участники и баланс</h2>
+      <table class="phase1-cash-print-table">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Участник</th>
+            <th>Роль</th>
+            <th>Внесено</th>
+            <th>Расходы</th>
+            <th>Доля</th>
+            <th>Баланс</th>
+          </tr>
+        </thead>
+        <tbody>${phase1CashReportParticipantsRows(model)}</tbody>
+      </table>
+
+      <h2 class="phase1-cash-print-section-title">Предварительные переводы</h2>
+      <table class="phase1-cash-print-table">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Кто переводит</th>
+            <th>Кому переводит</th>
+            <th>Сумма</th>
+          </tr>
+        </thead>
+        <tbody>${phase1CashReportSettlementRows(model)}</tbody>
+      </table>
+
+      <h2 class="phase1-cash-print-section-title">Зафиксированные пачки записей</h2>
+      <table class="phase1-cash-print-table">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Участник</th>
+            <th>Дата фиксации</th>
+            <th>Взносы</th>
+            <th>Расходы</th>
+          </tr>
+        </thead>
+        <tbody>${phase1CashReportBatchRows(model)}</tbody>
+      </table>
+
+      <footer class="phase1-cash-print-footer">
+        <p>Документ подготовлен FinDesk как предварительный отчет рабочей сессии. Он не является финальным аудированным финансовым отчетом, инвойсом, фискальным счетом или актом оказанных услуг. Итоговый статус возможен только после отдельной проверки формул и подтверждения ответственным лицом.</p>
+        <div class="phase1-cash-print-signatures">
+          <div><span>Ответственный</span><b>Подпись</b></div>
+          <div><span>Проверил</span><b>Подпись</b></div>
+          <div><span>Клиент / представитель</span><b>Подпись</b></div>
+        </div>
+        <div class="phase1-cash-print-stamp">
+          <span>finance.brkovic.ltd - Vetus Nauta Brkovic</span>
+          <span>Время печати: ${phase1Escape(phase1CashReportDate(model.printed_at))}</span>
+        </div>
+      </footer>
+    </article>
+  `;
+}
+
+function phase1PrintCashReportDocument(source) {
+  const existing = document.querySelector('.phase1-cash-report-print-host');
+  if (existing) existing.remove();
+  const host = document.createElement('div');
+  host.className = 'phase1-cash-report-print-host';
+  host.innerHTML = phase1CashReportPrintDocumentHtml(source);
+  document.body.appendChild(host);
+  function cleanup() {
+    document.body.classList.remove('phase1-print-cash-report');
+    window.removeEventListener('afterprint', cleanup);
+    if (host.parentNode) host.parentNode.removeChild(host);
+  }
+  document.body.classList.add('phase1-print-cash-report');
+  window.addEventListener('afterprint', cleanup);
+  window.setTimeout(cleanup, 3000);
+  window.print();
+}
+
+async function phase1PrintCashArchive(archiveId) {
+  const id = Number(archiveId || 0);
+  let archive = (Array.isArray(phase1CashArchives) ? phase1CashArchives : []).find(function(item) {
+    return Number(item.id || 0) === id;
+  });
+  if (!archive || !archive.snapshot) {
+    const payload = await qlApi('cash_session_archive_get', {session_id: id});
+    if (payload.ok) archive = payload.archive;
+  }
+  if (!archive || !archive.snapshot) {
+    phase1Notice = 'Архивный отчет не найден.';
+    phase1Render(phase1CurrentScreen);
+    return;
+  }
+  phase1PrintCashReportDocument(archive);
 }
 
 function phase1RenderCashParticipantsPanel() {
@@ -5512,7 +5769,10 @@ function phase1RenderCashArchivePanel() {
               <span>${phase1Escape(archive.closed_at || '')} · ${phase1Escape(archive.audit_status || 'preview_not_final')}</span>
               <small>${phase1Escape('Участников: ' + (summary.participant_count || 0) + ' · Записей: ' + (summary.batch_count || 0) + ' · Переводов: ' + (summary.transfer_count || 0))}</small>
             </div>
-            <strong>${phase1Money(summary.total_expenses || 0)}</strong>
+            <div class="phase1-cash-archive-actions">
+              <strong>${phase1Money(summary.total_expenses || 0)}</strong>
+              <button class="phase1-secondary-action" type="button" data-phase-cash-archive-print="${phase1Escape(archive.id)}">Печать / PDF</button>
+            </div>
           </article>
         `;
       }).join('') : '<p class="phase1-empty">Закрытых cash sessions пока нет.</p>'}
@@ -5675,6 +5935,7 @@ function phase1RenderCashReport() {
         }).join('') : '<p class="phase1-empty">Переводы не требуются или данных пока мало.</p>'}
       </section>
       <section class="phase1-action-row">
+        <button class="phase1-primary-action" type="button" data-phase-action="cash-report-print">Печать / PDF отчета</button>
         <button class="phase1-secondary-action" type="button" data-phase-action="cash-session-close">Закрыть active session в архив</button>
       </section>
     </div>
@@ -9387,6 +9648,13 @@ document.addEventListener('click', async function(event) {
     return;
   }
 
+  const cashArchivePrintButton = event.target.closest('[data-phase-cash-archive-print]');
+  if (cashArchivePrintButton) {
+    event.preventDefault();
+    await phase1PrintCashArchive(cashArchivePrintButton.getAttribute('data-phase-cash-archive-print'));
+    return;
+  }
+
   const workspaceTrashConfirm = event.target.closest('[data-workspace-trash-confirm-action]');
   if (workspaceTrashConfirm) {
     event.preventDefault();
@@ -9433,6 +9701,11 @@ document.addEventListener('click', async function(event) {
     }
     if (action === 'cash-session-close') {
       await phase1CloseCashSession();
+      return;
+    }
+    if (action === 'cash-report-print') {
+      if (!phase1CashSession) await phase1EnsureCashSession({force: true});
+      if (phase1CashSession) phase1PrintCashReportDocument(phase1CashSession);
       return;
     }
     if (action === 'cash-notebook-save') {

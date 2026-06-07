@@ -1751,3 +1751,33 @@ Next:
 - commit and push repository state to GitHub;
 - audit settlement math before any final report status;
 - add professional PDF/export later after report structure approval.
+
+## Director Sprint 2026-06-07 - Universal Cash Session Professional Report V1
+
+Status: local print/PDF report slice implemented; static/API smoke passed on existing Atlas-connected server.
+
+Done locally:
+
+- added professional report builder for active cash session preview;
+- added archive snapshot print action from `cash-session` archive cards;
+- added isolated print host `phase1-print-cash-report` so Product Shell UI is not printed;
+- added report sections: FinDesk header, contractor/customer, session meta, totals, participants, preliminary transfers, fixed record batches, signatures and footer;
+- footer uses `finance.brkovic.ltd - Vetus Nauta Brkovic`;
+- report explicitly says preliminary/not final audit;
+- build advanced to `routes38` / `20260607-cash-professional-report-routes38`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- static build smoke passed on `http://127.0.0.1:18896/app.php?build=routes38`;
+- Atlas API smoke passed on the existing connected server `18896`: active `Yacht: Ckaudia Z` session returned clean with one participant, zero batches and report preview available;
+- new server processes on `18897` and `18898` were stopped after Atlas TLS handshake failures; existing connected server remained healthy.
+
+Next:
+
+- browser visual print QA from the actual print dialog/PDF on desktop, iPad and iPhone;
+- audit settlement math before changing report status from `preview_not_final`;
+- later add server-side PDF/export only after report structure is accepted.

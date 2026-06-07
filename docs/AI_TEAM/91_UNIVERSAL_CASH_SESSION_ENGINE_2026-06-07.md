@@ -209,3 +209,23 @@ Current limitation:
 - archive is marked `preview_not_final` and is not an audited final report;
 - PDF/export is not implemented in this slice;
 - reopen/restore is not implemented in this slice.
+
+## Local Slice 6 - Professional Report Print V1
+
+Implemented locally on 2026-06-07:
+
+- active cash session can be printed as a professional report/PDF preview;
+- closed archive snapshots expose a `Печать / PDF` action from archive cards;
+- print document is generated into a temporary isolated print host and does not print the Product Shell UI;
+- document header includes FinDesk branding and contractor/customer blocks;
+- document body includes meta, summary, participant balances, preliminary transfers, and fixed record batch summary;
+- document footer includes signature blocks and `finance.brkovic.ltd - Vetus Nauta Brkovic`;
+- technical UI labels, IP addresses, and debug timing are not part of the print document;
+- invite links now use current build `routes38`.
+
+Current limitation:
+
+- report status remains `preview_not_final`;
+- settlement math is still not audited as an official final report;
+- browser-native print/PDF is used, not server-side PDF generation;
+- detailed attachment/check evidence is not included in this slice.
