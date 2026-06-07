@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS groups (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(190) NOT NULL,
     description TEXT DEFAULT NULL,
+    workspace_type ENUM('team','yacht','home') NOT NULL DEFAULT 'team',
     created_by BIGINT UNSIGNED NOT NULL,
     status ENUM('active','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -10,6 +11,7 @@ CREATE TABLE IF NOT EXISTS groups (
     PRIMARY KEY (id),
     KEY idx_groups_created_by (created_by),
     KEY idx_groups_status (status),
+    KEY idx_groups_workspace_type (workspace_type),
     CONSTRAINT fk_groups_created_by FOREIGN KEY (created_by) REFERENCES users(id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

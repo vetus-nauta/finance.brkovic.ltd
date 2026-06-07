@@ -20,7 +20,7 @@ header('Pragma: no-cache');
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="/assets/app.css?v=20260603-yacht-bunkering-inside1">
+  <link rel="stylesheet" href="/assets/app.css?v=20260607-cash-archive-snapshot-routes37">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -91,6 +91,9 @@ header('Pragma: no-cache');
             <div class="phase2-shell-title">
               <strong>FinDesk</strong>
               <span data-phase-shell-title>Welcome Hall</span>
+              <select class="phase2-workspace-select" data-phase-workspace-select aria-label="Рабочее пространство">
+                <option value="">Workspace</option>
+              </select>
             </div>
             <button class="module-primary-tab" type="button" data-phase-screen="journal-choice">Журнал</button>
             <div class="module-menu">
@@ -101,18 +104,16 @@ header('Pragma: no-cache');
               <div class="module-menu-panel hidden" data-module-menu-panel>
                 <section class="module-menu-group">
                   <span>Workspace</span>
-                  <button class="module-menu-item active" type="button" data-phase-screen="welcome">FinDesk</button>
-                  <button class="module-menu-item" type="button" data-phase-screen="journal-choice">Живые записи</button>
-                  <button class="module-menu-item" type="button" data-phase-screen="solo">Работаю один</button>
-                  <button class="module-menu-item" type="button" data-phase-screen="team">Работаю с людьми</button>
+                  <button class="module-menu-item active" type="button" data-phase-screen="workspace-hub">На главную</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="workspace-hub">Мои пространства</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="workspace-trash">Корзина</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="workspace-home">Текущее пространство</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="journal-choice">Журнал</button>
+                  <button class="module-menu-item" type="button" data-phase-screen="workspace-create">Создать пространство</button>
                 </section>
                 <section class="module-menu-group">
                   <span>Reports</span>
                   <button class="module-menu-item" type="button" data-phase-screen="reports">Отчеты</button>
-                </section>
-                <section class="module-menu-group">
-                  <span>Шаблоны</span>
-                  <button class="module-menu-item" type="button" data-phase-screen="yacht">Yacht</button>
                 </section>
                 <section class="module-menu-group">
                   <span>Account</span>
@@ -1546,9 +1547,9 @@ header('Pragma: no-cache');
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260603-yacht-bunkering-inside1"></script>
+  <script src="/assets/i18n.js?v=20260607-cash-archive-snapshot-routes37"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260603-yacht-bunkering-inside1"></script>
+  <script src="/assets/app.js?v=20260607-cash-archive-snapshot-routes37"></script>
 </body>
 </html>

@@ -51,6 +51,20 @@ function yp_families(): array
     ];
 }
 
+function yp_source_registry(): array
+{
+    $path = dirname(__DIR__) . '/app/data/yacht_price_sources.json';
+    $registry = yp_read_json_file($path);
+    return is_array($registry['regions'] ?? null) ? $registry : ['regions' => []];
+}
+
+function yp_sources_for_job(string $region, string $family): array
+{
+    $registry = yp_source_registry();
+    $sources = $registry['regions'][$region][$family] ?? [];
+    return is_array($sources) ? array_values($sources) : [];
+}
+
 function yp_args(array $argv): array
 {
     $args = [
@@ -183,6 +197,7 @@ function yp_plan(array $args, array $state): array
                 'days_since_success' => $days,
                 'due' => $due,
                 'items' => $familyConfig['items'],
+                'sources' => yp_sources_for_job($region, $family),
             ];
         }
     }
@@ -253,11 +268,24 @@ function yp_schema(): array
 function yp_prompt(array $job): string
 {
     $items = implode(', ', $job['items']);
+    $sources = array_map(
+        fn($source) => '- ' . ($source['label'] ?? $source['id'] ?? 'source') . ': ' . ($source['url'] ?? ''),
+        is_array($job['sources'] ?? null) ? $job['sources'] : []
+    );
+    $sourceText = $sources
+        ? implode("\n", $sources)
+        : '- No approved source registry entries found for this region/family.';
 
     return "Refresh yacht provisioning reference prices.\n"
         . "Region: {$job['region_label']} ({$job['region']}).\n"
         . "Family: {$job['family_label']} ({$job['family']}).\n"
         . "Items: {$items}.\n"
+        . "Approved source registry for this job:\n{$sourceText}\n"
+        . "Use the approved source registry first to limit web-search/API-key usage. Search outside it only when fewer than five registry sources respond or when a registry source is clearly unavailable.\n"
+        . "If one or more sources fail, ignore failed sources and average the remaining usable observations.\n"
+        . "If all sources fail, return no invented prices, mark confidence low, and add a warning so the last good snapshot can remain active.\n"
+        . "For fuel, calculate ordinary marine diesel from the average of usable regional observations.\n"
+        . "Do not assume duty-free is always 35% below retail. Use verified duty-free, bonded or tax-free bunker sources first; only provide a fallback discount estimate when evidence is weak and label it clearly in warnings.\n"
         . "Use current public sources where available. Prefer wholesale, distributor, marina, bunker supplier or official pump data.\n"
         . "Normalize values to EUR and the requested unit. Estimate net price and final visible price, but do not expose tax/markup math in notes.\n"
         . "For duty-free prices, estimate only when the source supports duty-free, bonded, tax-free or yacht bunker pricing. Otherwise use 0 and add a warning.\n"

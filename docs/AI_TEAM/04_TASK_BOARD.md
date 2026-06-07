@@ -1,5 +1,321 @@
 # AI Team Task Board
 
+## Director Sprint 2026-06-04 - Yacht Fuel Print And Rows Cleanup
+
+Status: local fuel screen cleanup implemented; professional print document implemented; static contract QA passed; fallback headless browser/device QA passed; real PHP/WebStorm backend smoke remains pending.
+
+Done locally:
+
+- removed fuel print-price toggle from the upper fuel settings area;
+- added `Печатать с ценами` checkbox next to the print button;
+- default fuel print checkbox is off;
+- screen prices remain visible for work; print prices are hidden only in print mode when the checkbox is off;
+- unchecked fuel rows are hidden during print;
+- default fuel package rebuilt:
+  - row 1: `Топливо / Дизель`;
+  - row 2: `Агентский сбор`, default `250 EUR`;
+  - following rows are disabled, empty and use weak placeholders for motor oil, spare filters, first aid/consumables and port incidentals;
+- added `+ Своя категория` button for custom fuel-section rows;
+- old local default fuel package is migrated to the new structure when it matches the previous default rows;
+- fuel source refresh interval returned to monthly: `30` days;
+- asset version updated to `20260604-fuel-print-routes18`;
+- local JS/service-worker syntax and diff whitespace checks passed.
+- static JS/CSS contract checks passed for:
+  - no `show_prices` field on fuel screen;
+  - `Печатать с ценами` near print button;
+  - `+ Своя категория`;
+  - no fuel-screen `yacht-add-fuel` / `yacht-add-tech` buttons;
+  - disabled rows hidden during print;
+  - price cells hidden during fuel print when print-price checkbox is off;
+  - weak placeholders;
+  - no old default prices for oil, filters, first aid or port incidentals.
+- fallback Node server opened `http://127.0.0.1:18889/app.php?build=routes19` with current assets because PHP CLI is unavailable in the current shell;
+- Playwright headless browser/device smoke passed on fallback/stub API:
+  - desktop `1440x950`;
+  - iPad portrait `834x1194`;
+  - iPad landscape `1194x834`;
+  - iPhone portrait `393x852`;
+  - iPhone landscape `852x393`;
+- each headless case passed:
+  - fuel screen rendered;
+  - print checkbox exists and defaults off;
+  - upper `show_prices` is absent;
+  - reference panel is present;
+  - first row is `Топливо / Дизель`;
+  - second row is `Агентский сбор / 250`;
+  - disabled placeholder rows exist;
+  - `+ Своя категория` adds an enabled custom row;
+  - print CSS hides disabled rows;
+  - print CSS hides price cells when price printing is off;
+  - no page JS errors;
+  - no horizontal overflow in tested viewport width.
+- professional fuel print document added in asset version `20260604-fuel-print-routes19`:
+  - FinDesk logo and branded document header;
+  - clear document title and order number;
+  - contractor block from company profile with FinDesk/brkovic fallback;
+  - customer/yacht block with marina, berth, model and registration when available;
+  - print meta block for price region, fuel mode, catalog and update date;
+  - separate static print table, not the interactive screen table;
+  - only enabled rows with real category/item values are printed;
+  - disabled placeholder/technical rows stay out of the document unless the user explicitly fills and enables a row;
+  - professional footer with document caveat and three signature blocks;
+  - screen controls, reference panel and editable table are hidden in print mode.
+- Playwright print-mode smoke passed on fallback/stub API for desktop, iPad portrait/landscape and iPhone portrait/landscape:
+  - print document exists and is hidden on screen;
+  - print document becomes visible in print media;
+  - screen form is hidden in print media;
+  - FinDesk logo, contractor/customer blocks, meta block, clean print table and footer signatures are present;
+  - print hide-prices also hides price cells in the new print document;
+  - no horizontal overflow;
+  - no page JS errors.
+- fuel placeholder correction added in asset version `20260604-fuel-print-routes20`:
+  - старые реальные технические значения из fuel-пакета принудительно мигрируют в настоящие placeholders;
+  - row 1 keeps real diesel quantity/price when they already exist;
+  - row 2 is fixed to `Агентский сбор / Услуга агента / 1 услуга / 250`;
+  - rows 3+ are empty values with grey placeholders only;
+  - disabled-row text color is no longer forced grey, so typed text stays standard;
+  - old print lock is cleared during package migration;
+  - fuel-screen reference/approved price application changes only `Дизель`, not agent fee or placeholder rows.
+- Playwright migration smoke passed against the bad saved state from the screenshot:
+  - old `Агент + Масло моторное` becomes `Агентский сбор + Услуга агента`;
+  - old technical rows become empty placeholder-only rows;
+  - `Подставить цены региона` changes diesel only;
+  - no page JS errors.
+- print pagination/footer correction added in asset version `20260604-fuel-print-routes22`:
+  - print CSS resets outer app containers to avoid an empty second page;
+  - professional print document is compacted for one A4 page in the standard fuel order case;
+  - custom footer stamp added: `finance.brkovic.ltd - Vetus Nauta Brkovic`;
+  - print timestamp is shown in the document footer;
+  - Chromium PDF smoke confirmed the standard fuel order prints as 1 page.
+  - Native browser print headers/footers with URL/time are controlled by the browser print dialog, not by app CSS; they should be disabled in the print dialog when using the branded footer.
+- print action path fixed in asset version `20260604-fuel-print-routes23`:
+  - removed delayed `setTimeout` before `window.print()`;
+  - print is now called synchronously inside the click handler, preserving browser user activation;
+  - layout is forced before print so the print-only document class is active;
+  - cleanup uses `afterprint` with a timeout fallback;
+  - Playwright click smoke confirms the print button calls `window.print()` once with the print class active.
+  - Printer queue/status could not be inspected from the current WebStorm/Flatpak shell because `lpstat`, `lpq` and `lpoptions` are unavailable; only `lpr` is present.
+
+## Director Sprint 2026-06-04 - Workspace Trash And Session Direction
+
+Status: workspace soft-trash implemented locally; active-session model recorded as product direction; PHP runtime smoke pending because PHP CLI/WebStorm backend is unavailable in this shell.
+
+Product decision:
+
+- Do not encourage users to multiply duplicate workspace cards for the same work pattern.
+- A workspace is a durable container.
+- Repeated work inside the same context should become active sessions inside that workspace.
+- When a user needs another run of the same work type, the UX should guide them to start/open the next active session instead of creating another duplicate workspace.
+- For early experimentation, users must be able to move any created workspace to trash and restore it before the retention window expires.
+
+Done locally:
+
+- added backend soft-trash API:
+  - `group_trash`;
+  - `group_restore`;
+  - `group_trash_list`;
+  - `group_trash_purge_expired`;
+- active group list now excludes trashed workspaces;
+- trash list returns archived workspaces visible to the current active member;
+- trash retention is 60 days;
+- expired trash purge keeps financial evidence preserved by leaving groups archived and moving active memberships/invites out of the active user surface;
+- added deploy index migration `deploy/group_trash_retention.sql`;
+- added workspace card `Удалить` action for manageable non-solo workspaces;
+- added delete confirmation modal that requires typing `удалить`;
+- added workspace trash section with restore action;
+- if the current active workspace is moved to trash, local workspace selection is cleared;
+- asset version updated to `20260604-workspace-trash-routes24`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- Playwright workspace trash smoke passed:
+  - delete button visible;
+  - modal mentions the required `удалить` word;
+  - wrong confirmation shows warning;
+  - confirmed modal calls `group_trash` API.
+- workspace trash stale-API correction added in asset version `20260604-workspace-trash-routes25`:
+  - after successful trash API response, the workspace is stored in local client tombstones;
+  - locally trashed workspaces are hidden from the active workspace list even if a stale/fallback API still returns them;
+  - locally trashed workspaces are shown in the Trash panel with restore action;
+  - restoring a workspace clears the local tombstone;
+  - the active/current workspace is no longer duplicated in the `Все пространства` list.
+- Playwright stale/fallback API smoke passed:
+  - `QA Yacht` is hidden from the main list after trash even when `group_list` still returns it;
+  - `QA Yacht` appears in the Trash panel;
+  - local tombstone is stored;
+  - restore brings the card back.
+
+## Director Sprint 2026-06-04 - Product Menu Home Entry
+
+Status: implemented locally.
+
+Done:
+
+- added first menu item `На главную`;
+- `На главную` routes to `workspace-hub`, the working hall / workspace hub;
+- kept `Мои пространства` as a separate second item for clarity;
+- asset version updated to `20260604-menu-home-routes26`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- Playwright menu smoke passed:
+  - first menu item is `На главную`;
+  - clicking it opens `workspace-hub`.
+
+## Director Sprint 2026-06-04 - Trash Moved To Menu
+
+Status: implemented locally.
+
+Done:
+
+- removed trash display from `Мои рабочие пространства`;
+- added dedicated `workspace-trash` route;
+- added `Корзина` as a menu item;
+- trash page shows deleted workspaces and restore action;
+- Back from trash returns to `workspace-hub`;
+- asset version updated to `20260604-menu-trash-routes27`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- Playwright menu/trash smoke passed:
+  - trash is not visible in workspace hub;
+  - menu contains `Корзина`;
+  - clicking `Корзина` opens the trash page.
+
+## Director Sprint 2026-06-04 - Independent Section Pages
+
+Status: implemented locally.
+
+Done:
+
+- removed the old combined Yacht render that mixed yacht settings, crew and bunkering in one page;
+- `yacht` now renders only a standalone entry page with links to separate sections;
+- `phase1FocusYachtBunkering()` now routes to `yacht-bunkering` instead of scrolling to a removed embedded block;
+- `Бункеровка` copy now states it is a standalone section;
+- confirmed route separation:
+  - `yacht-home`;
+  - `yacht-tools`;
+  - `yacht-bunkering`;
+  - `yacht-fuel`;
+  - `yacht-products`;
+  - `yacht-settings`;
+  - `home-home`;
+  - `home-tools`;
+  - `home-household`;
+  - `home-shopping`;
+  - `home-budget`;
+- asset version updated to `20260604-independent-pages-routes29`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- targeted Playwright route smoke passed:
+  - yacht sections render as separate screens;
+  - `yacht-bunkering` does not contain yacht settings fields;
+  - `yacht-settings` does not contain bunkering/fuel/product controls.
+
+Open:
+
+- real PHP/WebStorm backend smoke for `group_trash`, `group_restore`, `group_trash_list`;
+- DB migration application on real database after backup;
+- design the next layer: active sessions inside workspaces, so duplicate workspace cards are not the default behavior.
+
+Open:
+
+- real PHP/WebStorm local server smoke on fuel screen;
+- real print preview QA with prices off/on;
+- real iPad/iPhone portrait and landscape visual QA after PHP/WebStorm server is restored;
+- PHP CLI lint remains unavailable in current shell;
+- local server `127.0.0.1:18889` must be restarted from WebStorm/PHP environment before browser QA.
+
+## Director Sprint 2026-06-04 - Route Tree And Legacy Guard Pass
+
+Status: current route tree updated; one legacy wrapper side-effect guarded; deeper route cleanup pending.
+
+Primary report:
+
+- `docs/AI_TEAM/89_CURRENT_SITE_ROUTE_TREE_2026-06-03.md`
+
+Done locally:
+
+- updated current route tree to reflect actual `workspace-*`, `yacht-*` and `home-*` screens;
+- documented Product Shell menu, route guard, workspace state, Yacht tree, Home tree, Back behavior, API snapshot loading and weak spots;
+- confirmed old route tree was stale after the latest Product Shell/Yacht work;
+- added missing `phase1ShellIsActive()` guard to the early On The Go `qlSetModule` wrapper so legacy data-load does not run after Product Shell redirect;
+- asset version updated to `20260604-route-guard-routes16`;
+- local JS/service-worker syntax and diff whitespace checks passed.
+
+Open:
+
+- explicit `workspace_type` storage added locally; production DB rollout/backfill still pending;
+- decide Welcome behavior for returning users: always show hall vs continue workspace;
+- simplify `templates` vs `workspace-create` naming;
+- make Yacht settings/products/fuel more obvious from `yacht-home`;
+- physical QA for Back/menu/device behavior.
+
+## Director Sprint 2026-06-04 - Explicit Workspace Type
+
+Status: local additive implementation complete; production rollout not performed.
+
+Done locally:
+
+- added backend `workspace_type` support for groups: `team`, `yacht`, `home`;
+- `group_create` accepts `workspace_type` and stores it when the column exists;
+- `group_get` and `group_list` return `workspace_type`;
+- if the column is missing or schema alteration is unavailable, API falls back safely to old name-based detection;
+- Yacht workspace creation now sends `workspace_type: yacht`;
+- Home workspace creation now sends `workspace_type: home`;
+- frontend route logic now reads `group.workspace_type` before using legacy name fallback;
+- added deploy SQL candidate: `deploy/group_workspace_type.sql`;
+- updated `deploy/groups_foundation.sql`;
+- asset version updated to `20260604-workspace-type-routes17`.
+
+Open:
+
+- run PHP syntax check in an environment with PHP CLI;
+- run authenticated API smoke for `group_create` / `group_list` after DB column creation;
+- production DB migration/backfill only after backup and explicit approval;
+- backfill old Yacht/Home groups where needed.
+
+## Director Sprint 2026-06-04 - Universal Web Product Bible Checklist
+
+Status: source reviewed; implementation checklist fixed as backlog/control artifact.
+
+Primary checklist:
+
+- `docs/AI_TEAM/90_UNIVERSAL_WEB_PRODUCT_BIBLE_IMPLEMENTATION_CHECKLIST_2026-06-04.md`
+
+Source package:
+
+- Google Drive `universal_web_product_bible_v1_full.zip`
+
+Done locally:
+
+- reviewed `00_UNIVERSAL_WEB_PRODUCT_BIBLE_V1.md`;
+- mapped universal product rules to FinDesk/Yacht constraints;
+- fixed task IDs from `UWP-0001` through `UWP-1405`;
+- separated boundaries, golden path, Welcome, shell, workspace, operational screens, reports, protected actions, visual system, mobile, NFR, QA and release gates;
+- preserved current decisions: FinDesk remains shared money journal, Yacht remains a template, bunkering remains inside Yacht, production deploy remains blocked.
+
+Open:
+
+- execute route/golden-path audit first;
+- then start Welcome/start-page cleanup;
+- then shell/menu/back/profile standardization;
+- then Yacht products/fuel/settings cleanup;
+- then device behavior QA and release-candidate report.
+
 ## Director Sprint 2026-06-03 - Yacht Bunkering Button Scope Correction
 
 Status: local scope correction implemented; browser QA pending.
@@ -1255,3 +1571,183 @@ Next steps:
 - Add clear AI/analytics entry points without crowding operational screens.
 - Improve help text wording where numbers can be misunderstood.
 - Web Designer branding pass passed in local browser QA (run `20260527`): `index.php`/`app.php` logo/favicons checked on `390x844`, `820x1180`, `1440x900`; see `docs/AI_TEAM/roles/04_qa_release_engineer/artifacts/web_designer_branding_20260527/SUMMARY.md`.
+
+## 2026-06-04 Atlas Persistence Cutover
+
+- Backend Data Engineer: continue MongoDB Atlas migration after the completed workspace/groups slice. Next scope: workspace sessions, yacht profiles/settings, yacht fuel drafts, yacht provisioning drafts, price sources, and price snapshots.
+- QA Release Engineer: verify Atlas-backed local restart persistence for create/list/trash/restore and confirm `Yacht: Ckaudia Z` remains visible after hard refresh.
+- Project Director: keep fallback API only for emergency static UI viewing; do not use fallback as accepted persistence.
+- Deploy Owner: before production, provision a separate Atlas production database/URI and wire it through production environment secrets, not through committed files.
+
+### Completed Local Slice: Yacht State To Atlas
+
+- Backend/Data: `yacht_state_get`, `yacht_state_save`, and Node provisioning calculation are available through the Atlas-backed local server.
+- Frontend/UX: Yacht workspace opening loads state from Atlas; edits still save instantly locally and then sync to Atlas with debounce.
+- QA: local smoke passed for Atlas restart persistence: `Ckaudia Z` remained visible, yacht state survived restart, fuel package kept 6 rows, agent fee row stayed `250 EUR`, provisioning calculation returned categories/items.
+
+### Completed Local Slice: Yacht Atlas Price Engine
+
+- Project Director: moved duplicate `Yacht: Claudia Z` to trash; `Yacht: Ckaudia Z` remains active.
+- Backend/Data: added Atlas `yacht_price_snapshots` model and local APIs `yacht_price_approved_catalog` and `yacht_price_snapshot_refresh`.
+- Frontend/UX: reference price refresh now calls Atlas snapshot refresh; food/fuel screens keep the correct render target; product reference prices can read Atlas food snapshots.
+- QA: local smoke on `127.0.0.1:18890` passed for group list, trash list, fuel snapshot, food snapshot, and app route `routes31`.
+- Open next: actual source fetchers/AI price refresh, source failure telemetry, production deployment plan with separate production Atlas URI.
+
+### Completed Local Slice: Yacht Price Source UI
+
+- Frontend/UX: fuel and product screens now show Atlas source transparency: available/total sources, failures, labels, source type, and normalized net price.
+- Backend/Data: `source_details` from Atlas snapshots are exposed through `yacht_price_approved_catalog` and rendered by the UI.
+- QA: local smoke passed on `127.0.0.1:18891` for `routes32`, fuel source details `5/5`, food source details `25/25`, and app availability.
+- Open next: browser visual QA for source panel on desktop/iPad/iPhone, then actual source fetchers/AI refresh jobs.
+
+## Director Sprint 2026-06-07 - Universal Cash Session Engine V1
+
+Status: local first slice implemented; smoke pending.
+
+Done locally:
+
+- reviewed Ship Cashbox as a behavior source, not a codebase foundation;
+- recorded Universal Cash Session direction;
+- added Atlas-backed `cash_sessions` collection indexes in the local Node Atlas server;
+- added API actions:
+  - `cash_session_get_or_create`;
+  - `cash_session_save_draft`;
+  - `cash_session_submit_draft`;
+- added universal Product Shell routes:
+  - `cash-session`;
+  - `cash-journal`;
+  - `cash-records`;
+  - `cash-report`;
+- added entry points from generic workspace, Yacht home and Home home;
+- added first ЖЗ page, fixed records page and report-preview page;
+- marked settlement output as preview/not final, not as audited official report.
+
+Next:
+
+- smoke test Atlas API and browser routes;
+- add participants/roles to the universal session;
+- add close/archive snapshot;
+- design professional report document after report structure approval.
+
+## Director Sprint 2026-06-07 - Universal Cash Session Participants/Roles
+
+Status: local first participant slice implemented; API smoke passed; smoke data cleaned.
+
+Done locally:
+
+- added participant upsert/remove backend actions for `cash_sessions`;
+- added role normalization: owner, treasurer, manager, participant, viewer;
+- added include/exclude-from-split flag for report preview;
+- added participant selector to ЖЗ;
+- ЖЗ save/submit now sends `participant_id`;
+- fixed record batches store participant identity;
+- records page displays participant name per batch;
+- engine page displays participant cards and add/remove UI;
+- smoke verified adding a participant, submitting participant ЖЗ, and preview transfer generation;
+- smoke participant and test records were removed from Atlas after verification.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- local Atlas API smoke passed on `http://127.0.0.1:18893/app.php?build=routes34`.
+
+Next:
+
+- add participant self-view/auth discipline;
+- add session close/archive snapshot;
+- review settlement math with architect/auditor before official final report use.
+
+## Director Sprint 2026-06-07 - Universal Cash Session Participant Self-View
+
+Status: local self-view slice implemented; API smoke passed; smoke data cleaned.
+
+Done locally:
+
+- added participant `invite_token` to cash session participants;
+- added restricted participant APIs:
+  - `cash_participant_view`;
+  - `cash_participant_save_draft`;
+  - `cash_participant_submit_draft`;
+- participant payload excludes full participant list and all session batches;
+- participant can save/submit only their own ЖЗ by token;
+- added `cash-participant` Product Shell route;
+- added manager-side `Вид участника` button on participant cards;
+- added `cashToken` URL handling for participant self-view route.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- local Atlas API smoke passed on `http://127.0.0.1:18894/app.php?build=routes35`;
+- smoke confirmed participant payload does not expose full `participants` or global `batches`;
+- smoke participant and test records were removed from Atlas after verification.
+
+Next:
+
+- invitation/token delivery UX;
+- session close/archive snapshot;
+- audited final settlement/report flow.
+
+## Director Sprint 2026-06-07 - Universal Cash Session Invite Delivery UX
+
+Status: local copy-link delivery implemented; API smoke passed; smoke data cleaned.
+
+Done locally:
+
+- participant form now stores optional email;
+- participant cards display email and self-view invite URL;
+- added `Копировать приглашение` action;
+- copied invitation includes participant name, self-view URL and limited-view explanation;
+- invite URL format uses `cashToken` and current build `routes36`;
+- no production email sending was added.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- local Atlas API smoke passed on `http://127.0.0.1:18895/app.php?build=routes36`;
+- smoke confirmed optional email persistence, token shape and restricted participant payload;
+- smoke participant was removed from Atlas after verification.
+
+Next:
+
+- close/archive snapshot;
+- production-grade token policy and optional email sending pipeline later;
+- audited final settlement/report flow.
+
+## Director Sprint 2026-06-07 - Universal Cash Session Close/Archive Snapshot
+
+Status: local close/archive slice implemented; API smoke passed; smoke data cleaned.
+
+Done locally:
+
+- added backend `cash_session_close` action;
+- added backend archive list/get actions;
+- closing active session writes an immutable `archive_snapshot` into the closed session;
+- snapshot stores participants, batches, participant totals, settlement preview, close timestamp and closer user id;
+- active session route shows archive cards for the current workspace;
+- `cash-session` and `cash-report` expose `Закрыть в архив` action;
+- build advanced to `routes37` / `20260607-cash-archive-snapshot-routes37`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check public/service-worker.js` passed;
+- `git diff --check` passed;
+- local Atlas API smoke passed on `http://127.0.0.1:18896/app.php?build=routes37`;
+- smoke closed a temporary session, verified snapshot batches/totals, then removed smoke workspace/session/audit records;
+- active `Yacht: Ckaudia Z` cash session remains clean: one participant, zero batches, empty owner draft.
+
+Next:
+
+- commit and push repository state to GitHub;
+- audit settlement math before any final report status;
+- add professional PDF/export later after report structure approval.

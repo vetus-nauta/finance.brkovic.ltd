@@ -1,0 +1,458 @@
+{
+  "version": "2026-06-04-yacht-source-registry2",
+  "policy": {
+    "food_refresh_interval_days": 90,
+    "minimum_sources_per_region": 5,
+    "key_usage": "background_quarterly_refresh_only",
+    "failure_rule": "average_available_sources_keep_last_good_snapshot_if_all_fail",
+    "fuel_refresh_interval_days": 30,
+    "fuel_price_basis": "average_available_regional_sources",
+    "duty_free_rule": "use_verified_duty_free_sources_first_fallback_to_regional_discount_estimate_with_warning"
+  },
+  "regions": {
+    "europe_basic": {
+      "label": "Europe baseline",
+      "food": [
+        {
+          "id": "eurostat_hicp_food",
+          "label": "Eurostat HICP food price indices",
+          "url": "https://ec.europa.eu/eurostat/web/hicp",
+          "type": "official_index"
+        },
+        {
+          "id": "carrefour_fr",
+          "label": "Carrefour France online grocery",
+          "url": "https://www.carrefour.fr/courses",
+          "type": "retailer_online"
+        },
+        {
+          "id": "eleclerc_drive_fr",
+          "label": "E.Leclerc Drive",
+          "url": "https://www.leclercdrive.fr/mobile/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "coopshop_it",
+          "label": "Coop Italy online grocery",
+          "url": "https://www.coopshop.it/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "esselunga_it",
+          "label": "Esselunga Spesa Online",
+          "url": "https://spesaonline.esselunga.it/",
+          "type": "retailer_online"
+        }
+      ],
+      "fuel": [
+        {
+          "id": "ec_oil_bulletin_diesel",
+          "label": "European Commission Weekly Oil Bulletin diesel",
+          "url": "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en",
+          "type": "official_index"
+        },
+        {
+          "id": "euenergyprices_diesel",
+          "label": "EU Energy Prices diesel table",
+          "url": "https://euenergyprices.eu/en/fuel",
+          "type": "official_index_mirror"
+        },
+        {
+          "id": "globalpetrolprices_france_diesel",
+          "label": "GlobalPetrolPrices France diesel",
+          "url": "https://www.globalpetrolprices.com/France/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "globalpetrolprices_italy_diesel",
+          "label": "GlobalPetrolPrices Italy diesel",
+          "url": "https://www.globalpetrolprices.com/Italy/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "mabux_mgo_europe",
+          "label": "MABUX marine gasoil market indexes",
+          "url": "https://mabux.com/",
+          "type": "marine_fuel_index"
+        }
+      ]
+    },
+    "adriatic_balkans": {
+      "label": "Adriatic / Balkans",
+      "food": [
+        {
+          "id": "voli_me",
+          "label": "VOLI Montenegro online store",
+          "url": "https://www.voli.me/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "idea_me",
+          "label": "IDEA Montenegro catalog and stores",
+          "url": "https://www.idea.co.me/",
+          "type": "retailer_catalog"
+        },
+        {
+          "id": "konzum_hr",
+          "label": "Konzum Croatia online platform",
+          "url": "https://www.konzum.hr/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "tommy_hr",
+          "label": "Tommy Croatia web shop",
+          "url": "https://www.tommy.hr/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "mercator_si",
+          "label": "Mercator Slovenia online market",
+          "url": "https://mercatoronline.si/",
+          "type": "retailer_online"
+        }
+      ],
+      "fuel": [
+        {
+          "id": "porto_montenegro_fuel",
+          "label": "Porto Montenegro fuel bunkering information",
+          "url": "https://www.portomontenegro.com/en/marina/fuel/",
+          "type": "marina_bunker"
+        },
+        {
+          "id": "portonovi_marina_fuel",
+          "label": "D-Marin Portonovi fuel dock",
+          "url": "https://www.d-marin.com/en/marinas/portonovi/",
+          "type": "marina_bunker"
+        },
+        {
+          "id": "navis_supply_adriatic",
+          "label": "Navis Supply Adriatic yacht bunkering",
+          "url": "https://navis-supply.com/fuel-supply/",
+          "type": "bunker_supplier"
+        },
+        {
+          "id": "globalpetrolprices_montenegro_diesel",
+          "label": "GlobalPetrolPrices Montenegro diesel",
+          "url": "https://www.globalpetrolprices.com/Montenegro/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "ina_croatia_fuel_prices",
+          "label": "INA Croatia fuel prices",
+          "url": "https://www.ina.hr/en/customers/fuel-prices/",
+          "type": "retail_supplier"
+        }
+      ]
+    },
+    "mediterranean_west": {
+      "label": "Western Mediterranean",
+      "food": [
+        {
+          "id": "carrefour_fr",
+          "label": "Carrefour France online grocery",
+          "url": "https://www.carrefour.fr/courses",
+          "type": "retailer_online"
+        },
+        {
+          "id": "mercadona_es",
+          "label": "Mercadona Spain online supermarket",
+          "url": "https://www.mercadona.es/en",
+          "type": "retailer_online"
+        },
+        {
+          "id": "carrefour_es",
+          "label": "Carrefour Spain supermarket online",
+          "url": "https://www.carrefour.es/supermercado",
+          "type": "retailer_online"
+        },
+        {
+          "id": "alcampo_es",
+          "label": "Alcampo Spain online supermarket",
+          "url": "https://www.compraonline.alcampo.es/categories?source=navigation",
+          "type": "retailer_online"
+        },
+        {
+          "id": "dia_es",
+          "label": "DIA Spain online supermarket",
+          "url": "https://www.dia.es/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "esselunga_it",
+          "label": "Esselunga Italy online grocery",
+          "url": "https://spesaonline.esselunga.it/",
+          "type": "retailer_online"
+        }
+      ],
+      "fuel": [
+        {
+          "id": "bsy_mediterranean_fuel_overview",
+          "label": "BSY Mediterranean fuel price overview",
+          "url": "https://www.bsy-bunker.com/fuel-price-overview/",
+          "type": "bunker_supplier"
+        },
+        {
+          "id": "mabux_mediterranean_mgo",
+          "label": "MABUX Mediterranean marine gasoil indexes",
+          "url": "https://mabux.com/",
+          "type": "marine_fuel_index"
+        },
+        {
+          "id": "globalpetrolprices_spain_diesel",
+          "label": "GlobalPetrolPrices Spain diesel",
+          "url": "https://www.globalpetrolprices.com/Spain/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "globalpetrolprices_france_diesel",
+          "label": "GlobalPetrolPrices France diesel",
+          "url": "https://www.globalpetrolprices.com/France/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "globalpetrolprices_italy_diesel",
+          "label": "GlobalPetrolPrices Italy diesel",
+          "url": "https://www.globalpetrolprices.com/Italy/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "repsol_spain_fuel_prices",
+          "label": "Repsol Spain fuel prices",
+          "url": "https://www.repsol.es/particulares/vehiculos/estaciones-servicio/precio-gasolina-diesel/",
+          "type": "retail_supplier"
+        }
+      ]
+    },
+    "usa_coastal": {
+      "label": "USA coastal states",
+      "food": [
+        {
+          "id": "walmart_grocery",
+          "label": "Walmart grocery essentials",
+          "url": "https://www.walmart.com/cp/groceries-essentials/1735450",
+          "type": "retailer_online"
+        },
+        {
+          "id": "kroger_delivery",
+          "label": "Kroger pickup and delivery",
+          "url": "https://www.kroger.com/i/ways-to-shop/delivery",
+          "type": "retailer_online"
+        },
+        {
+          "id": "target_grocery",
+          "label": "Target grocery",
+          "url": "https://www.target.com/c/grocery/-/N-5xt1aZ5ewil",
+          "type": "retailer_online"
+        },
+        {
+          "id": "publix_online",
+          "label": "Publix online ordering",
+          "url": "https://www.publix.com/shop-online",
+          "type": "retailer_online"
+        },
+        {
+          "id": "safeway_pickup",
+          "label": "Safeway grocery delivery and pickup",
+          "url": "https://local.safeway.com/safeway/ca/san-francisco/5290-diamond-heights-blvd/grocery-delivery-pickup.html",
+          "type": "retailer_online"
+        },
+        {
+          "id": "albertsons_online",
+          "label": "Albertsons grocery delivery",
+          "url": "https://www.albertsons.com/",
+          "type": "retailer_online"
+        }
+      ],
+      "fuel": [
+        {
+          "id": "eia_weekly_diesel",
+          "label": "U.S. EIA weekly retail diesel prices",
+          "url": "https://www.eia.gov/petroleum/gasdiesel/",
+          "type": "official_index"
+        },
+        {
+          "id": "waterway_guide_fuel_prices",
+          "label": "Waterway Guide marina fuel prices",
+          "url": "https://www.waterwayguide.com/fuel-pricing",
+          "type": "marina_fuel_index"
+        },
+        {
+          "id": "dockwa_marina_fuel",
+          "label": "Dockwa marina fuel price listings",
+          "url": "https://dockwa.com/",
+          "type": "marina_marketplace"
+        },
+        {
+          "id": "roam_puget_sound_fuel_prices",
+          "label": "Puget Sound marina fuel prices",
+          "url": "https://roamcharters.com/washington-boat-marina-fuel-prices-diesel-cost/",
+          "type": "marina_fuel_index"
+        },
+        {
+          "id": "globalpetrolprices_usa_diesel",
+          "label": "GlobalPetrolPrices USA diesel",
+          "url": "https://www.globalpetrolprices.com/USA/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "truckcodex_weekly_diesel",
+          "label": "TruckCodex weekly diesel prices from EIA",
+          "url": "https://truckcodex.com/fuel/diesel/",
+          "type": "official_index_mirror"
+        }
+      ]
+    },
+    "asia_marina": {
+      "label": "Asia marina hubs",
+      "food": [
+        {
+          "id": "fairprice_sg",
+          "label": "FairPrice Singapore online",
+          "url": "https://www.fairprice.com.sg/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "cold_storage_sg",
+          "label": "Cold Storage Singapore",
+          "url": "https://coldstorage.com.sg/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "sheng_siong_sg",
+          "label": "Sheng Siong Singapore",
+          "url": "https://shengsiong.com.sg/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "parknshop_hk",
+          "label": "PARKnSHOP Hong Kong",
+          "url": "https://www.pns.hk/en/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "wellcome_hk",
+          "label": "Wellcome Hong Kong",
+          "url": "https://www.wellcome.hk/en/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "groceryhunt_sg",
+          "label": "GroceryHunt Singapore price comparison",
+          "url": "https://groceryhunt.com/",
+          "type": "price_comparison"
+        }
+      ],
+      "fuel": [
+        {
+          "id": "mabux_singapore_mgo",
+          "label": "MABUX Singapore marine fuel indexes",
+          "url": "https://mabux.com/",
+          "type": "marine_fuel_index"
+        },
+        {
+          "id": "shipandbunker_singapore",
+          "label": "Ship & Bunker Singapore marine fuel prices",
+          "url": "https://shipandbunker.com/prices/apac/sea/sg-sin-singapore",
+          "type": "marine_fuel_index"
+        },
+        {
+          "id": "globalpetrolprices_singapore_diesel",
+          "label": "GlobalPetrolPrices Singapore diesel",
+          "url": "https://www.globalpetrolprices.com/Singapore/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "globalpetrolprices_hong_kong_diesel",
+          "label": "GlobalPetrolPrices Hong Kong diesel",
+          "url": "https://www.globalpetrolprices.com/Hong-Kong/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "shell_singapore_fuel_prices",
+          "label": "Shell Singapore fuel prices",
+          "url": "https://www.shell.com.sg/motorists/fuels/shell-station-price-board.html",
+          "type": "retail_supplier"
+        },
+        {
+          "id": "spc_singapore_prices",
+          "label": "SPC Singapore pump prices",
+          "url": "https://www.spc.com.sg/for-motorists/pump-prices/",
+          "type": "retail_supplier"
+        }
+      ]
+    },
+    "caribbean_islands": {
+      "label": "Caribbean islands",
+      "food": [
+        {
+          "id": "superfood_aruba",
+          "label": "Super Food Plaza Aruba online grocery",
+          "url": "https://shop.superfoodaruba.com/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "massy_stores",
+          "label": "Massy Stores Caribbean",
+          "url": "https://www.massystores.com/",
+          "type": "retailer_online"
+        },
+        {
+          "id": "cost_u_less_barbados",
+          "label": "Cost.U.Less Barbados",
+          "url": "https://www.shopcostuless.com/stores/barbados-cost-u-less",
+          "type": "retailer_online"
+        },
+        {
+          "id": "fosters_cayman",
+          "label": "Foster's Cayman online grocery",
+          "url": "https://shop.fosters.ky/stores/priced-right",
+          "type": "retailer_online"
+        },
+        {
+          "id": "pricesmart_caribbean",
+          "label": "PriceSmart Caribbean warehouse club",
+          "url": "https://www.pricesmart.com/",
+          "type": "retailer_online"
+        }
+      ],
+      "fuel": [
+        {
+          "id": "bunkerist_caribbean_fuel",
+          "label": "Bunkerist Caribbean marine fuel market",
+          "url": "https://bunkerist.com/",
+          "type": "bunker_supplier"
+        },
+        {
+          "id": "pricesmart_fuel_caribbean",
+          "label": "PriceSmart fuel and warehouse network",
+          "url": "https://www.pricesmart.com/",
+          "type": "regional_supplier"
+        },
+        {
+          "id": "globalpetrolprices_bahamas_diesel",
+          "label": "GlobalPetrolPrices Bahamas diesel",
+          "url": "https://www.globalpetrolprices.com/Bahamas/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "globalpetrolprices_barbados_diesel",
+          "label": "GlobalPetrolPrices Barbados diesel",
+          "url": "https://www.globalpetrolprices.com/Barbados/diesel_prices/",
+          "type": "retail_index"
+        },
+        {
+          "id": "sol_petroleum_caribbean",
+          "label": "Sol Petroleum Caribbean marine and road fuels",
+          "url": "https://solpetroleum.com/",
+          "type": "regional_supplier"
+        },
+        {
+          "id": "rubis_caribbean_fuel",
+          "label": "Rubis Caribbean fuel network",
+          "url": "https://www.rubis-caribbean.com/",
+          "type": "regional_supplier"
+        }
+      ]
+    }
+  }
+}

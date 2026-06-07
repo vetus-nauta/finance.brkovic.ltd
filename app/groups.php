@@ -18,6 +18,54 @@ function ql_group_role_for_access(string $accessLevel): string
     return $accessLevel === 'advanced' ? 'admin' : 'member';
 }
 
+function ql_group_workspace_types(): array
+{
+    return ['team', 'yacht', 'home'];
+}
+
+function ql_group_normalize_workspace_type($value, string $name = ''): string
+{
+    $type = strtolower(trim((string)$value));
+    if (in_array($type, ql_group_workspace_types(), true)) {
+        return $type;
+    }
+
+    $lowerName = strtolower(trim($name));
+    if (strpos($lowerName, 'yacht:') === 0 || strpos($lowerName, 'yacht') !== false) {
+        return 'yacht';
+    }
+    if ($lowerName === 'дом' || strpos($lowerName, 'home:') === 0 || strpos($lowerName, 'home') !== false || strpos($lowerName, 'house') !== false) {
+        return 'home';
+    }
+
+    return 'team';
+}
+
+function ql_group_ensure_workspace_type_schema(): bool
+{
+    static $ready = null;
+    if ($ready !== null) {
+        return $ready;
+    }
+
+    if (ql_group_table_has_column('groups', 'workspace_type')) {
+        $ready = true;
+        return true;
+    }
+
+    try {
+        ql_db()->exec("
+            ALTER TABLE groups
+            ADD COLUMN workspace_type ENUM('team','yacht','home') NOT NULL DEFAULT 'team' AFTER description
+        ");
+        $ready = true;
+        return true;
+    } catch (Throwable $e) {
+        $ready = false;
+        return false;
+    }
+}
+
 function ql_group_default_permissions(string $accessLevel): array
 {
     if ($accessLevel === 'advanced') {
@@ -73,6 +121,7 @@ function ql_group_member_public(array $member): array
 
     $member['access_level'] = $accessLevel;
     $member['permissions'] = $permissions;
+    $member['workspace_type'] = ql_group_normalize_workspace_type($member['workspace_type'] ?? '', (string)($member['name'] ?? ''));
     unset($member['permissions_json']);
 
     return $member;
@@ -105,6 +154,7 @@ function ql_group_is_admin(int $groupId, int $userId): bool
 
 function ql_group_create(array $input): array
 {
+    $hasWorkspaceType = ql_group_ensure_workspace_type_schema();
     $user = ql_require_user();
     $name = trim((string)($input['name'] ?? ''));
 
@@ -120,15 +170,29 @@ function ql_group_create(array $input): array
     $db->beginTransaction();
 
     try {
-        $stmt = $db->prepare("
-            INSERT INTO groups (name, description, created_by)
-            VALUES (?, ?, ?)
-        ");
-        $stmt->execute([
-            $name,
-            trim((string)($input['description'] ?? '')) ?: null,
-            (int)$user['id']
-        ]);
+        $description = trim((string)($input['description'] ?? '')) ?: null;
+        if ($hasWorkspaceType) {
+            $stmt = $db->prepare("
+                INSERT INTO groups (name, description, workspace_type, created_by)
+                VALUES (?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $name,
+                $description,
+                ql_group_normalize_workspace_type($input['workspace_type'] ?? '', $name),
+                (int)$user['id']
+            ]);
+        } else {
+            $stmt = $db->prepare("
+                INSERT INTO groups (name, description, created_by)
+                VALUES (?, ?, ?)
+            ");
+            $stmt->execute([
+                $name,
+                $description,
+                (int)$user['id']
+            ]);
+        }
 
         $groupId = (int)$db->lastInsertId();
 
@@ -154,11 +218,13 @@ function ql_group_create(array $input): array
 
 function ql_group_get(int $groupId, int $userId): ?array
 {
+    $workspaceTypeSelect = ql_group_ensure_workspace_type_schema() ? 'g.workspace_type,' : "NULL AS workspace_type,";
     $stmt = ql_db()->prepare("
         SELECT
             g.id,
             g.name,
             g.description,
+            {$workspaceTypeSelect}
             g.created_by,
             g.status,
             g.created_at,
@@ -182,13 +248,16 @@ function ql_group_get(int $groupId, int $userId): ?array
 
 function ql_group_list(array $input = []): array
 {
+    $workspaceTypeSelect = ql_group_ensure_workspace_type_schema() ? 'g.workspace_type,' : "NULL AS workspace_type,";
     $user = ql_require_user();
+    ql_group_trash_purge_expired(['silent' => true]);
 
     $stmt = ql_db()->prepare("
         SELECT
             g.id,
             g.name,
             g.description,
+            {$workspaceTypeSelect}
             g.created_by,
             g.status,
             g.created_at,
@@ -214,6 +283,193 @@ function ql_group_list(array $input = []): array
     $groups = array_map('ql_group_member_public', $stmt->fetchAll());
 
     return ['ok' => true, 'groups' => $groups];
+}
+
+function ql_group_trash_list(array $input = []): array
+{
+    $workspaceTypeSelect = ql_group_ensure_workspace_type_schema() ? 'g.workspace_type,' : "NULL AS workspace_type,";
+    $user = ql_require_user();
+    ql_group_trash_purge_expired(['silent' => true]);
+
+    $stmt = ql_db()->prepare("
+        SELECT
+            g.id,
+            g.name,
+            g.description,
+            {$workspaceTypeSelect}
+            g.created_by,
+            g.status,
+            g.created_at,
+            g.archived_at,
+            gm.role,
+            gm.access_level,
+            gm.permissions_json,
+            gm.display_name AS member_display_name,
+            GREATEST(0, 60 - DATEDIFF(NOW(), COALESCE(g.archived_at, g.updated_at, g.created_at))) AS trash_days_left,
+            (
+                SELECT COUNT(*)
+                FROM group_members gm2
+                WHERE gm2.group_id = g.id
+                  AND gm2.status = 'active'
+            ) AS member_count
+        FROM groups g
+        JOIN group_members gm ON gm.group_id = g.id
+        WHERE gm.user_id = ?
+          AND gm.status = 'active'
+          AND g.status = 'archived'
+          AND COALESCE(g.archived_at, g.updated_at, g.created_at) >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+        ORDER BY g.archived_at DESC, g.id DESC
+    ");
+    $stmt->execute([(int)$user['id']]);
+
+    $groups = array_map('ql_group_member_public', $stmt->fetchAll());
+
+    return ['ok' => true, 'groups' => $groups, 'retention_days' => 60];
+}
+
+function ql_group_trash(array $input): array
+{
+    $user = ql_require_user();
+    $groupId = (int)($input['group_id'] ?? 0);
+
+    if ($groupId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_group_id'];
+    }
+
+    if (!ql_group_is_admin($groupId, (int)$user['id'])) {
+        return ['ok' => false, 'error' => 'admin_required'];
+    }
+
+    $now = date('Y-m-d H:i:s');
+    $set = ["status = 'archived'"];
+    $params = [];
+    if (ql_group_table_has_column('groups', 'archived_at')) {
+        $set[] = 'archived_at = ?';
+        $params[] = $now;
+    }
+    if (ql_group_table_has_column('groups', 'updated_at')) {
+        $set[] = 'updated_at = ?';
+        $params[] = $now;
+    }
+    $params[] = $groupId;
+    $stmt = ql_db()->prepare("UPDATE groups SET " . implode(', ', $set) . " WHERE id = ? AND status = 'active'");
+    $stmt->execute($params);
+
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write((int)$user['id'], 'group_moved_to_trash', 'group', $groupId, [
+            'archived_at' => $now,
+            'retention_days' => 60,
+            'financial_evidence_preserved' => true,
+        ]);
+    }
+
+    return ['ok' => true, 'group_id' => $groupId, 'status' => 'archived', 'retention_days' => 60];
+}
+
+function ql_group_restore(array $input): array
+{
+    $user = ql_require_user();
+    $groupId = (int)($input['group_id'] ?? 0);
+
+    if ($groupId <= 0) {
+        return ['ok' => false, 'error' => 'invalid_group_id'];
+    }
+
+    $membership = ql_group_membership($groupId, (int)$user['id']);
+    if (!$membership) {
+        return ['ok' => false, 'error' => 'group_not_found'];
+    }
+
+    $role = (string)($membership['role'] ?? '');
+    $access = (string)($membership['access_level'] ?? '');
+    if ($role !== 'admin' && $role !== 'owner' && $access !== 'advanced') {
+        return ['ok' => false, 'error' => 'admin_required'];
+    }
+
+    $now = date('Y-m-d H:i:s');
+    $set = ["status = 'active'"];
+    $params = [];
+    if (ql_group_table_has_column('groups', 'updated_at')) {
+        $set[] = 'updated_at = ?';
+        $params[] = $now;
+    }
+    $params[] = $groupId;
+    $stmt = ql_db()->prepare("
+        UPDATE groups
+        SET " . implode(', ', $set) . "
+        WHERE id = ?
+          AND status = 'archived'
+          AND COALESCE(archived_at, updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+    ");
+    $stmt->execute($params);
+
+    if ($stmt->rowCount() < 1) {
+        return ['ok' => false, 'error' => 'restore_window_expired'];
+    }
+
+    if (function_exists('ql_audit_write')) {
+        ql_audit_write((int)$user['id'], 'group_restored_from_trash', 'group', $groupId, [
+            'restored_at' => $now,
+            'financial_evidence_preserved' => true,
+        ]);
+    }
+
+    return ['ok' => true, 'group' => ql_group_get($groupId, (int)$user['id'])];
+}
+
+function ql_group_trash_purge_expired(array $input = []): array
+{
+    $silent = !empty($input['silent']);
+    try {
+        $db = ql_db();
+        $now = date('Y-m-d H:i:s');
+        $expiredStmt = $db->query("
+            SELECT id
+            FROM groups
+            WHERE status = 'archived'
+              AND COALESCE(archived_at, updated_at, created_at) < DATE_SUB(NOW(), INTERVAL 60 DAY)
+        ");
+        $ids = array_map('intval', array_column($expiredStmt->fetchAll(), 'id'));
+        if (!$ids) {
+            return ['ok' => true, 'purged' => 0];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $memberSet = ["status = 'left'"];
+        $memberParams = [];
+        if (ql_group_table_has_column('group_members', 'left_at')) {
+            $memberSet[] = 'left_at = ?';
+            $memberParams[] = $now;
+        }
+        if (ql_group_table_has_column('group_members', 'updated_at')) {
+            $memberSet[] = 'updated_at = ?';
+            $memberParams[] = $now;
+        }
+        $memberParams = array_merge($memberParams, $ids);
+        $members = $db->prepare("UPDATE group_members SET " . implode(', ', $memberSet) . " WHERE group_id IN ($placeholders) AND status = 'active'");
+        $members->execute($memberParams);
+
+        $inviteSet = ["status = 'revoked'"];
+        $inviteParams = [];
+        if (ql_group_table_has_column('group_invites', 'revoked_at')) {
+            $inviteSet[] = 'revoked_at = ?';
+            $inviteParams[] = $now;
+        }
+        $inviteParams = array_merge($inviteParams, $ids);
+        $invites = $db->prepare("UPDATE group_invites SET " . implode(', ', $inviteSet) . " WHERE group_id IN ($placeholders) AND status = 'active'");
+        $invites->execute($inviteParams);
+
+        return [
+            'ok' => true,
+            'purged' => count($ids),
+            'retention_days' => 60,
+        ];
+    } catch (Throwable $e) {
+        if ($silent) {
+            return ['ok' => false, 'error' => 'purge_failed'];
+        }
+        return ['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()];
+    }
 }
 
 function ql_group_rename(array $input): array

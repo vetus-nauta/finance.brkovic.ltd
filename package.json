@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "mongodb": "^6.21.0"
+  },
+  "scripts": {
+    "start:atlas": "node server/findesk-atlas-server.js"
+  }
+}

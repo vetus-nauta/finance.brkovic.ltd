@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260603-yacht-bunkering-inside1';
+const CACHE_NAME = 'findesk-20260607-cash-archive-snapshot-routes37';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

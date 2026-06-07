@@ -1826,3 +1826,124 @@ Control:
 - no backend/API/storage/report formula change in this slice;
 - browser visual QA remains required before production routing;
 - this slice is a first cleanup, not the full two-level UI redesign.
+
+## 2026-06-04: Atlas MongoDB Becomes Primary Persistence Target
+
+Decision: use MongoDB Atlas as the new primary persistence target for the current FinDesk Product Shell and stop treating the temporary local fallback API as a working data layer.
+
+Reason:
+
+- the old production database is legacy and may contain stale data;
+- the current product state lives in the local codebase and needs a clean backend connection before further UX work is reliable;
+- workspace creation must persist across refresh/restart and must not depend on local browser or `/tmp` fallback state.
+
+Implemented locally:
+
+- local Atlas-backed server added at `server/findesk-atlas-server.js`;
+- runtime dependency added on the official MongoDB Node driver;
+- local secret source is `storage/secrets/mongodb_uri` or `FINDESK_MONGO_URI`;
+- database name defaults to `finance_brkovic_ltd` and can be overridden with `FINDESK_MONGO_DB`;
+- `current_user`, `group_list`, `group_create`, `group_trash`, `group_trash_list`, `group_restore`, and `findesk_workspace_set` are available through the local Atlas server;
+- recovered workspace `Yacht: Ckaudia Z` was written into Atlas and survived local server restart.
+
+Control:
+
+- this is not a production deploy;
+- only the workspace/groups persistence slice is connected to Atlas so far;
+- legacy PHP/MySQL API remains in the repository until each module is migrated or retired deliberately;
+- Atlas URI must stay in local secrets or environment variables, never in public JS or committed files.
+
+## 2026-06-04: Yacht State Persists In Atlas
+
+Decision: persist Yacht workspace state in Atlas per workspace instead of relying only on browser `localStorage`.
+
+Implemented locally:
+
+- `yacht_state_get` and `yacht_state_save` added to the Atlas-backed local server;
+- yacht state stores `profile`, `crew_roles`, `order`, fuel rows, product shopping rows, provisioning settings, and the last provisioning calculation result;
+- the frontend loads yacht state from Atlas when a Yacht workspace is opened;
+- the frontend keeps instant local save for responsiveness, then debounces Atlas save;
+- `Yacht: Ckaudia Z` has a clean starter state in Atlas with the fuel package rows and agent fee row.
+
+Control:
+
+- no production deploy;
+- no public JS secret exposure;
+- product/fuel price source automation remains a separate migration slice;
+- broader finance modules still require deliberate migration from legacy PHP/MySQL/API paths.
+
+## 2026-06-07: Yacht Price Engine Moves To Atlas Snapshots
+
+Decision: move the Yacht fuel/food price refresh layer from local/static assumptions toward Atlas-backed snapshots generated from the reviewed source registry.
+
+Implemented locally:
+
+- duplicate workspace `Yacht: Claudia Z` was moved to trash; active Atlas workspace is `Yacht: Ckaudia Z`;
+- Atlas-backed local server now maintains `yacht_price_snapshots`;
+- `yacht_price_approved_catalog` returns the active Atlas snapshot and auto-creates one when missing;
+- `yacht_price_snapshot_refresh` generates a new active snapshot by region and family;
+- fuel snapshot includes `marine_diesel_liter` alias for approved fuel application;
+- food snapshot includes the reference product buckets used by provisioning prices;
+- source registry policy is carried into snapshots: minimum 5 sources, fuel monthly refresh, food 90-day refresh, average available sources, last-good fallback;
+- duty-free is explicitly treated as a regional fallback estimate unless verified supplier data exists, not as a universal 35% rule.
+
+Control:
+
+- no production deploy;
+- this is not live scraping yet; the snapshot generator uses the reviewed source registry plus controlled baseline observations;
+- next backend slice should add actual source fetchers/AI refresh jobs and source-level failure recording;
+- financial accounting formulas remain untouched.
+
+## 2026-06-07: Price Source Transparency In Yacht UI
+
+Decision: expose Atlas price source details in the Yacht UI so the user can see which sources participated in a price snapshot instead of seeing only a final number.
+
+Implemented locally:
+
+- approved price panel now reads the active `order.price_snapshot` when no manually loaded catalog is in memory;
+- panel shows available/total/failed source counts;
+- panel lists compact source rows with source label, bucket, source type, and normalized net EUR value;
+- products screen now has Atlas price refresh/load controls and uses the same approved source panel as fuel;
+- source panel is responsive via CSS grid for phone/tablet/desktop.
+
+Control:
+
+- source rows are transparency metadata, not financial evidence;
+- live scraping and AI refresh are still next-slice tasks;
+- production remains untouched.
+
+## 2026-06-07: Universal Cash Session Engine Above Yacht-Specific Cashbox
+
+Decision: treat Ship Cashbox behavior as the behavioral source for a universal cash/session engine, not as a yacht-only module.
+
+Reason:
+
+- the same operational model applies to yacht, home, family, road and the base FinDesk tool;
+- separate engines per direction would create duplicated reports and incompatible logic;
+- FinDesk already has a workspace shell, so the correct model is workspace -> active session -> journal -> records -> report -> archive;
+- Yacht-specific fuel/products tools must remain specialized tools under Yacht, while ЖЗ/Записи/Отчет become common product behavior.
+
+Control:
+
+- implementation record: `docs/AI_TEAM/91_UNIVERSAL_CASH_SESSION_ENGINE_2026-06-07.md`;
+- first local slice is additive Atlas collection `cash_sessions` and Product Shell routes `cash-session`, `cash-journal`, `cash-records`, `cash-report`;
+- no old Ship Cashbox PHP/file-storage code is transplanted;
+- existing official FinDesk financial formulas and report finalization are not replaced without architect/auditor approval.
+
+## 2026-06-07: Cash Sessions Close Into Preview Archive Snapshots
+
+Decision: closed universal cash sessions are stored as immutable preview archive snapshots before any final/audited report workflow exists.
+
+Implemented locally:
+
+- active `cash_sessions` can be closed with `cash_session_close`;
+- closing changes `status` to `closed` and stores `archive_snapshot`;
+- archive snapshot contains participants, batches, totals and settlement preview at close time;
+- Product Shell exposes archive cards for the current workspace.
+
+Control:
+
+- archive status remains `preview_not_final`;
+- archive snapshot is operational history, not a final financial/audit document;
+- no production deploy;
+- no official financial formulas were changed.

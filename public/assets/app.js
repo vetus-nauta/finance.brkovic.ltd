@@ -245,7 +245,7 @@ if ('serviceWorker' in navigator && !['127.0.0.1', 'localhost'].includes(window.
 let qlCurrentUser = null;
 
 async function qlApi(action, payload) {
-  const publicActions = ['current_user', 'request_code', 'verify_code', 'logout'];
+  const publicActions = ['current_user', 'request_code', 'verify_code', 'logout', 'cash_participant_view', 'cash_participant_save_draft', 'cash_participant_submit_draft'];
   if (!qlCurrentUser && !publicActions.includes(action)) {
     return {ok: false, error: 'not_authenticated_client'};
   }
@@ -2136,11 +2136,18 @@ qlRenderUser = function(user) {
     await qlLoadGroups();
     qlHandleInviteFromUrl();
     if (typeof window.qlOpenPhaseScreen === 'function') {
-      const state = qlLoadModuleState();
-      const target = state && (state.findesk_product === true || state.module === 'product')
-        ? String(state.phase_screen || state.screen || 'welcome')
-        : 'welcome';
-      window.qlOpenPhaseScreen(target || 'welcome', {history: 'replace', stack: false});
+      phase1Snapshot.groups = Array.isArray(qlGroups) ? qlGroups : [];
+      const params = new URLSearchParams(window.location.search || '');
+      const cashToken = String(params.get('cashToken') || params.get('cash_participant_token') || '').trim();
+      if (cashToken) {
+        phase1CashParticipantToken = cashToken;
+        phase1CashParticipantPayload = null;
+        await phase1LoadCashParticipantView(cashToken, {render: false});
+        window.qlOpenPhaseScreen('cash-participant', {history: 'replace', stack: false});
+        return;
+      }
+      const target = phase1ResolveStartScreen();
+      window.qlOpenPhaseScreen(target, {history: 'replace', stack: false});
       return;
     }
     if (!qlRestoreModuleState()) {
@@ -3377,7 +3384,7 @@ function qlApplyModuleState(state) {
   }
 
   if (typeof window.qlOpenPhaseScreen === 'function') {
-    window.qlOpenPhaseScreen('welcome', {history: 'replace', stack: false});
+    window.qlOpenPhaseScreen('workspace-hub', {history: 'replace', stack: false});
     return true;
   }
 
@@ -3454,7 +3461,7 @@ function qlProductScreenForLegacyModule(moduleName, screenName) {
   if (requested === 'captain' || requested === 'groups') return 'team';
   if (requested === 'ontherun') return 'journal-choice';
   if (requested === 'money' || screen === 'advances') return 'admin';
-  return 'welcome';
+  return 'workspace-hub';
 }
 
 function qlLegacyModuleRoutesAllowed(options) {
@@ -3572,11 +3579,34 @@ let phase1Stream = 'cash';
 let phase1SelectedEmployeeId = 0;
 let phase1ScreenStack = [];
 const PHASE1_WORKSPACE_KEY = 'findesk_phase1_workspace_v1';
+const PHASE1_WORKSPACE_TRASH_KEY = 'findesk_workspace_trash_v1';
 const PHASE2_SCREEN_TITLES = {
   welcome: 'Welcome Hall',
+  'workspace-hub': 'Мои пространства',
+  'workspace-trash': 'Корзина',
+  'workspace-create': 'Создать пространство',
+  'workspace-home': 'Рабочее пространство',
+  'cash-session': 'Движок записей',
+  'cash-journal': 'ЖЗ',
+  'cash-records': 'Записи',
+  'cash-report': 'Отчет-превью',
+  'cash-participant': 'ЖЗ участника',
   solo: 'Solo Workspace',
   templates: 'Готовые шаблоны',
+  'yacht-template': 'Создать яхту',
   yacht: 'Yacht Template',
+  'yacht-home': 'Yacht workspace',
+  'yacht-tools': 'Инструменты яхты',
+  'yacht-bunkering': 'Бункеровка',
+  'yacht-fuel': 'Топливо',
+  'yacht-products': 'Продукты',
+  'yacht-settings': 'Настройки яхты',
+  'home-template': 'Home template',
+  'home-home': 'Home workspace',
+  'home-tools': 'Инструменты дома',
+  'home-household': 'Домочадцы и помощники',
+  'home-shopping': 'Покупки',
+  'home-budget': 'Домашний бюджет',
   'journal-choice': 'Live Journal',
   journal: 'Live Journal',
   team: 'Team Workspace',
@@ -3591,7 +3621,9 @@ let phase1SnapshotLoading = false;
 let phase1SnapshotLoadedAt = 0;
 let phase1Snapshot = {
   groups: [],
+  trashGroups: [],
   group: null,
+  companyProfile: null,
   members: [],
   advances: [],
   transfers: [],
@@ -3619,19 +3651,26 @@ const PHASE1_YACHT_ORDER_MODES = [
   {id: 'fuel', label: 'Топливо'},
   {id: 'technical', label: 'Техника'}
 ];
-const PHASE1_YACHT_PACKAGE_DEFAULTS = [
-  {enabled: true, category: 'Еда', item: 'Вода питьевая', qty: 48, unit: 'бут.', price: 0.9},
-  {enabled: true, category: 'Еда', item: 'Продукты базовые', qty: 1, unit: 'компл.', price: 380},
-  {enabled: true, category: 'Еда', item: 'Кофе, чай, сахар', qty: 1, unit: 'компл.', price: 85},
-  {enabled: true, category: 'Хозяйственное', item: 'Бытовая химия', qty: 1, unit: 'компл.', price: 110},
-  {enabled: true, category: 'Хозяйственное', item: 'Полотенца бумажные / салфетки', qty: 1, unit: 'компл.', price: 45},
-  {enabled: true, category: 'Топливо', item: 'Дизель', qty: 500, unit: 'л', price: 1.65},
-  {enabled: true, category: 'Техника', item: 'Масло моторное', qty: 10, unit: 'л', price: 14},
-  {enabled: true, category: 'Техника', item: 'Фильтры запасные', qty: 1, unit: 'компл.', price: 160},
-  {enabled: true, category: 'Безопасность', item: 'Аптечка / расходники', qty: 1, unit: 'компл.', price: 95},
-  {enabled: true, category: 'Сервис', item: 'Портовые мелочи', qty: 1, unit: 'резерв', price: 150}
+const PHASE1_YACHT_FUEL_PACKAGE_VERSION = '2026-06-04-fuel-clean-placeholders1';
+const PHASE1_YACHT_FUEL_DEFAULTS = [
+  {enabled: true, category: 'Топливо', item: 'Дизель', qty: 0, unit: 'л', price: 0, category_placeholder: 'Топливо', item_placeholder: 'Дизель'},
+  {enabled: true, category: 'Агентский сбор', item: 'Услуга агента', qty: 1, unit: 'услуга', price: 250, category_placeholder: 'Агентский сбор', item_placeholder: 'Услуга агента'},
+  {enabled: false, category: '', item: '', qty: 0, unit: '', price: 0, category_placeholder: 'Техника', item_placeholder: 'Масло моторное', unit_placeholder: 'л'},
+  {enabled: false, category: '', item: '', qty: 0, unit: '', price: 0, category_placeholder: 'Техника', item_placeholder: 'Фильтры запасные', unit_placeholder: 'компл.'},
+  {enabled: false, category: '', item: '', qty: 0, unit: '', price: 0, category_placeholder: 'Безопасность', item_placeholder: 'Аптечка / расходники', unit_placeholder: 'компл.'},
+  {enabled: false, category: '', item: '', qty: 0, unit: '', price: 0, category_placeholder: 'Сервис', item_placeholder: 'Портовые мелочи', unit_placeholder: 'резерв'}
 ];
-const PHASE1_YACHT_PRICE_CATALOG_VERSION = '2026-06-03-local-engine1';
+const PHASE1_YACHT_PRICE_CATALOG_VERSION = '2026-06-04-fuel-sources1';
+const PHASE1_YACHT_PRICE_REFRESH_POLICY = {
+  food_interval_days: 90,
+  fuel_interval_days: 30,
+  minimum_sources_per_region: 5
+};
+const PHASE1_YACHT_PRICE_FAMILY_KEYS = {
+  food: ['Вода питьевая', 'Продукты базовые', 'Кофе, чай, сахар', 'Бытовая химия', 'Полотенца бумажные / салфетки'],
+  fuel: ['Дизель'],
+  technical: ['Масло моторное', 'Фильтры запасные', 'Аптечка / расходники', 'Портовые мелочи']
+};
 const PHASE1_YACHT_PRICE_ENGINE = {
   europe_basic: {
     label: 'Европа, базовая зона',
@@ -3751,6 +3790,21 @@ const PHASE1_YACHT_PRICE_ENGINE = {
 let phase1YachtState = phase1ReadYachtState();
 let phase1YachtApprovedCatalog = null;
 let phase1YachtApprovedLoading = false;
+let phase1YachtProvisionResult = null;
+let phase1YachtProvisionLoading = false;
+let phase1YachtProvisionSignature = '';
+let phase1YachtProvisionOpenCategoryKey = '';
+let phase1YachtAtlasLoadedWorkspaceId = 0;
+let phase1YachtAtlasSaveTimer = null;
+let phase1WorkspaceTrashTarget = null;
+let phase1CashSession = null;
+let phase1CashSessionLoading = false;
+let phase1CashDraftTouched = false;
+let phase1CashParticipantId = 'owner';
+let phase1CashParticipantPayload = null;
+let phase1CashParticipantToken = '';
+let phase1CashParticipantDraftTouched = false;
+let phase1CashArchives = [];
 
 function phase1ReadWorkspace() {
   try {
@@ -3762,6 +3816,68 @@ function phase1ReadWorkspace() {
     return {mode, groupId: Number.isFinite(groupId) ? groupId : 0};
   } catch (error) {
     return {mode: 'none', groupId: 0};
+  }
+}
+
+function phase1ReadWorkspaceLocalTrash() {
+  try {
+    const raw = window.localStorage ? localStorage.getItem(PHASE1_WORKSPACE_TRASH_KEY) : '';
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' && parsed.groups && typeof parsed.groups === 'object'
+      ? parsed
+      : {groups: {}};
+  } catch (error) {
+    return {groups: {}};
+  }
+}
+
+function phase1WriteWorkspaceLocalTrash(state) {
+  try {
+    if (window.localStorage) {
+      localStorage.setItem(PHASE1_WORKSPACE_TRASH_KEY, JSON.stringify(state || {groups: {}}));
+    }
+  } catch (error) {}
+}
+
+function phase1WorkspaceLocalTrashId(groupId) {
+  const id = Number(groupId || 0);
+  return id > 0 ? String(id) : '';
+}
+
+function phase1WorkspaceLocalTrashItem(groupId) {
+  const id = phase1WorkspaceLocalTrashId(groupId);
+  if (!id) return null;
+  const state = phase1ReadWorkspaceLocalTrash();
+  return state.groups && state.groups[id] || null;
+}
+
+function phase1WorkspaceIsLocallyTrashed(groupId) {
+  return !!phase1WorkspaceLocalTrashItem(groupId);
+}
+
+function phase1AddWorkspaceLocalTrash(item) {
+  const group = item && item.group || item || {};
+  const id = phase1WorkspaceLocalTrashId(group.id || String(item && item.id || '').replace('group:', ''));
+  if (!id) return;
+  const state = phase1ReadWorkspaceLocalTrash();
+  state.groups[id] = Object.assign({}, group, {
+    id: Number(id),
+    name: group.name || item.name || 'Рабочее пространство',
+    workspace_type: group.workspace_type || item.kind || 'team',
+    role: group.role || item.role || 'admin',
+    access_level: group.access_level || 'advanced',
+    trashed_at: new Date().toISOString()
+  });
+  phase1WriteWorkspaceLocalTrash(state);
+}
+
+function phase1RemoveWorkspaceLocalTrash(groupId) {
+  const id = phase1WorkspaceLocalTrashId(groupId);
+  if (!id) return;
+  const state = phase1ReadWorkspaceLocalTrash();
+  if (state.groups && state.groups[id]) {
+    delete state.groups[id];
+    phase1WriteWorkspaceLocalTrash(state);
   }
 }
 
@@ -3796,12 +3912,30 @@ function phase1YachtDefaultState() {
       use_reference_prices: false,
       price_region: 'adriatic_balkans',
       price_mode: 'full',
+      fuel_price_mode: 'full',
+      fuel_print_prices: false,
+      fuel_package_version: PHASE1_YACHT_FUEL_PACKAGE_VERSION,
       price_catalog_version: PHASE1_YACHT_PRICE_CATALOG_VERSION,
       price_catalog_updated_at: '',
+      price_catalog_updated_at_iso: '',
       approved_price_catalog: null,
+      provisioning: {
+        people_count: 8,
+        days: 7,
+        profile: 'balanced',
+        meal_plan: 'breakfast_onboard_lunch_light_dinner_mixed',
+        include_alcohol: false,
+        include_bbq: true,
+        include_children: false,
+        include_household: true,
+        include_hygiene: true,
+        route_restock_possible: true
+      },
+      provision_selected_keys: [],
       price_locked_at: '',
       price_snapshot: null,
-      rows: PHASE1_YACHT_PACKAGE_DEFAULTS.map(function(row) { return Object.assign({}, row); })
+      rows: PHASE1_YACHT_FUEL_DEFAULTS.map(function(row) { return Object.assign({}, row); }),
+      product_rows: []
     }
   };
 }
@@ -3815,23 +3949,83 @@ function phase1ReadYachtState() {
     const profile = Object.assign({}, defaults.profile, parsed.profile || {});
     const crewRoles = Object.assign({}, defaults.crew_roles, parsed.crew_roles || {});
     const order = Object.assign({}, defaults.order, parsed.order || {});
+    let stateMigrated = false;
     order.mode = PHASE1_YACHT_ORDER_MODES.some(function(mode) { return mode.id === order.mode; }) ? order.mode : 'all';
     order.price_region = PHASE1_YACHT_PRICE_ENGINE[order.price_region] ? order.price_region : 'adriatic_balkans';
     order.price_mode = order.price_mode === 'duty_free' ? 'duty_free' : 'full';
+    order.fuel_price_mode = order.fuel_price_mode === 'duty_free' ? 'duty_free' : 'full';
+    order.fuel_print_prices = !!order.fuel_print_prices;
+    order.fuel_package_version = String(order.fuel_package_version || '');
     order.use_reference_prices = !!order.use_reference_prices;
     order.price_catalog_version = String(order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION);
     order.price_catalog_updated_at = String(order.price_catalog_updated_at || '');
+    order.price_catalog_updated_at_iso = String(order.price_catalog_updated_at_iso || '');
     order.price_locked_at = String(order.price_locked_at || '');
     order.approved_price_catalog = parsed.order && parsed.order.approved_price_catalog && typeof parsed.order.approved_price_catalog === 'object'
       ? parsed.order.approved_price_catalog
       : null;
+    order.provisioning = Object.assign({
+      people_count: 8,
+      days: 7,
+      profile: 'balanced',
+      meal_plan: 'breakfast_onboard_lunch_light_dinner_mixed',
+      include_alcohol: false,
+      include_bbq: true,
+      include_children: false,
+      include_household: true,
+      include_hygiene: true,
+      route_restock_possible: true
+    }, parsed.order && parsed.order.provisioning || {});
+    order.provisioning.people_count = Math.max(1, Number(order.provisioning.people_count || 8));
+    order.provisioning.days = Math.max(1, Number(order.provisioning.days || 7));
+    order.provision_selected_keys = Array.isArray(order.provision_selected_keys)
+      ? order.provision_selected_keys.map(function(key) { return String(key || '').trim(); }).filter(Boolean)
+      : [];
     order.price_snapshot = parsed.order && parsed.order.price_snapshot && typeof parsed.order.price_snapshot === 'object'
       ? parsed.order.price_snapshot
       : null;
-    order.rows = Array.isArray(order.rows) && order.rows.length
+    let normalizedRows = Array.isArray(order.rows) && order.rows.length
       ? order.rows.map(function(row) { return Object.assign({enabled: true, category: '', item: '', qty: 0, unit: '', price: 0}, row || {}); })
-      : defaults.order.rows;
-    return {profile, crew_roles: crewRoles, order};
+      : defaults.order.rows.map(function(row) { return Object.assign({}, row); });
+    if (order.fuel_package_version !== PHASE1_YACHT_FUEL_PACKAGE_VERSION) {
+      normalizedRows = phase1MigrateYachtFuelRowsToCleanPackage(normalizedRows, defaults.order.rows);
+      order.fuel_package_version = PHASE1_YACHT_FUEL_PACKAGE_VERSION;
+      order.fuel_print_prices = false;
+      order.price_locked_at = '';
+      order.price_snapshot = null;
+      stateMigrated = true;
+    }
+    const parsedProductRows = parsed.order && Array.isArray(parsed.order.product_rows)
+      ? parsed.order.product_rows.map(function(row, index) {
+          return phase1YachtEnsureProductRowPrice(phase1NormalizeYachtProductRow(row, 'product-' + index), order);
+        }).filter(function(row) {
+          return row.item;
+        })
+      : [];
+    const migratedProductRows = [];
+    order.rows = normalizedRows.filter(function(row, index) {
+      if (phase1YachtRowMode(row) !== 'food') return true;
+      migratedProductRows.push(phase1YachtEnsureProductRowPrice(phase1NormalizeYachtProductRow({
+        source_key: 'legacy-food-' + index,
+        category: row.category || 'Продукты',
+        item: row.item || 'Позиция',
+        qty: row.qty,
+        unit: row.unit,
+        qty_display: [row.qty, row.unit].filter(Boolean).join(' ').trim(),
+        price: phase1Number(row.price || 0) > 0 ? row.price : null,
+        price_key: phase1Number(row.price || 0) > 0 ? 'legacy mixed-order' : '',
+        note: 'Импортировано из старого mixed-order'
+      }, 'legacy-food-' + index), order));
+      return false;
+    });
+    order.product_rows = (parsedProductRows.length ? parsedProductRows : migratedProductRows);
+    const nextState = {profile, crew_roles: crewRoles, order};
+    if (stateMigrated && window.localStorage) {
+      try {
+        localStorage.setItem(PHASE1_YACHT_KEY, JSON.stringify(nextState));
+      } catch (error) {}
+    }
+    return nextState;
   } catch (error) {
     return defaults;
   }
@@ -3843,6 +4037,86 @@ function phase1WriteYachtState() {
       localStorage.setItem(PHASE1_YACHT_KEY, JSON.stringify(phase1YachtState));
     }
   } catch (error) {}
+  phase1ScheduleYachtAtlasSave();
+}
+
+function phase1ActiveYachtWorkspaceId() {
+  if (!phase1Workspace || phase1Workspace.mode !== 'group') return 0;
+  const group = phase1SelectedGroup();
+  if (phase1WorkspaceKind(group) !== 'yacht') return 0;
+  return Number(phase1Workspace.groupId || 0);
+}
+
+function phase1ScheduleYachtAtlasSave() {
+  const workspaceId = phase1ActiveYachtWorkspaceId();
+  if (!workspaceId || !qlCurrentUser) return;
+  if (phase1YachtAtlasSaveTimer) clearTimeout(phase1YachtAtlasSaveTimer);
+  phase1YachtAtlasSaveTimer = setTimeout(function() {
+    phase1SaveYachtStateToAtlas({silent: true});
+  }, 700);
+}
+
+async function phase1SaveYachtStateToAtlas(options) {
+  const opts = options || {};
+  const workspaceId = Number(opts.workspaceId || phase1ActiveYachtWorkspaceId() || 0);
+  if (!workspaceId || !qlCurrentUser) return {ok: false, error: 'no_yacht_workspace'};
+  if (phase1YachtAtlasSaveTimer) {
+    clearTimeout(phase1YachtAtlasSaveTimer);
+    phase1YachtAtlasSaveTimer = null;
+  }
+  const saved = await qlApi('yacht_state_save', {
+    workspace_id: workspaceId,
+    state: phase1YachtState
+  });
+  if (!saved.ok && !opts.silent) {
+    phase1Notice = 'Яхта не сохранена в Atlas: ' + (saved.message || saved.error || 'ошибка');
+  }
+  return saved;
+}
+
+async function phase1LoadYachtStateFromAtlas(workspaceId) {
+  const id = Number(workspaceId || 0);
+  if (!id || !qlCurrentUser) return {ok: false, error: 'no_yacht_workspace'};
+  const loaded = await qlApi('yacht_state_get', {workspace_id: id});
+  if (!loaded.ok || !loaded.state) return loaded;
+  try {
+    if (window.localStorage) {
+      localStorage.setItem(PHASE1_YACHT_KEY, JSON.stringify(loaded.state));
+    }
+  } catch (error) {}
+  phase1YachtState = phase1ReadYachtState();
+  const order = phase1YachtState.order || {};
+  phase1YachtProvisionResult = order.provision_last_result && order.provision_last_result.ok ? order.provision_last_result : null;
+  phase1YachtProvisionSignature = String(order.provision_last_signature || '');
+  phase1YachtProvisionOpenCategoryKey = '';
+  phase1YachtAtlasLoadedWorkspaceId = id;
+  return loaded;
+}
+
+function phase1YachtRowsLookLikeLegacyFuelPackage(rows) {
+  const legacyItems = ['дизель', 'масло моторное', 'фильтры запасные', 'аптечка / расходники', 'портовые мелочи'];
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length || list.length > legacyItems.length) return false;
+  return list.every(function(row) {
+    const item = String(row && row.item || '').trim().toLowerCase();
+    return item === '' || legacyItems.indexOf(item) !== -1;
+  });
+}
+
+function phase1MigrateYachtFuelRowsToCleanPackage(rows, defaults) {
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const nextRows = (Array.isArray(defaults) ? defaults : PHASE1_YACHT_FUEL_DEFAULTS).map(function(row) {
+    return Object.assign({}, row);
+  });
+  const fuelRow = sourceRows.find(function(row) {
+    return phase1YachtRowMode(row) === 'fuel' && String(row && row.item || '').trim().toLowerCase().includes('дизель');
+  });
+  if (fuelRow) {
+    nextRows[0].qty = phase1Number(fuelRow.qty || 0);
+    nextRows[0].unit = String(fuelRow.unit || 'л').trim() || 'л';
+    nextRows[0].price = phase1Number(fuelRow.price || 0);
+  }
+  return nextRows;
 }
 
 let phase1Workspace = phase1ReadWorkspace();
@@ -3873,7 +4147,7 @@ function phase1NormalizeScreen(screen) {
   const raw = String(screen || 'welcome').trim();
   if (raw === 'live-journal' || raw === 'journal_choice' || raw === 'journal-choice') return 'journal-choice';
   if (Object.prototype.hasOwnProperty.call(PHASE2_SCREEN_TITLES, raw)) return raw;
-  return 'welcome';
+  return phase1WorkspaceReady() || (Array.isArray(phase1Snapshot.groups) && phase1Snapshot.groups.length) ? 'workspace-hub' : 'welcome';
 }
 
 function phase1NavScreen(screen) {
@@ -3883,6 +4157,7 @@ function phase1NavScreen(screen) {
 
 function phase1ScreenTitle(screen) {
   const target = phase1NormalizeScreen(screen);
+  if (target === 'workspace-home') return phase1WorkspaceTitle();
   if (phase1IsYachtWorkspace()) {
     if (target === 'team') return 'Экипаж';
     if (target === 'admin') return 'Капитан';
@@ -3904,12 +4179,29 @@ function phase1SyncShell(screen) {
   const menuCurrent = document.querySelector('[data-module-menu-current]');
   const accountNode = document.querySelector('[data-phase-account]');
   const back = document.querySelector('[data-phase-back]');
+  const workspaceSelect = document.querySelector('[data-phase-workspace-select]');
 
   if (titleNode) titleNode.textContent = title;
   if (menuCurrent) menuCurrent.textContent = title;
   if (accountNode) accountNode.textContent = phase1UserLabel();
+  if (workspaceSelect) {
+    const items = phase1WorkspaceItems();
+    const currentValue = phase1Workspace && phase1Workspace.mode === 'solo'
+      ? 'solo'
+      : (phase1Workspace && phase1Workspace.mode === 'group' ? 'group:' + Number(phase1Workspace.groupId || 0) : '');
+    workspaceSelect.innerHTML = [
+      '<option value="workspace-hub">Мои пространства</option>',
+      items.map(function(item) {
+        return '<option value="' + phase1Escape(item.id) + '"' + (item.id === currentValue ? ' selected' : '') + '>' + phase1Escape(item.name) + '</option>';
+      }).join(''),
+      '<option value="workspace-create">+ Создать пространство</option>'
+    ].join('');
+    workspaceSelect.value = target === 'workspace-create'
+      ? 'workspace-create'
+      : (target === 'workspace-hub' ? 'workspace-hub' : (currentValue || 'workspace-hub'));
+  }
   if (back) {
-    const canGoBack = phase1ScreenStack.length > 0 || target !== 'welcome';
+    const canGoBack = phase1ScreenStack.length > 0 || (target !== 'welcome' && target !== 'workspace-hub');
     back.disabled = !canGoBack;
     back.setAttribute('aria-disabled', canGoBack ? 'false' : 'true');
   }
@@ -3924,9 +4216,41 @@ window.qlSyncPhaseShell = phase1SyncShell;
 
 function phase1SyncViewportHeight() {
   const viewport = window.visualViewport;
+  const width = viewport && viewport.width ? viewport.width : window.innerWidth;
   const height = viewport && viewport.height ? viewport.height : window.innerHeight;
+  const safeWidth = width > 0 ? Math.round(width) : 0;
+  const safeHeight = height > 0 ? Math.round(height) : 0;
   if (height > 0) {
-    document.documentElement.style.setProperty('--phase1-viewport-height', Math.round(height) + 'px');
+    document.documentElement.style.setProperty('--phase1-viewport-height', safeHeight + 'px');
+  }
+  if (width > 0) {
+    document.documentElement.style.setProperty('--phase1-viewport-width', safeWidth + 'px');
+  }
+  phase1SyncDeviceState(safeWidth, safeHeight);
+}
+
+function phase1DeviceType(width, height) {
+  const minSide = Math.min(width || window.innerWidth || 0, height || window.innerHeight || 0);
+  const maxSide = Math.max(width || window.innerWidth || 0, height || window.innerHeight || 0);
+  const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (maxSide <= 932 || minSide < 700) return 'phone';
+  if (maxSide <= 1366 || (coarsePointer && maxSide <= 1400)) return 'tablet';
+  return 'desktop';
+}
+
+function phase1SyncDeviceState(width, height) {
+  const safeWidth = width || window.innerWidth || 0;
+  const safeHeight = height || window.innerHeight || 0;
+  const device = phase1DeviceType(safeWidth, safeHeight);
+  const orientation = safeWidth > safeHeight ? 'landscape' : 'portrait';
+  document.documentElement.dataset.phaseDevice = device;
+  document.documentElement.dataset.phaseOrientation = orientation;
+  document.body.dataset.phaseDevice = device;
+  document.body.dataset.phaseOrientation = orientation;
+  const shell = phase1Shell();
+  if (shell) {
+    shell.dataset.phaseDevice = device;
+    shell.dataset.phaseOrientation = orientation;
   }
 }
 
@@ -4091,6 +4415,148 @@ function phase1SetGroup(value) {
 
 function phase1WorkspaceReady() {
   return phase1Workspace && (phase1Workspace.mode === 'solo' || (phase1Workspace.mode === 'group' && !!phase1SelectedGroup()));
+}
+
+function phase1WorkspaceKind(group) {
+  if (!group) return phase1Workspace && phase1Workspace.mode === 'solo' ? 'solo' : 'team';
+  const explicitType = String(group.workspace_type || '').trim().toLowerCase();
+  if (explicitType === 'yacht' || explicitType === 'home' || explicitType === 'team') return explicitType;
+  const name = String(group.name || '').trim().toLowerCase();
+  if (name.indexOf('yacht:') === 0 || name.includes('yacht')) return 'yacht';
+  if (name === 'дом' || name.indexOf('home') === 0 || name.includes('house')) return 'home';
+  return 'team';
+}
+
+function phase1WorkspaceTitle() {
+  if (phase1Workspace && phase1Workspace.mode === 'solo') return 'Личный журнал';
+  const group = phase1SelectedGroup();
+  if (group && group.name) return String(group.name).replace(/^Yacht:\s*/i, '');
+  return 'Рабочее пространство';
+}
+
+function phase1WorkspaceLabel(kind) {
+  if (kind === 'solo') return 'Solo workspace';
+  if (kind === 'yacht') return 'Yacht workspace';
+  if (kind === 'home') return 'Home workspace';
+  return 'Team workspace';
+}
+
+function phase1WorkspaceItems() {
+  const groups = Array.isArray(phase1Snapshot.groups) && phase1Snapshot.groups.length
+    ? phase1Snapshot.groups
+    : (Array.isArray(qlGroups) ? qlGroups : []);
+  const items = groups.filter(function(group) {
+    return !phase1WorkspaceIsLocallyTrashed(group.id || 0);
+  }).map(function(group) {
+    const kind = phase1WorkspaceKind(group);
+    return {
+      id: 'group:' + Number(group.id || 0),
+      name: String(group.name || 'Рабочая группа').replace(/^Yacht:\s*/i, ''),
+      kind,
+      role: phase1GroupRoleLabel(group),
+      group
+    };
+  }).filter(function(item) {
+    return item.id !== 'group:0';
+  });
+  if (!items.some(function(item) { return item.id === 'solo'; })) {
+    items.unshift({
+      id: 'solo',
+      name: 'Личный журнал',
+      kind: 'solo',
+      role: 'Владелец',
+      group: null
+    });
+  }
+  return items;
+}
+
+function phase1WorkspaceTrashItems() {
+  const localTrash = phase1ReadWorkspaceLocalTrash();
+  const localGroups = Object.keys(localTrash.groups || {}).map(function(key) {
+    return localTrash.groups[key];
+  });
+  const serverGroups = Array.isArray(phase1Snapshot.trashGroups) ? phase1Snapshot.trashGroups : [];
+  const seen = {};
+  const groups = serverGroups.concat(localGroups).filter(function(group) {
+    const id = String(group && group.id || '');
+    if (!id || seen[id]) return false;
+    seen[id] = true;
+    return true;
+  });
+  return groups.map(function(group) {
+    const kind = phase1WorkspaceKind(group);
+    const trashedAt = group.trashed_at ? new Date(group.trashed_at) : null;
+    const elapsedDays = trashedAt && Number.isFinite(trashedAt.getTime())
+      ? Math.floor((Date.now() - trashedAt.getTime()) / 86400000)
+      : 0;
+    return {
+      id: 'group:' + Number(group.id || 0),
+      name: String(group.name || 'Рабочая группа').replace(/^Yacht:\s*/i, ''),
+      kind,
+      role: phase1GroupRoleLabel(group),
+      daysLeft: Number(group.trash_days_left ?? Math.max(0, 60 - elapsedDays)),
+      group
+    };
+  }).filter(function(item) {
+    return item.id !== 'group:0';
+  });
+}
+
+function phase1WorkspaceCanManage(item) {
+  const group = item && item.group || {};
+  const role = String(group.role || '').toLowerCase();
+  const access = String(group.access_level || '').toLowerCase();
+  return role === 'admin' || role === 'owner' || access === 'advanced';
+}
+
+function phase1HasAnyWorkspace() {
+  return phase1WorkspaceItems().length > 0;
+}
+
+function phase1ResolveStartScreen() {
+  const items = phase1WorkspaceItems();
+  if (!items.length) return 'welcome';
+  if (phase1WorkspaceReady()) {
+    const kind = phase1WorkspaceKind(phase1SelectedGroup());
+    if (kind === 'yacht') return 'yacht-home';
+    if (kind === 'home') return 'home-home';
+    return 'workspace-home';
+  }
+  if (items.length === 1) {
+    phase1SetGroup(items[0].id);
+    if (items[0].kind === 'yacht') return 'yacht-home';
+    if (items[0].kind === 'home') return 'home-home';
+    return 'workspace-home';
+  }
+  return 'workspace-hub';
+}
+
+function phase1WorkspaceHomeScreen() {
+  if (!phase1WorkspaceReady()) return phase1HasAnyWorkspace() ? 'workspace-hub' : 'welcome';
+  const kind = phase1WorkspaceKind(phase1SelectedGroup());
+  if (kind === 'yacht') return 'yacht-home';
+  if (kind === 'home') return 'home-home';
+  return 'workspace-home';
+}
+
+function phase1RouteGuardScreen(screen) {
+  const target = phase1NormalizeScreen(screen);
+  const kind = phase1WorkspaceReady() ? phase1WorkspaceKind(phase1SelectedGroup()) : 'none';
+  const yachtScreens = ['yacht-home', 'yacht-tools', 'yacht-bunkering', 'yacht-fuel', 'yacht-products', 'yacht-settings'];
+  const homeScreens = ['home-home', 'home-tools', 'home-household', 'home-shopping', 'home-budget'];
+  const cashScreens = ['cash-session', 'cash-journal', 'cash-records', 'cash-report'];
+
+  if (target === 'welcome') return phase1HasAnyWorkspace() ? phase1ResolveStartScreen() : 'welcome';
+  if (target === 'cash-participant') return 'cash-participant';
+  if (target === 'templates') return 'workspace-create';
+  if (target === 'workspace-home') return phase1WorkspaceHomeScreen();
+  if (cashScreens.indexOf(target) !== -1 && !phase1WorkspaceReady()) return phase1HasAnyWorkspace() ? 'workspace-hub' : 'welcome';
+  if (target === 'yacht') return kind === 'yacht' ? 'yacht-home' : (phase1HasAnyWorkspace() ? 'workspace-hub' : 'welcome');
+  if (yachtScreens.indexOf(target) !== -1 && kind !== 'yacht') return phase1HasAnyWorkspace() ? 'workspace-hub' : 'welcome';
+  if (homeScreens.indexOf(target) !== -1 && kind !== 'home') return phase1HasAnyWorkspace() ? 'workspace-hub' : 'welcome';
+
+  return target;
 }
 
 function phase1WorkspaceMoney(value) {
@@ -4575,6 +5041,182 @@ function phase1PathButton(screen, title, text) {
   `;
 }
 
+function phase1RenderWorkspaceCard(item, options) {
+  const opts = options || {};
+  const current = phase1Workspace && (
+    (item.id === 'solo' && phase1Workspace.mode === 'solo')
+    || (item.id.indexOf('group:') === 0 && phase1Workspace.mode === 'group' && Number(item.id.replace('group:', '')) === Number(phase1Workspace.groupId || 0))
+  );
+  const summary = item.kind === 'solo'
+    ? 'Cash / Card · личные записи'
+    : (item.kind === 'yacht'
+      ? 'Экипаж · касса · бункеровка · отчёты'
+      : (item.kind === 'home' ? 'Дом · люди · покупки · отчёты' : 'Люди · журнал · отчёты'));
+  const canTrash = item.id !== 'solo' && phase1WorkspaceCanManage(item);
+  const daysLeft = Number(item.daysLeft || 0);
+  return `
+    <article class="phase1-workspace-card ${current ? 'is-current' : ''}">
+      <div>
+        <span class="phase1-kicker">${phase1Escape(phase1WorkspaceLabel(item.kind))}</span>
+        <h2>${phase1Escape(item.name)}</h2>
+        <p>${phase1Escape(summary)}</p>
+        <small>${phase1Escape(opts.trash ? ('В корзине · ' + daysLeft + ' дн. до очистки') : (item.role || 'Участник'))}</small>
+      </div>
+      <div class="phase1-workspace-card-actions">
+        ${opts.trash
+          ? '<button class="phase1-secondary-action" type="button" data-workspace-restore="' + phase1Escape(item.id) + '">Восстановить</button>'
+          : '<button class="phase1-primary-action" type="button" data-workspace-open="' + phase1Escape(item.id) + '">' + (current ? 'Открыть' : 'Выбрать') + '</button>'}
+        ${canTrash && !opts.trash ? '<button class="phase1-danger-action" type="button" data-workspace-trash="' + phase1Escape(item.id) + '">Удалить</button>' : ''}
+      </div>
+    </article>
+  `;
+}
+
+function phase1RenderWorkspaceTrashModal() {
+  if (!phase1WorkspaceTrashTarget) return '';
+  return `
+    <div class="phase1-modal-backdrop" data-workspace-trash-cancel>
+      <section class="phase1-confirm-modal" role="dialog" aria-modal="true" aria-label="Удалить пространство">
+        <span class="phase1-kicker">Корзина на 60 дней</span>
+        <h2>Удалить пространство?</h2>
+        <p>Пространство исчезнет из основного списка и попадет в корзину. Финансовые записи не удаляются. В течение 60 дней его можно восстановить.</p>
+        <p><b>${phase1Escape(phase1WorkspaceTrashTarget.name || 'Пространство')}</b></p>
+        <label class="phase1-field">
+          <span>Для подтверждения напишите: удалить</span>
+          <input type="text" data-workspace-trash-confirm placeholder="удалить">
+        </label>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+        <div class="phase1-action-row">
+          <button class="phase1-secondary-action" type="button" data-workspace-trash-cancel>Отмена</button>
+          <button class="phase1-danger-action" type="button" data-workspace-trash-confirm-action>Удалить</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderWorkspaceHub() {
+  const items = phase1WorkspaceItems();
+  if (!items.length) return phase1RenderWelcome();
+  const current = items.find(function(item) {
+    return (item.id === 'solo' && phase1Workspace.mode === 'solo')
+      || (item.id.indexOf('group:') === 0 && phase1Workspace.mode === 'group' && Number(item.id.replace('group:', '')) === Number(phase1Workspace.groupId || 0));
+  });
+  const listItems = current ? items.filter(function(item) { return item.id !== current.id; }) : items;
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Мои рабочие пространства', 'Выберите реальную рабочую среду. Welcome больше не является постоянным рабочим экраном.', '')}
+      ${current ? `
+        <section class="phase1-list-panel">
+          <h2>Продолжить последнее</h2>
+          ${phase1RenderWorkspaceCard(current)}
+        </section>
+      ` : ''}
+      <section class="phase1-list-panel">
+        <h2>Все пространства</h2>
+        <div class="phase1-workspace-list">
+          ${listItems.length ? listItems.map(phase1RenderWorkspaceCard).join('') : '<p class="phase1-empty">Других пространств пока нет.</p>'}
+        </div>
+      </section>
+      <section class="phase1-action-row">
+        <button class="phase1-primary-action" type="button" data-phase-screen="workspace-create">+ Создать новое пространство</button>
+      </section>
+      ${phase1RenderWorkspaceTrashModal()}
+    </div>
+  `;
+}
+
+function phase1RenderWorkspaceTrash() {
+  const trashItems = phase1WorkspaceTrashItems();
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Корзина', 'Удаленные пространства хранятся 60 дней. В этот период их можно восстановить.', '')}
+      <section class="phase1-list-panel phase1-workspace-trash-panel">
+        <h2>Удаленные пространства</h2>
+        <p class="phase1-status-line">Корзина вынесена из рабочих пространств, чтобы не мешать ежедневной работе.</p>
+        <div class="phase1-workspace-list">
+          ${trashItems.length ? trashItems.map(function(item) { return phase1RenderWorkspaceCard(item, {trash: true}); }).join('') : '<p class="phase1-empty">Корзина пуста.</p>'}
+        </div>
+      </section>
+      <section class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-screen="workspace-hub">На главную</button>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderWorkspaceCreate() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Создать новое пространство', 'Шаблоны и сценарии используются только при создании новой рабочей среды.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('solo', 'Личный журнал', 'Создать или открыть личный Cash / Card workspace')}
+        ${phase1PathButton('team', 'Группа с людьми', 'Люди, выдачи, подтверждения и общие отчёты')}
+        ${phase1PathButton('yacht-template', 'Yacht', 'Создать яхту как обычное рабочее пространство')}
+        ${phase1PathButton('home-template', 'Home', 'Дом, помощники, покупки и отчёты')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderWorkspaceHome() {
+  if (!phase1WorkspaceReady()) {
+    return phase1HasAnyWorkspace() ? phase1RenderWorkspaceHub() : phase1RenderWelcome();
+  }
+  const group = phase1SelectedGroup();
+  const kind = phase1Workspace && phase1Workspace.mode === 'solo' ? 'solo' : phase1WorkspaceKind(group);
+  const title = phase1WorkspaceTitle();
+  const lead = phase1WorkspaceLabel(kind) + '. Рабочие экраны открываются внутри выбранного пространства.';
+  const yachtTools = kind === 'yacht' ? `
+    <section class="phase1-list-panel">
+      <h2>Инструменты яхты</h2>
+      <div class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-screen="yacht-bunkering">Бункеровка</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="yacht-settings">Настройки яхты</button>
+      </div>
+    </section>
+  ` : '';
+  const homeTools = kind === 'home' ? `
+    <section class="phase1-list-panel">
+      <h2>Инструменты дома</h2>
+      <div class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-screen="home-tools">Открыть инструменты</button>
+      </div>
+    </section>
+  ` : '';
+  const teamActions = kind === 'solo' ? '' : `
+    <button class="phase1-secondary-action" type="button" data-phase-screen="team">${kind === 'yacht' ? 'Экипаж' : 'Участники'}</button>
+    <button class="phase1-secondary-action" type="button" data-phase-screen="admin">Касса</button>
+    <button class="phase1-secondary-action" type="button" data-phase-screen="assembly">Финальный расчёт</button>
+  `;
+  return `
+    <div class="phase1-page">
+      ${phase1Header(title, lead, '')}
+      <section class="phase1-workspace-home">
+        <div>
+          <span class="phase1-kicker">${phase1Escape(phase1WorkspaceLabel(kind))}</span>
+          <h2>${phase1Escape(title)}</h2>
+          <p>${phase1Escape(kind === 'solo' ? 'Личный журнал с двумя потоками: Cash и Card.' : 'Контекст выбран. Теперь журнал, касса и отчёты работают внутри этой среды.')}</p>
+        </div>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-screen="cash-session">Движок записей</button>
+          <button class="phase1-primary-action" type="button" data-phase-screen="journal-choice">Журнал</button>
+          <button class="phase1-secondary-action" type="button" data-phase-journal-stream="cash">Cash</button>
+          <button class="phase1-secondary-action" type="button" data-phase-journal-stream="card">Card</button>
+          ${teamActions}
+          <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Отчёты</button>
+        </div>
+      </section>
+      ${yachtTools}
+      ${homeTools}
+      <section class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-screen="workspace-hub">Переключить пространство</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="workspace-create">Создать новое пространство</button>
+      </section>
+    </div>
+  `;
+}
+
 function phase1MoneyPicture(stream) {
   const type = stream === 'card' ? 'card' : 'cash';
   return `
@@ -4620,19 +5262,680 @@ function phase1RenderJournalEntryPanel(context) {
   `;
 }
 
+function phase1CashScreenActive() {
+  return ['cash-session', 'cash-journal', 'cash-records', 'cash-report'].indexOf(phase1NormalizeScreen(phase1CurrentScreen)) !== -1;
+}
+
+function phase1CashPreset() {
+  if (!phase1WorkspaceReady()) return 'personal';
+  const kind = phase1WorkspaceKind(phase1SelectedGroup());
+  if (kind === 'yacht') return 'yacht';
+  if (kind === 'home') return 'home';
+  if (kind === 'solo') return 'personal';
+  return 'base';
+}
+
+function phase1CashMode() {
+  return phase1Workspace && phase1Workspace.mode === 'solo' ? 'personal' : 'group';
+}
+
+function phase1CashWorkspaceId() {
+  if (!phase1WorkspaceReady() || !phase1Workspace || phase1Workspace.mode !== 'group') return 0;
+  return Number(phase1Workspace.groupId || 0);
+}
+
+function phase1CashPresetLabel(preset) {
+  const labels = {
+    personal: 'Личный режим',
+    yacht: 'Yacht',
+    home: 'Home',
+    family: 'Family',
+    road: 'Road',
+    base: 'Base',
+    team: 'Team'
+  };
+  return labels[preset] || labels.base;
+}
+
+function phase1CashSessionTitle() {
+  const session = phase1CashSession || {};
+  return session.title || (phase1WorkspaceTitle() + ' · ЖЗ');
+}
+
+async function phase1EnsureCashSession(options) {
+  const opts = options || {};
+  if (!phase1WorkspaceReady() || phase1CashSessionLoading) return;
+  if (!opts.force && phase1CashSession && Number(phase1CashSession.workspace_id || 0) === phase1CashWorkspaceId()) return;
+  phase1CashSessionLoading = true;
+  try {
+    const payload = await qlApi('cash_session_get_or_create', {
+      workspace_id: phase1CashWorkspaceId(),
+      preset: phase1CashPreset(),
+      mode: phase1CashMode(),
+      title: phase1WorkspaceTitle() + ' · ЖЗ'
+    });
+    if (payload.ok) {
+      phase1CashSession = payload.session || null;
+      if (!phase1CashParticipantExists(phase1CashParticipantId)) phase1CashParticipantId = 'owner';
+      phase1CashDraftTouched = false;
+      await phase1LoadCashArchives({render: false});
+    } else {
+      phase1Notice = 'Движок записей не открыт: ' + (payload.message || payload.error || 'ошибка');
+    }
+  } catch (error) {
+    phase1Notice = 'Движок записей не открыт: ' + (error && error.message ? error.message : 'ошибка');
+  } finally {
+    phase1CashSessionLoading = false;
+    if (phase1CashScreenActive()) phase1Render(phase1CurrentScreen);
+  }
+}
+
+async function phase1LoadCashArchives(options) {
+  const opts = options || {};
+  if (!phase1WorkspaceReady()) {
+    phase1CashArchives = [];
+    return;
+  }
+  const payload = await qlApi('cash_session_archive_list', {
+    workspace_id: phase1CashWorkspaceId(),
+    limit: 50
+  });
+  if (payload.ok) {
+    phase1CashArchives = Array.isArray(payload.archives) ? payload.archives : [];
+  }
+  if (opts.render) phase1Render(phase1CurrentScreen);
+}
+
+function phase1CashLoadingPanel() {
+  window.setTimeout(function() {
+    phase1EnsureCashSession({force: false});
+  }, 0);
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Движок записей', 'Готовим универсальную сессию ЖЗ для выбранного пространства.', '')}
+      <section class="phase1-quiet-panel">
+        <span class="phase1-kicker">Universal Cash Session</span>
+        <h1>${phase1CashSessionLoading ? 'Загружаю сессию' : 'Сессия еще не открыта'}</h1>
+        <p>${phase1Escape(phase1Notice || 'Если сессия не открылась автоматически, обновите экран.')}</p>
+        <button class="phase1-primary-action" type="button" data-phase-action="cash-session-refresh">Открыть сессию</button>
+      </section>
+    </div>
+  `;
+}
+
+function phase1CashNav(current) {
+  const items = [
+    ['cash-session', 'Движок'],
+    ['cash-journal', 'ЖЗ'],
+    ['cash-records', 'Записи'],
+    ['cash-report', 'Отчет']
+  ];
+  return `
+    <section class="phase1-action-row phase1-cash-nav">
+      ${items.map(function(item) {
+        return '<button class="' + (item[0] === current ? 'phase1-primary-action' : 'phase1-secondary-action') + '" type="button" data-phase-screen="' + phase1Escape(item[0]) + '">' + phase1Escape(item[1]) + '</button>';
+      }).join('')}
+    </section>
+  `;
+}
+
+function phase1CashTotals(session) {
+  return session && session.totals ? session.totals : {total_contributions: 0, total_expenses: 0, share: 0, participant_count: 0, participants: {}};
+}
+
+function phase1CashParticipants() {
+  return phase1CashSession && Array.isArray(phase1CashSession.participants) ? phase1CashSession.participants : [];
+}
+
+function phase1CashParticipantExists(id) {
+  const participantId = String(id || 'owner');
+  return phase1CashParticipants().some(function(participant) {
+    return String(participant.id || '') === participantId;
+  });
+}
+
+function phase1CashSelectedParticipantId() {
+  if (phase1CashParticipantExists(phase1CashParticipantId)) return phase1CashParticipantId;
+  return phase1CashParticipants()[0] ? String(phase1CashParticipants()[0].id || 'owner') : 'owner';
+}
+
+function phase1CashParticipantName(id) {
+  const participantId = String(id || 'owner');
+  const participant = phase1CashParticipants().find(function(item) {
+    return String(item.id || '') === participantId;
+  });
+  return participant ? String(participant.display_name || 'Участник') : 'Участник';
+}
+
+function phase1CashNotebookForParticipant(id) {
+  const participantId = String(id || phase1CashSelectedParticipantId());
+  const notebooks = phase1CashSession && phase1CashSession.notebooks && typeof phase1CashSession.notebooks === 'object'
+    ? phase1CashSession.notebooks
+    : {};
+  return notebooks[participantId] ? String(notebooks[participantId].draft_text || '') : '';
+}
+
+function phase1CashParticipantOptions(selectedId) {
+  return phase1CashParticipants().map(function(participant) {
+    const id = String(participant.id || '');
+    return '<option value="' + phase1Escape(id) + '"' + (id === selectedId ? ' selected' : '') + '>' + phase1Escape(participant.display_name || 'Участник') + '</option>';
+  }).join('');
+}
+
+function phase1CashRoleLabel(role) {
+  const value = String(role || 'participant');
+  if (value === 'owner') return 'Владелец';
+  if (value === 'treasurer') return 'Казначей';
+  if (value === 'manager') return 'Менеджер';
+  if (value === 'viewer') return 'Наблюдатель';
+  return 'Участник';
+}
+
+function phase1CashParticipantLink(token) {
+  const inviteToken = String(token || '').trim();
+  if (!inviteToken) return '';
+  const url = new URL(window.location.href);
+  url.pathname = '/app.php';
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('cashToken', inviteToken);
+  url.searchParams.set('build', 'routes36');
+  return url.toString();
+}
+
+function phase1CashParticipantInviteText(participant) {
+  const name = String(participant && participant.display_name || 'участник').trim() || 'участник';
+  const link = phase1CashParticipantLink(participant && participant.invite_token);
+  return [
+    'Вас пригласили в ЖЗ FinDesk.',
+    'Участник: ' + name,
+    'Откройте свою страницу записей:',
+    link,
+    '',
+    'На этой странице видны только ваши записи и ваш расчет-превью.'
+  ].join('\n');
+}
+
+function phase1RenderCashParticipantsPanel() {
+  const participants = phase1CashParticipants();
+  return `
+    <section class="phase1-list-panel phase1-cash-participants">
+      <h2>Участники сессии</h2>
+      <div class="phase1-cash-participant-list">
+        ${participants.map(function(participant) {
+          const id = String(participant.id || '');
+          const participantLink = phase1CashParticipantLink(participant.invite_token);
+          return `
+            <article class="phase1-row-card phase1-cash-participant-card">
+              <div>
+                <b>${phase1Escape(participant.display_name || 'Участник')}</b>
+                <span>${phase1Escape(phase1CashRoleLabel(participant.role))} · ${participant.included_in_split === false ? 'не участвует в делении' : 'участвует в делении'}${participant.email ? ' · ' + phase1Escape(participant.email) : ''}</span>
+                ${participantLink ? '<small class="phase1-cash-invite-link">' + phase1Escape(participantLink) + '</small>' : ''}
+              </div>
+              <div class="phase1-action-row">
+                <button class="phase1-secondary-action" type="button" data-phase-cash-participant-select="${phase1Escape(id)}">ЖЗ</button>
+                ${participant.invite_token ? '<button class="phase1-secondary-action" type="button" data-phase-cash-participant-view="' + phase1Escape(participant.invite_token) + '">Вид участника</button>' : ''}
+                ${participant.invite_token ? '<button class="phase1-secondary-action" type="button" data-phase-cash-participant-copy="' + phase1Escape(participant.invite_token) + '">Копировать приглашение</button>' : ''}
+                ${id !== 'owner' ? '<button class="phase1-danger-action" type="button" data-phase-action="cash-participant-remove" data-phase-cash-participant-id="' + phase1Escape(id) + '">Удалить</button>' : ''}
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+      <div class="phase1-cash-participant-form">
+        <input type="text" data-cash-participant-name placeholder="Имя участника">
+        <input type="email" data-cash-participant-email placeholder="Email для приглашения">
+        <select data-cash-participant-role>
+          <option value="participant">Участник</option>
+          <option value="treasurer">Казначей</option>
+          <option value="manager">Менеджер</option>
+          <option value="viewer">Наблюдатель</option>
+        </select>
+        <label><input type="checkbox" data-cash-participant-split checked> В делении</label>
+        <button class="phase1-primary-action" type="button" data-phase-action="cash-participant-add">Добавить</button>
+      </div>
+    </section>
+  `;
+}
+
+function phase1RenderCashArchivePanel() {
+  const archives = Array.isArray(phase1CashArchives) ? phase1CashArchives : [];
+  return `
+    <section class="phase1-list-panel phase1-cash-archives">
+      <h2>Архив сессий</h2>
+      ${archives.length ? archives.map(function(archive) {
+        const summary = archive.summary || {};
+        return `
+          <article class="phase1-row-card phase1-cash-archive-card">
+            <div>
+              <b>${phase1Escape(archive.title || ('Сессия #' + archive.id))}</b>
+              <span>${phase1Escape(archive.closed_at || '')} · ${phase1Escape(archive.audit_status || 'preview_not_final')}</span>
+              <small>${phase1Escape('Участников: ' + (summary.participant_count || 0) + ' · Записей: ' + (summary.batch_count || 0) + ' · Переводов: ' + (summary.transfer_count || 0))}</small>
+            </div>
+            <strong>${phase1Money(summary.total_expenses || 0)}</strong>
+          </article>
+        `;
+      }).join('') : '<p class="phase1-empty">Закрытых cash sessions пока нет.</p>'}
+    </section>
+  `;
+}
+
+function phase1RenderCashSession() {
+  if (!phase1CashSession) return phase1CashLoadingPanel();
+  const session = phase1CashSession;
+  const totals = phase1CashTotals(session);
+  const preset = session.preset || phase1CashPreset();
+  return `
+    <div class="phase1-page phase1-page-cash-session">
+      ${phase1Header('Движок записей', 'Универсальное поведение для Yacht, Home, Family, Road и базового инструмента.', '')}
+      ${phase1CashNav('cash-session')}
+      <section class="phase1-workspace-home phase1-cash-hero">
+        <div>
+          <span class="phase1-kicker">Universal Cash Session · ${phase1Escape(phase1CashPresetLabel(preset))}</span>
+          <h2>${phase1Escape(phase1CashSessionTitle())}</h2>
+          <p>Сессия хранит участников, ЖЗ, зафиксированные записи, расчет-превью и будущий архив. Специфика направления будет надеваться поверх этого ядра.</p>
+        </div>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-screen="cash-journal">Открыть ЖЗ</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-records">Записи</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
+          <button class="phase1-secondary-action" type="button" data-phase-action="cash-session-close">Закрыть в архив</button>
+        </div>
+      </section>
+      <section class="phase1-cash-metrics">
+        <article><span>Внесено</span><b>${phase1Money(totals.total_contributions || 0)}</b></article>
+        <article><span>Расходы</span><b>${phase1Money(totals.total_expenses || 0)}</b></article>
+        <article><span>Доля</span><b>${phase1Money(totals.share || 0)}</b></article>
+        <article><span>Участников</span><b>${phase1Escape(String(totals.participant_count || 0))}</b></article>
+      </section>
+      ${phase1RenderCashParticipantsPanel()}
+      ${phase1RenderCashArchivePanel()}
+    </div>
+  `;
+}
+
+function phase1CashDraftText() {
+  const field = document.getElementById('phase1CashNotebook');
+  if (phase1CashDraftTouched && field) return field.value;
+  return phase1CashSession ? phase1CashNotebookForParticipant(phase1CashSelectedParticipantId()) : '';
+}
+
+function phase1RenderCashJournal() {
+  if (!phase1CashSession) return phase1CashLoadingPanel();
+  const participantId = phase1CashSelectedParticipantId();
+  const draft = phase1CashDraftText();
+  return `
+    <div class="phase1-page phase1-page-cash-journal">
+      ${phase1Header('ЖЗ', 'Рабочий журнал записей. Пишите естественно: взнос, расход или заметку.', '')}
+      ${phase1CashNav('cash-journal')}
+      <section class="phase1-journal-workspace phase1-cash-journal">
+        <div class="phase1-journal-strip">
+          <span>${phase1Escape(phase1CashPresetLabel(phase1CashSession.preset))}</span>
+          <b>${phase1Escape(phase1CashSessionTitle())}</b>
+          <select data-cash-participant-select aria-label="Участник ЖЗ">${phase1CashParticipantOptions(participantId)}</select>
+          <button type="button" data-phase-screen="cash-records">Записи</button>
+        </div>
+        <textarea id="phase1CashNotebook" class="phase1-cash-notebook" rows="12" spellcheck="false" placeholder="+500 взнос&#10;40 продукты&#10;15 кофе&#10;заметка: чек у капитана">${phase1Escape(draft)}</textarea>
+        <div class="phase1-action-row">
+          <button class="phase1-secondary-action" type="button" data-phase-action="cash-notebook-save">Сохранить черновик</button>
+          <button class="phase1-primary-action" type="button" data-phase-action="cash-notebook-submit">Зафиксировать записи</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
+        </div>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice || 'Плюс в начале строки считается взносом/приходом. Число без плюса считается расходом. Текст без суммы остается заметкой.')}</p>
+      </section>
+    </div>
+  `;
+}
+
+function phase1CashEntryLabel(entry) {
+  const kind = String(entry && entry.entry_kind || 'note');
+  if (kind === 'contribution') return 'Взнос';
+  if (kind === 'expense') return 'Расход';
+  if (kind === 'adjustment') return 'Корректировка';
+  return 'Заметка';
+}
+
+function phase1RenderCashRecords() {
+  if (!phase1CashSession) return phase1CashLoadingPanel();
+  const batches = Array.isArray(phase1CashSession.batches) ? phase1CashSession.batches.slice().reverse() : [];
+  return `
+    <div class="phase1-page phase1-page-cash-records">
+      ${phase1Header('Записи', 'Зафиксированные пачки ЖЗ. Это продуктовый шаблон страницы записей для всех направлений.', '')}
+      ${phase1CashNav('cash-records')}
+      <section class="phase1-list-panel">
+        <h2>Зафиксированные записи</h2>
+        ${batches.length ? batches.map(function(batch) {
+          const entries = Array.isArray(batch.entries) ? batch.entries : [];
+          const participantName = batch.participant_display_name || phase1CashParticipantName(batch.participant_id);
+          return `
+            <article class="phase1-cash-batch">
+              <div class="phase1-row-card">
+                <div>
+                  <b>${phase1Escape(participantName)}</b>
+                  <span>${phase1Escape(new Date(batch.created_at || Date.now()).toLocaleString())} · ${phase1Escape(entries.length + ' строк')}</span>
+                </div>
+                <strong>${phase1Money(entries.reduce(function(sum, entry) { return sum + Math.abs(Number(entry.amount || 0)); }, 0))}</strong>
+              </div>
+              <div class="phase1-cash-entry-list">
+                ${entries.map(function(entry) {
+                  return '<div><span>' + phase1Escape(phase1CashEntryLabel(entry)) + '</span><b>' + phase1Escape(entry.raw_text || entry.note || '') + '</b><strong>' + (entry.entry_kind === 'note' ? '—' : phase1Money(Math.abs(Number(entry.amount || 0)))) + '</strong></div>';
+                }).join('')}
+              </div>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Записей пока нет. Откройте ЖЗ и зафиксируйте первую пачку.</p>'}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderCashReport() {
+  if (!phase1CashSession) return phase1CashLoadingPanel();
+  const totals = phase1CashTotals(phase1CashSession);
+  const participants = Object.values(totals.participants || {});
+  const lines = phase1CashSession.settlement_preview && Array.isArray(phase1CashSession.settlement_preview.lines)
+    ? phase1CashSession.settlement_preview.lines
+    : [];
+  return `
+    <div class="phase1-page phase1-page-cash-report">
+      ${phase1Header('Отчет-превью', 'Предварительный расчет Universal Cash Session. Это не утвержденный финансовый отчет.', '')}
+      ${phase1CashNav('cash-report')}
+      <section class="phase1-cash-metrics">
+        <article><span>Внесено</span><b>${phase1Money(totals.total_contributions || 0)}</b></article>
+        <article><span>Расходы</span><b>${phase1Money(totals.total_expenses || 0)}</b></article>
+        <article><span>Доля</span><b>${phase1Money(totals.share || 0)}</b></article>
+        <article><span>Статус</span><b>Preview</b></article>
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Участники</h2>
+        ${participants.length ? participants.map(function(item) {
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>${phase1Escape(item.display_name || 'Участник')}</b>
+                <span>${phase1Escape(item.role || 'participant')}</span>
+              </div>
+              <strong>${phase1Money(item.balance || 0)}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Участники не добавлены.</p>'}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Кому перевести</h2>
+        ${lines.length ? lines.map(function(line) {
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>${phase1Escape(line.from_display_name)} → ${phase1Escape(line.to_display_name)}</b>
+                <span>Предварительный расчет</span>
+              </div>
+              <strong>${phase1Money(line.amount || 0)}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Переводы не требуются или данных пока мало.</p>'}
+      </section>
+      <section class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-action="cash-session-close">Закрыть active session в архив</button>
+      </section>
+    </div>
+  `;
+}
+
+function phase1CashNotebookValue() {
+  const field = document.getElementById('phase1CashNotebook');
+  return field ? String(field.value || '').replace(/\r/g, '') : phase1CashDraftText();
+}
+
+async function phase1SaveCashNotebook(options) {
+  const opts = options || {};
+  if (!phase1CashSession) {
+    await phase1EnsureCashSession({force: true});
+  }
+  if (!phase1CashSession) return;
+  const text = phase1CashNotebookValue();
+  const action = opts.submit ? 'cash_session_submit_draft' : 'cash_session_save_draft';
+  const payload = await qlApi(action, {
+    session_id: phase1CashSession.id,
+    participant_id: phase1CashSelectedParticipantId(),
+    draft_text: text,
+    source: 'manual'
+  });
+  if (!payload.ok) {
+    phase1Notice = 'ЖЗ не сохранен: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render(phase1CurrentScreen);
+    return;
+  }
+  phase1CashSession = payload.session || phase1CashSession;
+  phase1CashDraftTouched = false;
+  phase1Notice = opts.submit ? 'Записи зафиксированы.' : 'Черновик ЖЗ сохранен.';
+  phase1Render(opts.submit ? 'cash-records' : phase1CurrentScreen);
+}
+
+async function phase1LoadCashParticipantView(token, options) {
+  const opts = options || {};
+  const inviteToken = String(token || phase1CashParticipantToken || '').trim();
+  if (!inviteToken) {
+    phase1Notice = 'Нет token участника.';
+    if (opts.render !== false) phase1Render('cash-participant');
+    return null;
+  }
+  phase1CashParticipantToken = inviteToken;
+  const payload = await qlApi('cash_participant_view', {token: inviteToken});
+  if (!payload.ok) {
+    phase1Notice = 'Вид участника не открыт: ' + (payload.message || payload.error || 'ошибка');
+    phase1CashParticipantPayload = null;
+  } else {
+    phase1CashParticipantPayload = payload;
+    phase1CashParticipantDraftTouched = false;
+    phase1Notice = '';
+  }
+  if (opts.render !== false) phase1Render('cash-participant');
+  return phase1CashParticipantPayload;
+}
+
+function phase1CashParticipantViewDraft() {
+  const field = document.getElementById('phase1CashParticipantNotebook');
+  if (phase1CashParticipantDraftTouched && field) return field.value;
+  return phase1CashParticipantPayload && phase1CashParticipantPayload.participant
+    ? String(phase1CashParticipantPayload.participant.draft_text || '')
+    : '';
+}
+
+function phase1RenderCashParticipantView() {
+  if (!phase1CashParticipantPayload) {
+    window.setTimeout(function() {
+      if (phase1CashParticipantToken) phase1LoadCashParticipantView(phase1CashParticipantToken, {render: true});
+    }, 0);
+    return `
+      <div class="phase1-page phase1-page-cash-participant">
+        ${phase1Header('ЖЗ участника', 'Ограниченный вид: участник видит только свой ЖЗ, свои записи и свой расчет-превью.', '')}
+        <section class="phase1-quiet-panel">
+          <span class="phase1-kicker">Participant self-view</span>
+          <h1>${phase1CashParticipantToken ? 'Открываю участника' : 'Token не задан'}</h1>
+          <p>${phase1Escape(phase1Notice || 'Откройте участника из карточки сессии или по invite-token.')}</p>
+        </section>
+      </div>
+    `;
+  }
+  const payload = phase1CashParticipantPayload;
+  const session = payload.session || {};
+  const participant = payload.participant || {};
+  const draft = phase1CashParticipantViewDraft();
+  const batches = Array.isArray(participant.batches) ? participant.batches.slice().reverse() : [];
+  const totals = participant.totals || {};
+  const lines = participant.settlement_preview && Array.isArray(participant.settlement_preview.lines)
+    ? participant.settlement_preview.lines
+    : [];
+  return `
+    <div class="phase1-page phase1-page-cash-participant">
+      ${phase1Header('ЖЗ участника', 'Ограниченный вид участника без доступа к чужим ЖЗ.', '')}
+      <section class="phase1-workspace-home phase1-cash-hero">
+        <div>
+          <span class="phase1-kicker">${phase1Escape(session.title || 'Сессия')}</span>
+          <h2>${phase1Escape(participant.display_name || 'Участник')}</h2>
+          <p>${phase1Escape(phase1CashRoleLabel(participant.role))} · ${participant.included_in_split === false ? 'не участвует в делении' : 'участвует в делении'}</p>
+        </div>
+      </section>
+      <section class="phase1-cash-metrics">
+        <article><span>Внесено</span><b>${phase1Money(totals.contributions || 0)}</b></article>
+        <article><span>Расходы</span><b>${phase1Money(totals.expenses || 0)}</b></article>
+        <article><span>Баланс</span><b>${phase1Money(totals.balance || 0)}</b></article>
+        <article><span>Статус</span><b>Preview</b></article>
+      </section>
+      <section class="phase1-journal-workspace phase1-cash-journal">
+        <div class="phase1-journal-strip">
+          <span>Мой ЖЗ</span>
+          <b>${phase1Escape(participant.display_name || 'Участник')}</b>
+        </div>
+        <textarea id="phase1CashParticipantNotebook" class="phase1-cash-notebook" rows="12" spellcheck="false" placeholder="+100 взнос&#10;40 продукты&#10;заметка: чек у меня">${phase1Escape(draft)}</textarea>
+        <div class="phase1-action-row">
+          <button class="phase1-secondary-action" type="button" data-phase-action="cash-participant-save">Сохранить мой черновик</button>
+          <button class="phase1-primary-action" type="button" data-phase-action="cash-participant-submit">Зафиксировать мои записи</button>
+        </div>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice || 'Этот экран не показывает чужие ЖЗ и полный список участников.')}</p>
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Мои зафиксированные записи</h2>
+        ${batches.length ? batches.map(function(batch) {
+          const entries = Array.isArray(batch.entries) ? batch.entries : [];
+          return `
+            <article class="phase1-cash-batch">
+              <div class="phase1-row-card">
+                <div>
+                  <b>${phase1Escape(new Date(batch.created_at || Date.now()).toLocaleString())}</b>
+                  <span>${phase1Escape(entries.length + ' строк')}</span>
+                </div>
+                <strong>${phase1Money(entries.reduce(function(sum, entry) { return sum + Math.abs(Number(entry.amount || 0)); }, 0))}</strong>
+              </div>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Ваших записей пока нет.</p>'}
+      </section>
+      <section class="phase1-list-panel">
+        <h2>Мой расчет-превью</h2>
+        ${lines.length ? lines.map(function(line) {
+          return `
+            <article class="phase1-row-card">
+              <div>
+                <b>${phase1Escape(line.from_display_name)} → ${phase1Escape(line.to_display_name)}</b>
+                <span>Предварительный расчет</span>
+              </div>
+              <strong>${phase1Money(line.amount || 0)}</strong>
+            </article>
+          `;
+        }).join('') : '<p class="phase1-empty">Переводы не требуются или сессия еще не закрыта.</p>'}
+      </section>
+    </div>
+  `;
+}
+
+async function phase1SaveCashParticipantNotebook(options) {
+  const opts = options || {};
+  const field = document.getElementById('phase1CashParticipantNotebook');
+  const text = field ? String(field.value || '').replace(/\r/g, '') : phase1CashParticipantViewDraft();
+  const action = opts.submit ? 'cash_participant_submit_draft' : 'cash_participant_save_draft';
+  const payload = await qlApi(action, {
+    token: phase1CashParticipantToken,
+    draft_text: text,
+    source: 'participant'
+  });
+  if (!payload.ok) {
+    phase1Notice = 'ЖЗ участника не сохранен: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render('cash-participant');
+    return;
+  }
+  phase1CashParticipantPayload = payload;
+  phase1CashParticipantDraftTouched = false;
+  phase1Notice = opts.submit ? 'Ваши записи зафиксированы.' : 'Ваш черновик сохранен.';
+  phase1Render('cash-participant');
+}
+
+async function phase1CloseCashSession() {
+  if (!phase1CashSession || !phase1CashSession.id) {
+    phase1Notice = 'Нет active cash session для закрытия.';
+    phase1Render(phase1CurrentScreen);
+    return;
+  }
+  const ok = window.confirm('Закрыть active cash session в архивный snapshot? Это не удалит записи, но начнет новую active session.');
+  if (!ok) return;
+  const payload = await qlApi('cash_session_close', {
+    session_id: phase1CashSession.id
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Сессия не закрыта: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render(phase1CurrentScreen);
+    return;
+  }
+  phase1CashSession = null;
+  phase1CashParticipantId = 'owner';
+  phase1CashDraftTouched = false;
+  phase1Notice = 'Сессия закрыта в архивный snapshot. Открываю новую active session.';
+  await phase1LoadCashArchives({render: false});
+  phase1Render('cash-session');
+}
+
+async function phase1AddCashParticipant() {
+  if (!phase1CashSession) await phase1EnsureCashSession({force: true});
+  if (!phase1CashSession) return;
+  const nameField = document.querySelector('[data-cash-participant-name]');
+  const emailField = document.querySelector('[data-cash-participant-email]');
+  const roleField = document.querySelector('[data-cash-participant-role]');
+  const splitField = document.querySelector('[data-cash-participant-split]');
+  const name = nameField ? String(nameField.value || '').trim() : '';
+  if (!name) {
+    phase1Notice = 'Введите имя участника.';
+    phase1Render('cash-session');
+    return;
+  }
+  const payload = await qlApi('cash_participant_upsert', {
+    session_id: phase1CashSession.id,
+    display_name: name,
+    email: emailField ? String(emailField.value || '').trim() : '',
+    role: roleField ? roleField.value : 'participant',
+    included_in_split: splitField ? !!splitField.checked : true
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Участник не добавлен: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render('cash-session');
+    return;
+  }
+  phase1CashSession = payload.session || phase1CashSession;
+  phase1CashParticipantId = payload.participant && payload.participant.id ? String(payload.participant.id) : phase1CashParticipantId;
+  phase1Notice = 'Участник добавлен.';
+  phase1Render('cash-session');
+}
+
+async function phase1RemoveCashParticipant(participantId) {
+  if (!phase1CashSession) return;
+  const id = String(participantId || '').trim();
+  if (!id || id === 'owner') return;
+  const payload = await qlApi('cash_participant_remove', {
+    session_id: phase1CashSession.id,
+    participant_id: id
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Участник не удален: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render('cash-session');
+    return;
+  }
+  phase1CashSession = payload.session || phase1CashSession;
+  if (phase1CashParticipantId === id) phase1CashParticipantId = 'owner';
+  phase1Notice = 'Участник удален из активной сессии.';
+  phase1Render('cash-session');
+}
+
 function phase1RenderWelcome() {
   return `
     <div class="phase1-page phase1-page-welcome">
       <section class="phase1-welcome-hero">
         <span class="phase1-kicker">FinDesk</span>
         <h1>Деньги исчезают тихо.</h1>
-        <p>Потратил — запиши. Получил — запиши. Выберите, как вы работаете сегодня, а FinDesk сохранит движение наличных и карты без бухгалтерского шума.</p>
+        <p>FinDesk начинает с рабочего пространства. Сначала выберите или создайте свою среду, затем ведите деньги, людей и отчёты внутри неё.</p>
       </section>
-      ${phase1RenderJournalEntryPanel('Быстрый вход в личный журнал')}
       <section class="phase1-start-paths" aria-label="Старт FinDesk">
-        ${phase1PathButton('solo', 'Работаю один', 'Личный Cash или Card журнал без группы')}
-        ${phase1PathButton('team', 'Работаю с людьми', 'Люди, выдачи, подтверждения и общие отчеты')}
-        ${phase1PathButton('templates', 'Готовые шаблоны', 'Yacht, Home и будущие рабочие сценарии')}
+        ${phase1PathButton('workspace-hub', 'Мои пространства', 'Открыть уже существующую рабочую среду')}
+        ${phase1PathButton('workspace-create', 'Создать пространство', 'Личный журнал, группа, Yacht или Home')}
+        ${phase1PathButton('solo', 'Личный журнал', 'Быстрый вход в персональный Cash / Card workspace')}
       </section>
     </div>
   `;
@@ -4673,12 +5976,328 @@ function phase1YachtLogoHtml() {
   return '<span>Vetus Nauta</span>';
 }
 
+function phase1CompanyProfileForPrint() {
+  const profile = (phase1Snapshot && phase1Snapshot.companyProfile) || qlBdCompanyProfile || {};
+  const name = String(profile.company_name || profile.profile_name || '').trim() || 'FinDesk / brkovic.ltd';
+  return {
+    name,
+    address: [profile.address, profile.city, profile.country].map(function(part) {
+      return String(part || '').trim();
+    }).filter(Boolean).join(', '),
+    email: String(profile.email || '').trim(),
+    phone: String(profile.phone || '').trim(),
+    website: String(profile.website || '').trim(),
+    registration: String(profile.registration_number || '').trim(),
+    vat: String(profile.vat_number || '').trim()
+  };
+}
+
+function phase1YachtPrintValue(value, fallback) {
+  const text = String(value || '').trim();
+  return text ? text : (fallback || '—');
+}
+
+function phase1YachtFuelPrintableEntries(options) {
+  return phase1YachtOrderEntries(options).filter(function(entry) {
+    const row = entry.row || {};
+    const category = String(row.category || '').trim();
+    const item = String(row.item || '').trim();
+    if (row.enabled === false) return false;
+    if (!category && !item) return false;
+    return true;
+  });
+}
+
+function phase1YachtFuelPrintRowsHtml(options) {
+  const entries = phase1YachtFuelPrintableEntries(options);
+  if (!entries.length) {
+    return '<tr><td colspan="6" class="phase1-yacht-print-empty">Нет отмеченных пользовательских строк для печати.</td></tr>';
+  }
+  return entries.map(function(entry, position) {
+    const row = entry.row || {};
+    const qty = phase1Number(row.qty || 0);
+    const price = phase1Number(row.price || 0);
+    return `
+      <tr>
+        <td class="phase1-yacht-print-index">${position + 1}</td>
+        <td>${phase1Escape(phase1YachtPrintValue(row.category, 'Раздел'))}</td>
+        <td>${phase1Escape(phase1YachtPrintValue(row.item, 'Позиция'))}</td>
+        <td class="phase1-yacht-print-number">${phase1Escape(qty ? String(row.qty) : '0')}</td>
+        <td>${phase1Escape(phase1YachtPrintValue(row.unit, 'ед.'))}</td>
+        <td class="phase1-yacht-price-cell phase1-yacht-print-number">${phase1Money(qty * price)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function phase1YachtFuelPrintDocumentHtml(options) {
+  const opts = options || {};
+  const profile = phase1YachtState.profile || {};
+  const order = phase1YachtState.order || {};
+  const contractor = phase1CompanyProfileForPrint();
+  const yachtName = String(profile.name || '').trim() || phase1WorkspaceTitle() || 'Название яхты';
+  const marina = phase1YachtOrderValue('marina');
+  const berth = phase1YachtOrderValue('berth');
+  const customer = phase1YachtOrderValue('customer');
+  const issuedAt = order.price_locked_at || new Date().toLocaleString('ru-RU');
+  const printedAt = new Date().toLocaleString('ru-RU');
+  const documentNo = 'FD-YF-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String((phase1Workspace && phase1Workspace.groupId) || 'LOCAL').padStart(3, '0');
+  const region = PHASE1_YACHT_PRICE_ENGINE[order.price_region] ? PHASE1_YACHT_PRICE_ENGINE[order.price_region].label : order.price_region;
+  const fuelMode = phase1YachtFuelPriceMode(order) === 'duty_free' ? 'Duty-free / tax-free' : 'Обычная заправка';
+  const total = phase1YachtOrderTotal(opts);
+  return `
+    <article class="phase1-yacht-print-document phase1-print-only" aria-hidden="true">
+      <header class="phase1-yacht-print-header">
+        <div class="phase1-yacht-print-brand">
+          <img src="/assets/brand-mark.png?v=20260522-106" alt="FinDesk">
+          <div>
+            <b>FinDesk</b>
+            <span>Yacht Bunkering Order</span>
+          </div>
+        </div>
+        <div class="phase1-yacht-print-title">
+          <span>Fuel Service Order</span>
+          <h1>Наряд на бункеровку</h1>
+          <p>№ ${phase1Escape(documentNo)} · ${phase1Escape(issuedAt)}</p>
+        </div>
+      </header>
+
+      <section class="phase1-yacht-print-parties">
+        <div class="phase1-yacht-print-party">
+          <span>Подрядчик</span>
+          <h2>${phase1Escape(contractor.name)}</h2>
+          ${contractor.address ? '<p>' + phase1Escape(contractor.address) + '</p>' : ''}
+          ${contractor.email || contractor.phone ? '<p>' + phase1Escape([contractor.email, contractor.phone].filter(Boolean).join(' · ')) + '</p>' : ''}
+          ${contractor.registration || contractor.vat ? '<small>' + phase1Escape([contractor.registration ? 'Reg: ' + contractor.registration : '', contractor.vat ? 'VAT: ' + contractor.vat : ''].filter(Boolean).join(' · ')) + '</small>' : ''}
+        </div>
+        <div class="phase1-yacht-print-party">
+          <span>Заказчик / яхта</span>
+          <h2>${phase1Escape(phase1YachtPrintValue(customer, yachtName))}</h2>
+          <p>${phase1Escape('Яхта: ' + phase1YachtPrintValue(yachtName, 'не указана'))}</p>
+          <p>${phase1Escape([marina ? 'Марина: ' + marina : '', berth ? 'Место: ' + berth : ''].filter(Boolean).join(' · ') || 'Марина и место стоянки не указаны')}</p>
+          ${profile.reg_number || profile.model ? '<small>' + phase1Escape([profile.model ? 'Model: ' + profile.model : '', profile.reg_number ? 'Reg: ' + profile.reg_number : ''].filter(Boolean).join(' · ')) + '</small>' : ''}
+        </div>
+      </section>
+
+      <section class="phase1-yacht-print-meta">
+        <div><span>Регион цен</span><b>${phase1Escape(phase1YachtPrintValue(region, 'не указан'))}</b></div>
+        <div><span>Тип заправки</span><b>${phase1Escape(fuelMode)}</b></div>
+        <div><span>Каталог</span><b>${phase1Escape(order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION)}</b></div>
+        <div><span>Обновлен</span><b>${phase1Escape(order.price_catalog_updated_at || 'нет ручного обновления')}</b></div>
+      </section>
+
+      <table class="phase1-yacht-print-table">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Раздел</th>
+            <th>Позиция</th>
+            <th>Кол-во</th>
+            <th>Ед.</th>
+            <th class="phase1-yacht-price-cell">Сумма</th>
+          </tr>
+        </thead>
+        <tbody>${phase1YachtFuelPrintRowsHtml(opts)}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5">Итого к подтверждению</td>
+            <td class="phase1-yacht-price-cell phase1-yacht-print-number">${phase1Money(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <footer class="phase1-yacht-print-footer">
+        <p>Документ подготовлен для согласования бункеровки яхты. Он не заменяет фискальный счет, инвойс или акт оказанных услуг. Финальные цены подтверждаются подрядчиком перед исполнением.</p>
+        <div class="phase1-yacht-print-signatures">
+          <div><span>Подрядчик</span><b>Подпись / печать</b></div>
+          <div><span>Капитан / представитель яхты</span><b>Подпись</b></div>
+          <div><span>Заказчик</span><b>Подпись</b></div>
+        </div>
+        <div class="phase1-yacht-print-stamp">
+          <span>finance.brkovic.ltd - Vetus Nauta Brkovic</span>
+          <span>Время печати: ${phase1Escape(printedAt)}</span>
+        </div>
+      </footer>
+    </article>
+  `;
+}
+
 function phase1YachtRowMode(row) {
-  const category = String(row && row.category || '').toLowerCase();
-  const item = String(row && row.item || '').toLowerCase();
-  if (category.includes('топливо') || item.includes('дизель') || item.includes('fuel')) return 'fuel';
+  const category = String(row && (row.category || row.category_placeholder || row.placeholder_category) || '').toLowerCase();
+  const item = String(row && (row.item || row.item_placeholder || row.placeholder_item) || '').toLowerCase();
+  if (category.includes('топливо') || category.includes('агент') || category.includes('сбор') || category.includes('своя') || item.includes('дизель') || item.includes('fuel') || item.includes('агент')) return 'fuel';
   if (category.includes('техника') || category.includes('сервис') || category.includes('безопас') || item.includes('масло') || item.includes('фильтр')) return 'technical';
   return 'food';
+}
+
+function phase1NormalizeYachtProductRow(row, fallbackKey) {
+  const sourceKey = String(row && (row.source_key || row.key) || fallbackKey || '').trim();
+  const category = String(row && row.category || 'Продукты').trim() || 'Продукты';
+  const item = String(row && row.item || '').trim();
+  const qty = row && row.qty !== null && row.qty !== undefined && row.qty !== '' ? phase1Number(row.qty || 0) : null;
+  const unit = String(row && row.unit || '').trim();
+  const qtyDisplay = String(row && row.qty_display || '').trim();
+  const note = String(row && row.note || '').trim();
+  const price = row && row.price !== null && row.price !== undefined && row.price !== '' ? phase1Number(row.price || 0) : null;
+  const priceKey = String(row && row.price_key || '').trim();
+  return {
+    source_key: sourceKey,
+    category,
+    item,
+    qty,
+    unit,
+    qty_display: qtyDisplay,
+    note,
+    price,
+    price_key: priceKey
+  };
+}
+
+function phase1YachtProductRows() {
+  const order = phase1YachtState.order || {};
+  return Array.isArray(order.product_rows) ? order.product_rows : [];
+}
+
+function phase1YachtProductRowQuantity(row) {
+  if (row && row.qty_display) return row.qty_display;
+  if (row && row.qty !== null && row.qty !== undefined && row.qty !== '') {
+    return String(row.qty) + (row.unit ? ' ' + row.unit : '');
+  }
+  return row && row.unit ? row.unit : 'Уточнить вручную';
+}
+
+function phase1YachtProductRowTotal(row) {
+  if (!row || row.price === null || row.price === undefined || row.price <= 0) return null;
+  const qty = row.qty !== null && row.qty !== undefined && row.qty !== '' ? phase1Number(row.qty || 0) : 0;
+  const total = qty > 0 ? phase1Number(row.price || 0) * qty : phase1Number(row.price || 0);
+  return Math.round(total * 100) / 100;
+}
+
+function phase1YachtProductRowPriceHtml(row) {
+  const total = phase1YachtProductRowTotal(row);
+  if (total === null) {
+    return '<span class="phase1-yacht-provision-price muted">без цены</span>';
+  }
+  const qty = row && row.qty !== null && row.qty !== undefined && row.qty !== '' ? phase1Number(row.qty || 0) : 0;
+  const unitHint = qty > 1 && row.price
+    ? phase1Money(row.price) + ' × ' + phase1Escape(phase1YachtProductRowQuantity(row))
+    : '';
+  return `
+    <span class="phase1-yacht-provision-price">${phase1Money(total)}</span>
+    ${unitHint ? '<small class="phase1-yacht-provision-price-source">' + unitHint + '</small>' : ''}
+    ${row.price_key ? '<small class="phase1-yacht-provision-price-source">' + phase1Escape(row.price_key) + '</small>' : ''}
+  `;
+}
+
+function phase1YachtEnsureProductRowPrice(row, order) {
+  const next = phase1NormalizeYachtProductRow(row);
+  if (next.price !== null && next.price !== undefined && next.price > 0 && next.price_key) return next;
+  const reference = phase1YachtProvisionReferencePrice(next.category, {title: next.item, item_key: next.source_key}, order);
+  next.price = reference.price;
+  next.price_key = reference.key;
+  return next;
+}
+
+function phase1YachtProvisionPriceKey(categoryTitle, item) {
+  const category = String(categoryTitle || '').toLowerCase();
+  const title = String(item && (item.title || item.title_ru || item.item_key) || '').toLowerCase();
+  const key = String(item && item.item_key || '').toLowerCase();
+  if (category.includes('вода') || title.includes('вода') || key.includes('water')) return 'Вода питьевая';
+  if (title.includes('кофе') || title.includes('чай') || title.includes('сахар')) return 'Кофе, чай, сахар';
+  if (category.includes('хозяй') || title.includes('салфет') || title.includes('полотен')) return title.includes('салфет') || title.includes('полотен') ? 'Полотенца бумажные / салфетки' : 'Бытовая химия';
+  if (category.includes('гигиен') || category.includes('аптеч') || title.includes('аптеч') || title.includes('пластыр') || title.includes('антисеп')) return 'Аптечка / расходники';
+  return 'Продукты базовые';
+}
+
+function phase1YachtProvisionReferencePrice(categoryTitle, item, orderOverride) {
+  const order = orderOverride || phase1YachtState.order || {};
+  const priceKey = phase1YachtProvisionPriceKey(categoryTitle, item);
+  const price = phase1YachtEnginePrice({category: 'Еда', item: priceKey}, order);
+  return {
+    key: priceKey,
+    price: price === null ? null : price
+  };
+}
+
+function phase1YachtProvisionLineTotal(categoryTitle, item, orderOverride) {
+  const reference = phase1YachtProvisionReferencePrice(categoryTitle, item, orderOverride);
+  if (reference.price === null) return {key: reference.key, price: null, total: null};
+  const quantity = item && item.quantity !== null && item.quantity !== undefined && item.quantity !== ''
+    ? phase1Number(item.quantity || 0)
+    : 0;
+  const total = quantity > 0 ? phase1Number(reference.price || 0) * quantity : phase1Number(reference.price || 0);
+  return {
+    key: reference.key,
+    price: reference.price,
+    total: Math.round(total * 100) / 100
+  };
+}
+
+function phase1YachtProvisionPriceHtml(categoryTitle, item) {
+  const reference = phase1YachtProvisionLineTotal(categoryTitle, item);
+  if (reference.total === null) {
+    return '<span class="phase1-yacht-provision-price muted">цена не найдена</span>';
+  }
+  const quantity = item && item.quantity !== null && item.quantity !== undefined && item.quantity !== '' ? phase1Number(item.quantity || 0) : 0;
+  const unitHint = quantity > 1 && reference.price
+    ? phase1Money(reference.price) + ' × ' + phase1Escape(item.display_quantity || String(quantity))
+    : '';
+  return `
+    <span class="phase1-yacht-provision-price">${phase1Money(reference.total)}</span>
+    ${unitHint ? '<small class="phase1-yacht-provision-price-source">' + unitHint + '</small>' : ''}
+    <small class="phase1-yacht-provision-price-source">${phase1Escape(reference.key)}</small>
+  `;
+}
+
+function phase1YachtProvisionCategoryKey(category, index) {
+  const key = String(category && (category.category_key || category.key || category.title) || '').trim();
+  return key || 'category-' + String(index || 0);
+}
+
+function phase1YachtProvisionItemBadges(item) {
+  return [
+    item && item.optional ? 'опционально' : '',
+    item && item.perishable ? 'свежее' : '',
+    item && item.route_restock_recommended ? 'дозакупка по маршруту' : ''
+  ].filter(Boolean).join(' · ');
+}
+
+function phase1YachtProvisionCategoryStats(category, selected) {
+  const items = Array.isArray(category && category.items) ? category.items : [];
+  const title = String(category && (category.title || category.category_key) || 'Продукты');
+  return items.reduce(function(stats, item) {
+    const key = String(item && item.item_key || '');
+    if (!key || !selected.has(key)) return stats;
+    const reference = phase1YachtProvisionLineTotal(title, item);
+    stats.selectedCount++;
+    if (reference.total !== null) stats.total += phase1Number(reference.total || 0);
+    return stats;
+  }, {selectedCount: 0, total: 0});
+}
+
+function phase1YachtProvisionCategorySummary(stats) {
+  const count = Number(stats && stats.selectedCount || 0);
+  return count + ' выбрано · ' + phase1Money(stats && stats.total || 0);
+}
+
+function phase1YachtProvisionCategoryByKey(key) {
+  const categories = phase1YachtProvisionResult && Array.isArray(phase1YachtProvisionResult.categories)
+    ? phase1YachtProvisionResult.categories
+    : [];
+  return categories.find(function(category, index) {
+    return phase1YachtProvisionCategoryKey(category, index) === key;
+  }) || null;
+}
+
+function phase1YachtProvisionSelectedKeysForCategory(key) {
+  const category = phase1YachtProvisionCategoryByKey(key);
+  if (!category) return [];
+  const selected = new Set(phase1YachtProvisionSelectedKeys());
+  return (Array.isArray(category.items) ? category.items : []).map(function(item) {
+    return String(item && item.item_key || '');
+  }).filter(function(itemKey) {
+    return itemKey && selected.has(itemKey);
+  });
 }
 
 function phase1YachtModeButtons() {
@@ -4692,41 +6311,64 @@ function phase1YachtModeButtons() {
   `;
 }
 
-function phase1YachtOrderRows() {
+function phase1YachtOrderEntries(options) {
   const rows = (phase1YachtState.order && Array.isArray(phase1YachtState.order.rows))
     ? phase1YachtState.order.rows
     : [];
-  const mode = String((phase1YachtState.order || {}).mode || 'all');
-  const visible = rows.map(function(row, index) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const mode = String(opts.mode || (phase1YachtState.order || {}).mode || 'all');
+  const allowedModes = Array.isArray(opts.allowedModes) ? opts.allowedModes.map(function(item) {
+    return String(item || '').trim();
+  }).filter(Boolean) : null;
+  return rows.map(function(row, index) {
     return {row, index};
   }).filter(function(entry) {
-    return mode === 'all' || phase1YachtRowMode(entry.row) === mode;
+    const rowMode = phase1YachtRowMode(entry.row);
+    if (allowedModes && allowedModes.length) return allowedModes.includes(rowMode);
+    return mode === 'all' || rowMode === mode;
   });
+}
+
+function phase1YachtOrderRows(options) {
+  const visible = phase1YachtOrderEntries(options);
   if (!visible.length) {
     return '<tr><td colspan="7" class="phase1-yacht-empty">В этом разделе пока нет строк.</td></tr>';
   }
   return visible.map(function(entry) {
     const row = entry.row;
     const index = entry.index;
+    const categoryPlaceholder = row.category_placeholder || row.placeholder_category || 'Раздел';
+    const itemPlaceholder = row.item_placeholder || row.placeholder_item || 'Артикул / позиция';
+    const qtyPlaceholder = row.qty_placeholder || '0';
+    const unitPlaceholder = row.unit_placeholder || 'шт.';
+    const pricePlaceholder = row.price_placeholder || '0';
+    const rowDisabled = row.enabled === false;
     return `
-      <tr data-yacht-row="${phase1Escape(index)}">
-        <td class="phase1-yacht-check"><input type="checkbox" data-yacht-row-field="enabled" ${row.enabled === false ? '' : 'checked'}></td>
-        <td><input type="text" data-yacht-row-field="category" value="${phase1Escape(row.category || '')}" placeholder="Раздел"></td>
-        <td><input type="text" data-yacht-row-field="item" value="${phase1Escape(row.item || '')}" placeholder="Артикул / позиция"></td>
-        <td><input type="text" inputmode="decimal" data-yacht-row-field="qty" value="${phase1Escape(row.qty || '')}" placeholder="0"></td>
-        <td><input type="text" data-yacht-row-field="unit" value="${phase1Escape(row.unit || '')}" placeholder="шт."></td>
-        <td class="phase1-yacht-price-cell"><input type="text" inputmode="decimal" data-yacht-row-field="price" value="${phase1Escape(row.price || '')}" placeholder="0"></td>
+      <tr data-yacht-row="${phase1Escape(index)}" data-yacht-row-disabled="${rowDisabled ? 'true' : 'false'}" class="${rowDisabled ? 'is-yacht-row-disabled' : ''}">
+        <td class="phase1-yacht-check"><input type="checkbox" data-yacht-row-field="enabled" ${rowDisabled ? '' : 'checked'}></td>
+        <td><input type="text" data-yacht-row-field="category" value="${phase1Escape(row.category || '')}" placeholder="${phase1Escape(categoryPlaceholder)}"></td>
+        <td><input type="text" data-yacht-row-field="item" value="${phase1Escape(row.item || '')}" placeholder="${phase1Escape(itemPlaceholder)}"></td>
+        <td><input type="text" inputmode="decimal" data-yacht-row-field="qty" value="${phase1Escape(row.qty || '')}" placeholder="${phase1Escape(qtyPlaceholder)}"></td>
+        <td><input type="text" data-yacht-row-field="unit" value="${phase1Escape(row.unit || '')}" placeholder="${phase1Escape(unitPlaceholder)}"></td>
+        <td class="phase1-yacht-price-cell"><input type="text" inputmode="decimal" data-yacht-row-field="price" value="${phase1Escape(row.price || '')}" placeholder="${phase1Escape(pricePlaceholder)}"></td>
         <td class="phase1-yacht-price-cell phase1-yacht-row-total">${phase1Money(phase1Number(row.qty || 0) * phase1Number(row.price || 0))}</td>
       </tr>
     `;
   }).join('');
 }
 
-function phase1YachtOrderTotal() {
+function phase1YachtOrderTotal(options) {
   const rows = (phase1YachtState.order && Array.isArray(phase1YachtState.order.rows))
     ? phase1YachtState.order.rows
     : [];
-  return rows.reduce(function(total, row) {
+  if (!options || typeof options !== 'object') {
+    return rows.reduce(function(total, row) {
+      if (row.enabled === false) return total;
+      return total + phase1Number(row.qty || 0) * phase1Number(row.price || 0);
+    }, 0);
+  }
+  return phase1YachtOrderEntries(options).reduce(function(total, entry) {
+    const row = entry.row;
     if (row.enabled === false) return total;
     return total + phase1Number(row.qty || 0) * phase1Number(row.price || 0);
   }, 0);
@@ -4758,10 +6400,26 @@ function phase1YachtPriceModeOptions() {
   `;
 }
 
-function phase1YachtActivePriceZone() {
-  const order = phase1YachtState.order || {};
+function phase1YachtFuelPriceMode(order) {
+  return String((order || phase1YachtState.order || {}).fuel_price_mode || 'full') === 'duty_free' ? 'duty_free' : 'full';
+}
+
+function phase1YachtFuelPriceModeOptions() {
+  const mode = phase1YachtFuelPriceMode();
+  return `
+    <option value="full"${mode === 'full' ? ' selected' : ''}>Обычная заправка</option>
+    <option value="duty_free"${mode === 'duty_free' ? ' selected' : ''}>Duty-free / tax-free</option>
+  `;
+}
+
+function phase1YachtPriceZoneForOrder(order) {
+  order = order || {};
   const key = String(order.price_region || 'adriatic_balkans');
   return PHASE1_YACHT_PRICE_ENGINE[key] || PHASE1_YACHT_PRICE_ENGINE.adriatic_balkans;
+}
+
+function phase1YachtActivePriceZone() {
+  return phase1YachtPriceZoneForOrder(phase1YachtState.order || {});
 }
 
 function phase1YachtOrderLocked(order) {
@@ -4778,54 +6436,667 @@ function phase1YachtApprovedItemKey(row) {
 }
 
 function phase1YachtApprovedPriceFor(row, order) {
-  const catalog = phase1YachtApprovedCatalog;
+  const catalog = phase1YachtApprovedCatalog || ((order || {}).price_snapshot || null);
   if (!catalog || !catalog.prices || catalog.region !== String((order || {}).price_region || '')) return null;
   const key = phase1YachtApprovedItemKey(row);
-  if (!key || !catalog.prices[key]) return null;
-  const price = catalog.prices[key];
-  const value = String((order || {}).price_mode || 'full') === 'duty_free'
+  const fallbackKey = String(row && row.item || '').trim();
+  if ((!key || !catalog.prices[key]) && (!fallbackKey || !catalog.prices[fallbackKey])) return null;
+  const price = catalog.prices[key] || catalog.prices[fallbackKey];
+  const rowMode = phase1YachtRowMode(row);
+  const mode = rowMode === 'fuel' ? phase1YachtFuelPriceMode(order) : String((order || {}).price_mode || 'full');
+  const value = mode === 'duty_free'
     ? phase1Number(price.duty_free_price_eur || 0)
     : phase1Number(price.full_price_eur || 0);
   return value > 0 ? value : null;
+}
+
+function phase1YachtCatalogSourceRows(catalog) {
+  const details = catalog && catalog.source_details && typeof catalog.source_details === 'object' ? catalog.source_details : {};
+  const rows = [];
+  Object.keys(details).forEach(function(itemKey) {
+    (Array.isArray(details[itemKey]) ? details[itemKey] : []).forEach(function(source) {
+      rows.push({
+        item: itemKey,
+        label: String(source && (source.label || source.id) || 'Источник'),
+        type: String(source && source.type || ''),
+        available: source && source.available !== false,
+        value: source && source.normalized_net_eur !== null && source.normalized_net_eur !== undefined ? phase1Number(source.normalized_net_eur || 0) : null
+      });
+    });
+  });
+  return rows;
+}
+
+function phase1YachtCatalogSourcesHtml(catalog) {
+  const rows = phase1YachtCatalogSourceRows(catalog);
+  if (!rows.length) return '';
+  const shown = rows.slice(0, 8);
+  return `
+    <div class="phase1-yacht-source-grid">
+      ${shown.map(function(source) {
+        return `
+          <span class="${source.available ? 'ok' : 'fail'}">
+            <b>${phase1Escape(source.label)}</b>
+            <small>${phase1Escape(source.item)} · ${phase1Escape(source.type || 'source')} · ${source.value ? phase1Money(source.value) : 'нет ответа'}</small>
+          </span>
+        `;
+      }).join('')}
+      ${rows.length > shown.length ? '<em>Еще источников: ' + phase1Escape(rows.length - shown.length) + '</em>' : ''}
+    </div>
+  `;
 }
 
 function phase1YachtApprovedCatalogPanel(order) {
   if (phase1YachtApprovedLoading) {
     return '<div class="phase1-yacht-approved-panel"><b>Утвержденные цены</b><span>Загружаю approved catalog...</span></div>';
   }
-  const catalog = phase1YachtApprovedCatalog;
+  const catalog = phase1YachtApprovedCatalog || ((order || {}).price_snapshot || null);
   if (!catalog) {
     return '<div class="phase1-yacht-approved-panel muted"><b>Утвержденные цены</b><span>Не загружены. Можно работать с локальным справочником или загрузить reviewed prices.</span></div>';
   }
   const prices = catalog.prices || {};
   const blocked = Array.isArray(catalog.blocked_items) ? catalog.blocked_items : [];
   const warnings = Array.isArray(catalog.warnings) ? catalog.warnings : [];
+  const policy = catalog.policy || {};
+  const available = Number(policy.available_sources || 0);
+  const total = Number(policy.total_sources || 0);
+  const failed = Number(policy.failed_sources || 0);
   const approvedAt = catalog.approved_at ? new Date(catalog.approved_at).toLocaleString('ru-RU') : 'без даты';
   return `
     <div class="phase1-yacht-approved-panel">
       <b>Approved: ${phase1Escape(catalog.region_label || catalog.region || 'region')} / ${phase1Escape(catalog.family || 'fuel')}</b>
       <span>Reviewed: ${phase1Escape(approvedAt)} · позиций: ${phase1Escape(Object.keys(prices).length)} · заблокировано: ${phase1Escape(blocked.length)}</span>
+      <span>Источники: ${phase1Escape(available)}/${phase1Escape(total)} доступны${failed ? ' · ошибок: ' + phase1Escape(failed) : ''}</span>
       <small>${phase1Escape(warnings[0] || 'Источник прошел локальный review gate.')}</small>
+      ${phase1YachtCatalogSourcesHtml(catalog)}
     </div>
   `;
 }
 
+function phase1YachtProvisionState() {
+  const defaults = phase1YachtDefaultState().order.provisioning;
+  const order = phase1YachtState.order || {};
+  return Object.assign({}, defaults, order.provisioning || {});
+}
+
+function phase1YachtProvisionField(key, label, type) {
+  const state = phase1YachtProvisionState();
+  const value = state[key];
+  return `
+    <label class="phase1-field">
+      <span>${phase1Escape(label)}</span>
+      <input type="${phase1Escape(type || 'text')}" min="1" data-yacht-provision="${phase1Escape(key)}" value="${phase1Escape(value)}">
+    </label>
+  `;
+}
+
+function phase1YachtProvisionSelect(key, label, options) {
+  const state = phase1YachtProvisionState();
+  const value = String(state[key] || '');
+  return `
+    <label class="phase1-field">
+      <span>${phase1Escape(label)}</span>
+      <select data-yacht-provision="${phase1Escape(key)}">
+        ${options.map(function(option) {
+          return '<option value="' + phase1Escape(option.id) + '"' + (value === option.id ? ' selected' : '') + '>' + phase1Escape(option.label) + '</option>';
+        }).join('')}
+      </select>
+    </label>
+  `;
+}
+
+function phase1YachtProvisionToggle(key, label) {
+  const state = phase1YachtProvisionState();
+  return `
+    <label class="phase1-yacht-provision-toggle">
+      <input type="checkbox" data-yacht-provision="${phase1Escape(key)}" ${state[key] ? 'checked' : ''}>
+      <span>${phase1Escape(label)}</span>
+    </label>
+  `;
+}
+
+function phase1YachtProvisionSelectedKeys() {
+  const order = phase1YachtState.order || {};
+  return Array.isArray(order.provision_selected_keys)
+    ? order.provision_selected_keys.map(function(key) { return String(key || '').trim(); }).filter(Boolean)
+    : [];
+}
+
+function phase1YachtProvisionSignatureFor(provision) {
+  const state = Object.assign({}, phase1YachtProvisionState(), provision || {});
+  return JSON.stringify({
+    people_count: Math.max(1, Number(state.people_count || 1)),
+    days: Math.max(1, Number(state.days || 1)),
+    profile: String(state.profile || 'balanced'),
+    meal_plan: String(state.meal_plan || 'breakfast_onboard_lunch_light_dinner_mixed'),
+    include_alcohol: !!state.include_alcohol,
+    include_bbq: !!state.include_bbq,
+    include_children: !!state.include_children,
+    include_household: !!state.include_household,
+    include_hygiene: !!state.include_hygiene,
+    route_restock_possible: !!state.route_restock_possible
+  });
+}
+
+function phase1YachtProvisionIsStale() {
+  return !!(phase1YachtProvisionResult && phase1YachtProvisionResult.ok && phase1YachtProvisionSignature && phase1YachtProvisionSignature !== phase1YachtProvisionSignatureFor());
+}
+
+function phase1YachtProvisionResultHtml() {
+  if (phase1YachtProvisionLoading) {
+    return '<div class="phase1-yacht-provision-empty">Считаю продукты через provisioning API...</div>';
+  }
+  const result = phase1YachtProvisionResult;
+  if (!result || !result.ok) {
+    return '<div class="phase1-yacht-provision-empty">Нажмите «Рассчитать продукты», чтобы увидеть каталог по группам с reference prices.</div>';
+  }
+  const selected = new Set(phase1YachtProvisionSelectedKeys());
+  const categories = Array.isArray(result.categories) ? result.categories : [];
+  if (!categories.length) {
+    return '<div class="phase1-yacht-provision-empty">По выбранным фильтрам список пуст.</div>';
+  }
+  const isStale = phase1YachtProvisionIsStale();
+  const totalItems = categories.reduce(function(sum, category) {
+    return sum + (Array.isArray(category.items) ? category.items.length : 0);
+  }, 0);
+  return `
+    ${isStale ? '<div class="phase1-yacht-provision-stale">Параметры изменились после расчёта. Нажмите «Рассчитать продукты» ещё раз перед добавлением в список закупки.</div>' : ''}
+    <div class="phase1-yacht-provision-meta">
+      <span>Каталог: ${phase1Escape(result.meta && result.meta.catalog_version || '')}</span>
+      <span>Групп: ${phase1Escape(result.summary && result.summary.total_categories || categories.length)}</span>
+      <span>Позиций: ${phase1Escape(result.summary && result.summary.total_items || totalItems)}</span>
+    </div>
+    ${(Array.isArray(result.warnings) && result.warnings.length) ? '<div class="phase1-yacht-provision-warning">' + result.warnings.map(phase1Escape).join('<br>') + '</div>' : ''}
+    <div class="phase1-yacht-provision-categories" data-yacht-provision-categories>
+      ${categories.map(function(category, categoryIndex) {
+        const items = Array.isArray(category.items) ? category.items : [];
+        const categoryTitle = String(category.title || category.category_key || 'Продукты');
+        const categoryKey = phase1YachtProvisionCategoryKey(category, categoryIndex);
+        const isOpen = phase1YachtProvisionOpenCategoryKey === categoryKey;
+        const stats = phase1YachtProvisionCategoryStats(category, selected);
+        const bodyId = 'phase1ProvisionCategoryItems-' + categoryKey.replace(/[^a-zA-Z0-9_-]/g, '-');
+        return `
+          <section class="phase1-yacht-provision-category ${isOpen ? 'is-open' : 'is-collapsed'} ${stats.selectedCount ? 'has-selection' : ''}" data-yacht-provision-category="${phase1Escape(categoryKey)}">
+            <button class="phase1-yacht-provision-category-head" type="button" data-phase-action="yacht-toggle-provision-category" data-yacht-provision-category-key="${phase1Escape(categoryKey)}" aria-expanded="${isOpen ? 'true' : 'false'}" aria-controls="${phase1Escape(bodyId)}">
+              <span class="phase1-yacht-provision-category-copy">
+                <strong class="phase1-yacht-provision-category-title">${phase1Escape(categoryTitle)}</strong>
+                <small class="phase1-yacht-provision-category-summary" data-yacht-provision-category-summary="${phase1Escape(categoryKey)}">${phase1Escape(phase1YachtProvisionCategorySummary(stats))}</small>
+              </span>
+              <span class="phase1-yacht-provision-category-side">
+                <b class="phase1-yacht-provision-category-count">${phase1Escape(items.length)}</b>
+                <span class="phase1-yacht-provision-category-chevron" aria-hidden="true">▾</span>
+              </span>
+            </button>
+            <div class="phase1-yacht-provision-category-body" id="${phase1Escape(bodyId)}" role="region">
+              <div class="phase1-yacht-provision-category-body-inner">
+              <div class="phase1-yacht-provision-items">
+              ${items.map(function(item, index) {
+                const key = String(item.item_key || '');
+                const badges = phase1YachtProvisionItemBadges(item);
+                return `
+                  <label class="phase1-yacht-provision-item ${index ? 'with-divider' : ''}">
+                    <input type="checkbox" data-yacht-provision-item="${phase1Escape(key)}" ${selected.has(key) ? 'checked' : ''}>
+                    <span class="phase1-yacht-provision-item-copy">
+                      <b>${phase1Escape(item.title || key)}</b>
+                      <small>${phase1Escape(item.display_quantity || '')}</small>
+                      ${badges ? '<small class="phase1-yacht-provision-item-badges">' + phase1Escape(badges) + '</small>' : ''}
+                    </span>
+                    <span class="phase1-yacht-provision-item-price">${phase1YachtProvisionPriceHtml(categoryTitle, item)}</span>
+                  </label>
+                `;
+              }).join('')}
+              </div>
+              <div class="phase1-yacht-provision-category-actions">
+                <button class="phase1-secondary-action" type="button" data-phase-action="yacht-fix-provision-category" data-yacht-provision-category-key="${phase1Escape(categoryKey)}" data-yacht-provision-category-fix="${phase1Escape(categoryKey)}" ${stats.selectedCount && !isStale ? '' : 'disabled'}>Зафиксировать выбранное и свернуть</button>
+              </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function phase1YachtProductRowsHtml() {
+  const rows = phase1YachtProductRows();
+  if (!rows.length) {
+    return '<div class="phase1-yacht-provision-empty">Список закупки пока пуст. Рассчитайте каталог, отметьте позиции и добавьте их в список закупки.</div>';
+  }
+  return `
+    <div class="phase1-yacht-shopping-list">
+      ${rows.map(function(row, index) {
+        return `
+          <article class="phase1-yacht-shopping-row ${index ? 'with-divider' : ''}">
+            <div class="phase1-yacht-shopping-copy">
+              <b>${phase1Escape(row.item || 'Позиция')}</b>
+              <small>${phase1Escape(phase1YachtProductRowQuantity(row))}</small>
+              <small class="phase1-yacht-shopping-note">${phase1Escape([row.category || 'Продукты', row.note || ''].filter(Boolean).join(' · '))}</small>
+            </div>
+            <div class="phase1-yacht-shopping-price">${phase1YachtProductRowPriceHtml(row)}</div>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-remove-product-row" data-yacht-product-row-remove="${phase1Escape(index)}">Удалить</button>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function phase1YachtProvisionPanel() {
+  const profileOptions = [
+    {id: 'light', label: 'Лёгкий'},
+    {id: 'balanced', label: 'Сбалансированный'},
+    {id: 'onboard_full', label: 'Полное питание на борту'},
+    {id: 'charter_comfort', label: 'Чартер комфорт'}
+  ];
+  const mealOptions = [
+    {id: 'breakfast_only', label: 'Только завтраки'},
+    {id: 'breakfast_lunch', label: 'Завтрак + обед'},
+    {id: 'breakfast_onboard_lunch_light_dinner_mixed', label: 'Смешанный день'},
+    {id: 'full_onboard', label: 'Всё питание на борту'}
+  ];
+  const canAdd = !!(phase1YachtProvisionResult && phase1YachtProvisionResult.ok && phase1YachtProvisionSelectedKeys().length && !phase1YachtProvisionIsStale());
+  const productRows = phase1YachtProductRows();
+  return `
+    <div class="phase1-yacht-provision-panel" aria-label="Продукты для бункеровки">
+      <div>
+        <span class="phase1-kicker">Продукты</span>
+        <h3>Базовый каталог продуктов</h3>
+        <p>Отдельный продуктовый workspace: сначала параметры и расчёт, потом выбор позиций и отдельный список закупки. Топливный наряд здесь не участвует.</p>
+      </div>
+      <div class="phase1-issue-grid phase1-yacht-provision-controls">
+        ${phase1YachtProvisionField('people_count', 'Людей', 'number')}
+        ${phase1YachtProvisionField('days', 'Дней', 'number')}
+        ${phase1YachtProvisionSelect('profile', 'Профиль', profileOptions)}
+        ${phase1YachtProvisionSelect('meal_plan', 'План питания', mealOptions)}
+        <label class="phase1-field">
+          <span>Регион цен</span>
+          <select data-yacht-order="price_region">${phase1YachtPriceRegionOptions()}</select>
+        </label>
+        <label class="phase1-field">
+          <span>Режим цены</span>
+          <select data-yacht-order="price_mode">${phase1YachtPriceModeOptions()}</select>
+        </label>
+      </div>
+      <div class="phase1-yacht-provision-toggles">
+        ${phase1YachtProvisionToggle('include_household', 'Хозяйственные')}
+        ${phase1YachtProvisionToggle('include_hygiene', 'Гигиена / аптечка')}
+        ${phase1YachtProvisionToggle('include_bbq', 'BBQ')}
+        ${phase1YachtProvisionToggle('include_children', 'Детское')}
+        ${phase1YachtProvisionToggle('include_alcohol', 'Алкоголь')}
+        ${phase1YachtProvisionToggle('route_restock_possible', 'Дозакупка по маршруту')}
+      </div>
+      <div class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-action="yacht-calculate-provision">Рассчитать продукты</button>
+        <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-provision-selected" ${canAdd ? '' : 'disabled'}>Добавить выбранные в список закупки</button>
+        <button class="phase1-secondary-action" type="button" data-phase-action="yacht-clear-product-rows" ${productRows.length ? '' : 'disabled'}>Очистить список закупки</button>
+        <button class="phase1-secondary-action" type="button" data-phase-action="yacht-refresh-price-catalog">Обновить цены Atlas</button>
+        <button class="phase1-secondary-action" type="button" data-phase-action="yacht-load-approved-prices">Загрузить цены Atlas</button>
+      </div>
+      ${phase1YachtApprovedCatalogPanel(order)}
+      <div>
+        <h4 class="phase1-yacht-shopping-title">Список закупки</h4>
+        ${phase1YachtProductRowsHtml()}
+      </div>
+      <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+      ${phase1YachtProvisionResultHtml()}
+      ${phase1YachtPriceFreshnessWarningHtml(phase1YachtState.order || {}, 'food')}
+    </div>
+  `;
+}
+
+function phase1YachtProvisionRenderTarget() {
+  return phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-products' ? 'yacht-products' : 'yacht';
+}
+
+function phase1YachtOrderRenderTarget() {
+  return phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-fuel' ? 'yacht-fuel' : 'yacht';
+}
+
+function phase1YachtPriceRenderTarget(family) {
+  if (family === 'food') return 'yacht-products';
+  return phase1YachtOrderRenderTarget();
+}
+
+async function phase1CalculateYachtProvision() {
+  phase1SyncYachtFromDom();
+  const provision = phase1YachtProvisionState();
+  const renderTarget = phase1YachtProvisionRenderTarget();
+  phase1YachtProvisionLoading = true;
+  phase1Render(renderTarget);
+  const result = await qlApi('yacht_provision_calculate', {
+    people_count: Math.max(1, Number(provision.people_count || 1)),
+    days: Math.max(1, Number(provision.days || 1)),
+    profile: String(provision.profile || 'balanced'),
+    meal_plan: String(provision.meal_plan || 'breakfast_onboard_lunch_light_dinner_mixed'),
+    filters: {
+      include_alcohol: !!provision.include_alcohol,
+      include_bbq: !!provision.include_bbq,
+      include_children: !!provision.include_children,
+      include_household: !!provision.include_household,
+      include_hygiene: !!provision.include_hygiene,
+      route_restock_possible: !!provision.route_restock_possible
+    },
+    language: 'ru'
+  });
+  phase1YachtProvisionLoading = false;
+  if (!result.ok) {
+    phase1YachtProvisionResult = null;
+    phase1YachtProvisionSignature = '';
+    phase1YachtProvisionOpenCategoryKey = '';
+    phase1Notice = 'Продукты не рассчитаны: ' + (result.message || (result.error && result.error.message) || result.error || 'ошибка');
+    phase1Render(renderTarget);
+    return;
+  }
+  phase1YachtProvisionResult = result;
+  phase1YachtProvisionSignature = phase1YachtProvisionSignatureFor(provision);
+  phase1YachtProvisionOpenCategoryKey = '';
+  phase1YachtState.order = Object.assign({}, phase1YachtState.order || {}, {
+    provision_last_result: result,
+    provision_last_signature: phase1YachtProvisionSignature
+  });
+  phase1WriteYachtState();
+  phase1Notice = 'Продукты рассчитаны: ' + ((result.summary && result.summary.total_items) || 0) + ' позиций.';
+  phase1Render(renderTarget);
+}
+
+function phase1AddYachtProvisionKeys(keys) {
+  const result = phase1YachtProvisionResult;
+  const selected = new Set((Array.isArray(keys) ? keys : []).map(function(key) {
+    return String(key || '').trim();
+  }).filter(Boolean));
+  if (!selected.size) {
+    return 0;
+  }
+  const order = phase1YachtState.order || {};
+  order.product_rows = Array.isArray(order.product_rows) ? order.product_rows : [];
+  let added = 0;
+  (Array.isArray(result.categories) ? result.categories : []).forEach(function(category) {
+    (Array.isArray(category.items) ? category.items : []).forEach(function(item) {
+      const key = String(item.item_key || '');
+      if (!selected.has(key)) return;
+      const categoryTitle = String(category.title || 'Продукты');
+      const reference = phase1YachtProvisionReferencePrice(categoryTitle, item);
+      const row = phase1NormalizeYachtProductRow({
+        source_key: key,
+        category: categoryTitle,
+        item: String(item.title || key),
+        qty: item.quantity === null || item.quantity === undefined ? null : phase1Number(item.quantity || 0),
+        unit: item.unit_label || item.unit || '',
+        qty_display: String(item.display_quantity || '').trim(),
+        price: reference.price,
+        price_key: reference.key,
+        note: [
+          item.optional ? 'опционально' : '',
+          item.perishable ? 'свежее' : '',
+          item.route_restock_recommended ? 'лучше дозакупать по маршруту' : ''
+        ].filter(Boolean).join(' · ')
+      }, key);
+      const existingIndex = order.product_rows.findIndex(function(existing) {
+        return String(existing && existing.source_key || '').trim() === key;
+      });
+      if (existingIndex >= 0) order.product_rows[existingIndex] = row;
+      else order.product_rows.push(row);
+      added++;
+    });
+  });
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  return added;
+}
+
+function phase1AddYachtProvisionSelected() {
+  phase1SyncYachtFromDom();
+  const renderTarget = phase1YachtProvisionRenderTarget();
+  const result = phase1YachtProvisionResult;
+  if (!result || !result.ok) {
+    phase1Notice = 'Сначала рассчитайте продукты.';
+    phase1Render(renderTarget);
+    return;
+  }
+  if (phase1YachtProvisionIsStale()) {
+    phase1Notice = 'Параметры продуктов изменились. Пересчитайте список перед добавлением в список закупки.';
+    phase1Render(renderTarget);
+    return;
+  }
+  const selectedKeys = phase1YachtProvisionSelectedKeys();
+  if (!selectedKeys.length) {
+    phase1Notice = 'Выберите позиции продуктов.';
+    phase1Render(renderTarget);
+    return;
+  }
+  const added = phase1AddYachtProvisionKeys(selectedKeys);
+  phase1Notice = added ? 'Добавлено в список закупки: ' + added + ' позиций.' : 'Выбранные позиции не найдены в текущем расчёте.';
+  phase1Render(renderTarget);
+}
+
+function phase1FixYachtProvisionCategory(key) {
+  phase1SyncYachtFromDom();
+  const renderTarget = phase1YachtProvisionRenderTarget();
+  if (!phase1YachtProvisionResult || !phase1YachtProvisionResult.ok) {
+    phase1Notice = 'Сначала рассчитайте продукты.';
+    phase1Render(renderTarget);
+    return;
+  }
+  if (phase1YachtProvisionIsStale()) {
+    phase1Notice = 'Параметры продуктов изменились. Пересчитайте список перед фиксацией категории.';
+    phase1Render(renderTarget);
+    return;
+  }
+  const selectedKeys = phase1YachtProvisionSelectedKeysForCategory(String(key || ''));
+  if (!selectedKeys.length) {
+    phase1Notice = 'В категории нет выбранных позиций.';
+    phase1CollapseYachtProvisionCategory(String(key || ''));
+    return;
+  }
+  const added = phase1AddYachtProvisionKeys(selectedKeys);
+  phase1Notice = added ? 'Категория зафиксирована: ' + added + ' позиций.' : 'Выбранные позиции этой категории не найдены.';
+  phase1CollapseYachtProvisionCategory(String(key || ''), true);
+}
+
+function phase1RemoveYachtProductRow(index) {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  const rows = Array.isArray(order.product_rows) ? order.product_rows.slice() : [];
+  const position = Number(index || 0);
+  if (position < 0 || position >= rows.length) return;
+  rows.splice(position, 1);
+  order.product_rows = rows;
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Notice = 'Позиция удалена из списка закупки.';
+  phase1Render(phase1YachtProvisionRenderTarget());
+}
+
+function phase1ClearYachtProductRows() {
+  phase1SyncYachtFromDom();
+  const order = phase1YachtState.order || {};
+  order.product_rows = [];
+  order.provision_selected_keys = [];
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+  phase1Notice = 'Список закупки очищен.';
+  phase1Render(phase1YachtProvisionRenderTarget());
+}
+
+function phase1ApplyYachtProvisionCategoryOpenState() {
+  document.querySelectorAll('[data-yacht-provision-category]').forEach(function(node) {
+    const key = String(node.getAttribute('data-yacht-provision-category') || '');
+    const isOpen = !!key && key === phase1YachtProvisionOpenCategoryKey;
+    node.classList.toggle('is-open', isOpen);
+    node.classList.toggle('is-collapsed', !isOpen);
+    const button = node.querySelector('[data-yacht-provision-category-key]');
+    if (button) button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+}
+
+function phase1UpdateYachtProvisionCategorySummaries() {
+  if (!phase1YachtProvisionResult || !phase1YachtProvisionResult.ok) return;
+  const selected = new Set(phase1YachtProvisionSelectedKeys());
+  const stale = phase1YachtProvisionIsStale();
+  (Array.isArray(phase1YachtProvisionResult.categories) ? phase1YachtProvisionResult.categories : []).forEach(function(category, index) {
+    const key = phase1YachtProvisionCategoryKey(category, index);
+    const stats = phase1YachtProvisionCategoryStats(category, selected);
+    document.querySelectorAll('[data-yacht-provision-category-summary]').forEach(function(summary) {
+      if (summary.getAttribute('data-yacht-provision-category-summary') === key) {
+        summary.textContent = phase1YachtProvisionCategorySummary(stats);
+      }
+    });
+    document.querySelectorAll('[data-yacht-provision-category-fix]').forEach(function(button) {
+      if (button.getAttribute('data-yacht-provision-category-fix') === key) {
+        button.disabled = !stats.selectedCount || stale;
+      }
+    });
+    document.querySelectorAll('[data-yacht-provision-category]').forEach(function(node) {
+      if (node.getAttribute('data-yacht-provision-category') === key) {
+        node.classList.toggle('has-selection', !!stats.selectedCount);
+      }
+    });
+  });
+  document.querySelectorAll('[data-phase-action="yacht-add-provision-selected"]').forEach(function(button) {
+    button.disabled = !selected.size || stale;
+  });
+}
+
+function phase1ToggleYachtProvisionCategory(key) {
+  phase1SyncYachtFromDom();
+  key = String(key || '');
+  phase1YachtProvisionOpenCategoryKey = phase1YachtProvisionOpenCategoryKey === key ? '' : key;
+  phase1ApplyYachtProvisionCategoryOpenState();
+  phase1UpdateYachtProvisionCategorySummaries();
+}
+
+function phase1CollapseYachtProvisionCategory(key, renderAfterCollapse) {
+  key = String(key || '');
+  if (phase1YachtProvisionOpenCategoryKey === key) {
+    phase1YachtProvisionOpenCategoryKey = '';
+  }
+  phase1ApplyYachtProvisionCategoryOpenState();
+  phase1UpdateYachtProvisionCategorySummaries();
+  if (renderAfterCollapse) {
+    window.setTimeout(function() {
+      phase1Render(phase1YachtProvisionRenderTarget());
+    }, 230);
+  }
+}
+
+function phase1RefreshYachtProductReferencePrices() {
+  const order = phase1YachtState.order || {};
+  order.product_rows = (Array.isArray(order.product_rows) ? order.product_rows : []).map(function(row) {
+    const next = Object.assign({}, row, {price: null, price_key: ''});
+    return phase1YachtEnsureProductRowPrice(next, order);
+  });
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
+}
+
+function phase1YachtTouchPriceCatalog(order, date) {
+  const target = order || {};
+  const stamp = date instanceof Date ? date : new Date();
+  target.price_catalog_updated_at_iso = stamp.toISOString();
+  target.price_catalog_updated_at = stamp.toLocaleString('ru-RU');
+  return target;
+}
+
+function phase1YachtSourceNetValue(source) {
+  if (source && typeof source === 'object') {
+    if (source.ok === false || source.available === false) return null;
+    const value = phase1Number(source.net ?? source.price ?? source.normalized_net_eur ?? 0);
+    return value > 0 ? value : null;
+  }
+  const value = phase1Number(source || 0);
+  return value > 0 ? value : null;
+}
+
 function phase1YachtAverageNetPrice(sources) {
-  const values = (Array.isArray(sources) ? sources : []).map(function(source) {
-    if (source && typeof source === 'object') {
-      if (source.ok === false || source.available === false) return null;
-      return phase1Number(source.net ?? source.price ?? 0);
-    }
-    return phase1Number(source || 0);
-  }).filter(function(value) {
-    return value > 0;
+  const values = (Array.isArray(sources) ? sources : []).map(phase1YachtSourceNetValue).filter(function(value) {
+    return value !== null;
   });
   if (!values.length) return null;
   return values.reduce(function(sum, value) { return sum + value; }, 0) / values.length;
 }
 
+function phase1YachtPriceSourceStats(order, family) {
+  const zone = phase1YachtPriceZoneForOrder(order || phase1YachtState.order || {});
+  const keys = PHASE1_YACHT_PRICE_FAMILY_KEYS[family] || Object.keys(zone.sources || {});
+  return keys.reduce(function(stats, key) {
+    const sources = zone.sources && zone.sources[key];
+    if (!Array.isArray(sources) || !sources.length) {
+      stats.missingItems++;
+      return stats;
+    }
+    stats.total += sources.length;
+    sources.forEach(function(source) {
+      if (phase1YachtSourceNetValue(source) !== null) stats.available++;
+      else stats.failed++;
+    });
+    return stats;
+  }, {total: 0, available: 0, failed: 0, missingItems: 0});
+}
+
+function phase1YachtPriceCatalogDate(order) {
+  order = order || {};
+  const raw = String(order.price_catalog_updated_at_iso || (order.approved_price_catalog && order.approved_price_catalog.approved_at) || '').trim();
+  const fallback = String(order.price_catalog_updated_at || '').trim();
+  const parsed = raw ? new Date(raw) : (fallback ? new Date(fallback) : null);
+  return parsed && Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function phase1YachtPriceCatalogAgeDays(order) {
+  const date = phase1YachtPriceCatalogDate(order);
+  if (!date) return null;
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+}
+
+function phase1YachtPriceFreshnessWarningHtml(order, family) {
+  order = order || phase1YachtState.order || {};
+  const targetFamily = family || 'food';
+  const interval = targetFamily === 'fuel'
+    ? PHASE1_YACHT_PRICE_REFRESH_POLICY.fuel_interval_days
+    : PHASE1_YACHT_PRICE_REFRESH_POLICY.food_interval_days;
+  const stats = phase1YachtPriceSourceStats(order, targetFamily);
+  const ageDays = phase1YachtPriceCatalogAgeDays(order);
+  const messages = [];
+  const isStale = ageDays === null || ageDays > interval;
+  const allSourcesUnavailable = stats.total > 0 && stats.available === 0;
+  const label = targetFamily === 'fuel' ? 'топливных цен' : 'продуктовых цен';
+
+  if (stats.failed > 0 && stats.available > 0) {
+    messages.push('Часть источников цен недоступна: ' + stats.failed + '. Расчёт продолжает использовать среднее по оставшимся источникам: ' + stats.available + '.');
+  }
+  if (allSourcesUnavailable && isStale) {
+    messages.push('Все источники цен по текущему региону недоступны. Последнее успешное обновление было ' + (ageDays === null ? 'не зафиксировано' : ageDays + ' дн. назад') + '.');
+  } else if (isStale) {
+    messages.push(ageDays === null
+      ? 'Дата последнего обновления ' + label + ' не зафиксирована. Для рабочего заказа обновите справочник перед применением цен.'
+      : 'Последнее обновление ' + label + ' было больше 3 месяцев назад: ' + ageDays + ' дн. назад.');
+  }
+
+  if (!messages.length) return '';
+  return `
+    <div class="phase1-yacht-price-warning ${allSourcesUnavailable ? 'is-critical' : ''}">
+      <b>Контроль свежести цен</b>
+      ${messages.map(function(message) {
+        return '<span>' + phase1Escape(message) + '</span>';
+      }).join('')}
+    </div>
+  `;
+}
+
+function phase1YachtFuelPricingNoteHtml(order) {
+  const mode = phase1YachtFuelPriceMode(order);
+  const zone = phase1YachtPriceZoneForOrder(order || phase1YachtState.order || {});
+  const discount = Math.round(phase1Number((zone.duty_free_discount || {}).fuel || 0) * 100);
+  const text = mode === 'duty_free'
+    ? 'Duty-free не является универсальным минус 35%. Если нет approved duty-free источника, справочник показывает оценку от региональной средней с локальным дисконтом ' + discount + '%. Перед заказом нужно подтвердить eligibility, документы и порт.'
+    : 'Обычная заправка считается от средней региональной цены по доступным источникам. Если часть источников недоступна, они исключаются из среднего.';
+  return '<p class="phase1-yacht-fuel-note">' + phase1Escape(text) + '</p>';
+}
+
 function phase1YachtEnginePrice(row, order) {
-  const zone = phase1YachtActivePriceZone();
+  const snapshotPrice = phase1YachtApprovedPriceFor(row, order || phase1YachtState.order || {});
+  if (snapshotPrice !== null) return snapshotPrice;
+  const zone = phase1YachtPriceZoneForOrder(order || phase1YachtState.order || {});
   const item = String(row && row.item || '').trim();
   const sources = zone.sources && zone.sources[item];
   const net = phase1YachtAverageNetPrice(sources);
@@ -4835,7 +7106,8 @@ function phase1YachtEnginePrice(row, order) {
   const markupRate = phase1Number(zone.markup_rate || 0);
   const logisticsRate = phase1Number(zone.logistics_rate || 0);
   let finalPrice = net * (1 + taxRate + logisticsRate) * (1 + markupRate);
-  if (String(order && order.price_mode || 'full') === 'duty_free' && (rowMode === 'food' || rowMode === 'fuel')) {
+  const mode = rowMode === 'fuel' ? phase1YachtFuelPriceMode(order) : String(order && order.price_mode || 'full');
+  if (mode === 'duty_free' && (rowMode === 'food' || rowMode === 'fuel')) {
     const discounts = zone.duty_free_discount || {};
     const discount = phase1Number(discounts[rowMode] || 0.27);
     finalPrice *= (1 - discount);
@@ -4844,32 +7116,213 @@ function phase1YachtEnginePrice(row, order) {
 }
 
 function phase1RenderYacht() {
-  const profile = phase1YachtState.profile || {};
-  const order = phase1YachtState.order || {};
-  const yachtName = String(profile.name || '').trim() || 'Название яхты';
-  const marina = phase1YachtOrderValue('marina');
-  const berth = phase1YachtOrderValue('berth');
-  const customer = phase1YachtOrderValue('customer');
-  const showPrices = order.show_prices !== false;
-  const isLocked = phase1YachtOrderLocked(order);
-  const mode = String(order.mode || 'all');
-  const modeLabel = (PHASE1_YACHT_ORDER_MODES.find(function(item) { return item.id === mode; }) || PHASE1_YACHT_ORDER_MODES[0]).label;
   return `
     <div class="phase1-page phase1-page-yacht">
-      ${phase1Header('Yacht', 'Шаблон не меняет ЖЖ и отчеты. Он добавляет морскую шапку, роли экипажа и отдельный стартовый пакет.', '')}
+      ${phase1Header('Yacht', 'Самостоятельный вход в яхтенную среду. Настройки, бункеровка, продукты и журналы открываются отдельными страницами.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('yacht-home', 'Главная яхты', 'Рабочий вход яхты')}
+        ${phase1PathButton('yacht-tools', 'Инструменты яхты', 'Бункеровка и настройки как отдельные страницы')}
+        ${phase1PathButton('journal-choice', 'Журнал', 'Cash / Card записи')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderYachtTemplate() {
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Создать Yacht workspace', 'Шаблон используется только для создания новой яхтенной среды.', '')}
+      <section class="phase1-issue-panel">
+        <h2>Настроить яхту перед созданием</h2>
+        <div class="phase1-issue-grid">
+          ${phase1YachtField('name', 'Название яхты', 'Например: Vetus Nauta')}
+          ${phase1YachtField('marina', 'Марина', 'Например: Porto Montenegro')}
+          ${phase1YachtField('berth', 'Место стоянки', 'Например: B-14')}
+          ${phase1YachtField('customer', 'Контакт заказчика', 'Имя, телефон, email')}
+          ${phase1YachtField('reg_number', 'Рег. номер', '')}
+          ${phase1YachtField('model', 'Модель', '')}
+          ${phase1YachtField('hull_number', 'Номер корпуса', '')}
+          ${phase1YachtField('year', 'Год', '')}
+          ${phase1YachtField('length', 'Длина', 'м')}
+          ${phase1YachtField('beam', 'Ширина', 'м')}
+          ${phase1YachtField('logo', 'Лого яхты URL', 'Если пусто, будет тихий Vetus Nauta', true)}
+          ${phase1YachtField('engines', 'Двигатели', 'Номера / модели', true)}
+          ${phase1YachtField('generators', 'Генераторы', 'Номера / модели', true)}
+          ${phase1YachtField('watermaker', 'Опреснитель', 'Модель', true)}
+          ${phase1YachtField('windlass', 'Якорная лебедка', 'Модель', true)}
+          ${phase1YachtField('passerelle', 'Пасарелла', 'Модель', true)}
+          <label class="phase1-field phase1-field-wide">
+            <span>Кастомные поля</span>
+            <textarea data-yacht-field="custom_fields" placeholder="Любые будущие сервисные данные">${phase1Escape(phase1YachtProfileValue('custom_fields'))}</textarea>
+          </label>
+        </div>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-action="yacht-create-workspace">Создать Yacht workspace</button>
+        </div>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderYachtHome() {
+  const profile = phase1YachtState.profile || {};
+  const yachtName = String(profile.name || '').trim() || phase1WorkspaceTitle();
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header(yachtName, 'Yacht workspace. Сначала рабочий вход, затем журнал, экипаж, отчеты и инструменты яхты.', '')}
       <section class="phase1-yacht-masthead">
         <div class="phase1-yacht-logo">${phase1YachtLogoHtml()}</div>
         <div>
-          <span class="phase1-kicker">Яхта</span>
+          <span class="phase1-kicker">Yacht workspace</span>
           <h2>${phase1Escape(yachtName)}</h2>
-          <p>${phase1Escape([profile.model, profile.reg_number, profile.length ? profile.length + ' m' : ''].filter(Boolean).join(' · ') || 'Настройте яхту перед первым нарядом.')}</p>
+          <p>${phase1Escape([profile.model, profile.reg_number, profile.length ? profile.length + ' m' : ''].filter(Boolean).join(' · ') || 'Откройте настройки яхты, чтобы заполнить базовые данные.')}</p>
         </div>
         <div class="phase1-action-row phase1-yacht-masthead-actions">
-          <button class="phase1-secondary-action" type="button" data-phase-action="yacht-scroll-bunkering">Бункеровка</button>
-          <button class="phase1-secondary-action" type="button" data-phase-action="yacht-create-workspace">Создать среду яхты</button>
+          <button class="phase1-primary-action" type="button" data-phase-screen="cash-session">Движок записей</button>
+          <button class="phase1-primary-action" type="button" data-phase-screen="journal-choice">Журнал</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="yacht-tools">Инструменты яхты</button>
         </div>
       </section>
+      <section class="phase1-action-row">
+        <button class="phase1-secondary-action" type="button" data-phase-screen="cash-records">Записи</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="team">Экипаж</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="admin">Касса</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Отчёты</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="assembly">Финальный расчёт</button>
+      </section>
+    </div>
+  `;
+}
 
+function phase1RenderYachtTools() {
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Инструменты яхты', 'Служебные инструменты отделены от журнала, кассы и отчетов.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('yacht-bunkering', 'Бункеровка', 'Топливо и продукты внутри одного рабочего инструмента')}
+        ${phase1PathButton('yacht-settings', 'Настройки яхты', 'Название, марина, регистрация, модель и служебные поля')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderYachtBunkering() {
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Бункеровка', 'Самостоятельный раздел: выберите топливо или продукты для отдельного расчета.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('yacht-fuel', 'Топливо', 'Дизель, литры, цена за литр, итог')}
+        ${phase1PathButton('yacht-products', 'Продукты', 'Каталог продуктов по категориям и расчёт закупки')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderYachtFuel() {
+  const profile = phase1YachtState.profile || {};
+  const order = phase1YachtState.order || {};
+  const yachtName = String(profile.name || '').trim() || phase1WorkspaceTitle() || 'Название яхты';
+  const marina = phase1YachtOrderValue('marina');
+  const berth = phase1YachtOrderValue('berth');
+  const customer = phase1YachtOrderValue('customer');
+  const fuelPrintPrices = !!order.fuel_print_prices;
+  const isLocked = phase1YachtOrderLocked(order);
+  const visibleModes = ['fuel', 'technical'];
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Топливо', 'Отдельный fuel / technical экран. Продукты и хозяйственные позиции ведутся отдельно и сюда не попадают.', '')}
+      <section class="phase1-yacht-order phase1-yacht-print-area">
+        ${phase1YachtFuelPrintDocumentHtml({allowedModes: visibleModes})}
+        <div class="phase1-yacht-order-head phase1-screen-only">
+          <div class="phase1-yacht-logo small">${phase1YachtLogoHtml()}</div>
+          <div>
+            <span class="phase1-kicker">Топливо / бункеровка</span>
+            <h2>${phase1Escape(yachtName)}</h2>
+            <p>${phase1Escape([marina, berth, customer].filter(Boolean).join(' · ') || 'Марина, место стоянки и контакт задаются перед заказом.')}</p>
+          </div>
+        </div>
+        <div class="phase1-issue-grid phase1-yacht-order-fields phase1-screen-only">
+          ${phase1YachtOrderField('marina', 'Марина перед заказом', 'Марина')}
+          ${phase1YachtOrderField('berth', 'Место стоянки', 'Berth')}
+          ${phase1YachtOrderField('customer', 'Контакт заказчика', 'Имя / телефон')}
+          <label class="phase1-field">
+            <span>Регион цен</span>
+            <select data-yacht-order="price_region">${phase1YachtPriceRegionOptions()}</select>
+          </label>
+          <label class="phase1-field">
+            <span>Тип заправки</span>
+            <select data-yacht-order="fuel_price_mode">${phase1YachtFuelPriceModeOptions()}</select>
+          </label>
+          <label class="phase1-field phase1-yacht-price-toggle">
+            <span>Справочник</span>
+            <label><input type="checkbox" data-yacht-order="use_reference_prices" ${order.use_reference_prices ? 'checked' : ''}> Использовать примерные цены</label>
+          </label>
+        </div>
+        <div class="phase1-yacht-reference-panel phase1-screen-only">
+          <p>Справочные цены - подсказка для наряда, не финансовый факт. После подстановки их можно править вручную.</p>
+          ${phase1YachtFuelPricingNoteHtml(order)}
+          <p class="phase1-yacht-catalog-meta">Справочник: ${phase1Escape(order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION)} · обновлен: ${phase1Escape(order.price_catalog_updated_at || 'еще не обновлялся вручную')}</p>
+          ${isLocked ? '<p class="phase1-yacht-lock">Цены зафиксированы для печати: ' + phase1Escape(order.price_locked_at) + '. Автоматическая переподстановка заблокирована.</p>' : ''}
+          ${phase1YachtApprovedCatalogPanel(order)}
+          <div class="phase1-action-row">
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-refresh-price-catalog">Обновить справочник</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-apply-prices">Подставить цены региона</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-load-approved-prices">Загрузить approved</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-apply-approved-prices">Подставить approved</button>
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-row">+ Своя категория</button>
+          </div>
+        </div>
+        <div class="phase1-screen-only">${phase1YachtPriceFreshnessWarningHtml(order, 'fuel')}</div>
+        <div class="phase1-yacht-table-wrap phase1-screen-only">
+          <table class="phase1-yacht-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Раздел</th>
+                <th>Позиция</th>
+                <th>Кол-во</th>
+                <th>Ед.</th>
+                <th class="phase1-yacht-price-cell">Цена</th>
+                <th class="phase1-yacht-price-cell">Итого</th>
+              </tr>
+            </thead>
+            <tbody>${phase1YachtOrderRows({allowedModes: visibleModes})}</tbody>
+          </table>
+        </div>
+        <div class="phase1-yacht-order-footer phase1-screen-only">
+          <strong class="phase1-yacht-price-cell">Всего: <span data-yacht-total>${phase1Money(phase1YachtOrderTotal({allowedModes: visibleModes}))}</span></strong>
+          <span class="phase1-yacht-section-total phase1-yacht-price-cell">Топливо + техника: <b data-yacht-mode-total>${phase1Money(phase1YachtOrderTotal({allowedModes: visibleModes}))}</b></span>
+          <div class="phase1-action-row">
+            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-reset-package">Сбросить fuel-пакет</button>
+            <button class="phase1-secondary-action" type="button" data-phase-screen="yacht-products">Продукты</button>
+            ${isLocked ? '<button class="phase1-secondary-action" type="button" data-phase-action="yacht-new-price-draft">Новая копия с новыми ценами</button>' : ''}
+            <label class="phase1-yacht-print-price-choice"><input type="checkbox" data-yacht-order="fuel_print_prices" ${fuelPrintPrices ? 'checked' : ''}> Печатать с ценами</label>
+            <button class="phase1-primary-action" type="button" data-phase-action="yacht-print-order">Печать наряда</button>
+          </div>
+          <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderYachtProducts() {
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Продукты', 'Отдельный экран provisioning и shopping list. Топливный наряд здесь не редактируется.', '')}
+      <section class="phase1-yacht-order">
+        ${phase1YachtProvisionPanel()}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderYachtSettings() {
+  return `
+    <div class="phase1-page phase1-page-yacht">
+      ${phase1Header('Настройки яхты', 'Базовые данные яхты отделены от бункеровки и продуктов.', '')}
       <section class="phase1-issue-panel">
         <h2>Настроить яхту</h2>
         <div class="phase1-issue-grid">
@@ -4895,117 +7348,123 @@ function phase1RenderYacht() {
           </label>
         </div>
         <div class="phase1-action-row">
-          <button class="phase1-primary-action" type="button" data-phase-action="yacht-save">Сохранить яхту</button>
+          <button class="phase1-primary-action" type="button" data-phase-action="yacht-save-settings">Сохранить настройки</button>
         </div>
         <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
       </section>
+    </div>
+  `;
+}
 
-      <section class="phase1-list-panel">
-        <h2>Экипаж</h2>
-        <div class="phase1-yacht-role-grid">
-          ${PHASE1_YACHT_ROLES.map(function(role) {
-            return '<span>' + phase1Escape(role) + '</span>';
-          }).join('')}
+function phase1RenderHomeTemplate() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Home template', 'Создайте домашнее рабочее пространство как отдельный workspace, а не как legacy-группу.', '')}
+      <section class="phase1-issue-panel">
+        <h2>Создать Home workspace</h2>
+        <div class="phase1-issue-grid">
+          <label class="phase1-field phase1-field-wide">
+            <span>Название дома</span>
+            <input id="phase1HomeName" type="text" placeholder="Например: Home: Family">
+          </label>
         </div>
-        <p class="phase1-status-line">В Yacht-шаблоне администратор называется капитаном, сотрудники - экипажем. Роли дают ощущение моря, но не меняют финансовую логику.</p>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-action="home-create-workspace">Создать Home workspace</button>
+        </div>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice)}</p>
       </section>
+    </div>
+  `;
+}
 
-      <section id="phase1YachtBunkering" class="phase1-yacht-order phase1-yacht-print-area ${showPrices ? '' : 'hide-prices'}" tabindex="-1">
-        <div class="phase1-yacht-order-head">
-          <div class="phase1-yacht-logo small">${phase1YachtLogoHtml()}</div>
-          <div>
-            <span class="phase1-kicker">Бункеровка / стартовый пакет</span>
-            <h2>${phase1Escape(yachtName)}</h2>
-            <p>${phase1Escape([marina, berth, customer].filter(Boolean).join(' · ') || 'Марина, место стоянки и контакт задаются перед заказом.')}</p>
-          </div>
+function phase1RenderHomeHome() {
+  const title = phase1WorkspaceTitle();
+  const members = (phase1Snapshot.members || []).length;
+  const cards = (phase1Snapshot.cards || []).length;
+  return `
+    <div class="phase1-page">
+      ${phase1Header(title, 'Home workspace. Дом, помощники, покупки и отчёты живут внутри одного выбранного пространства.', '')}
+      <section class="phase1-workspace-home">
+        <div>
+          <span class="phase1-kicker">Home workspace</span>
+          <h2>${phase1Escape(title)}</h2>
+          <p>Домашняя среда использует тот же денежный engine, но с бытовыми входами: люди, покупки, касса и отчёты.</p>
         </div>
-        <div class="phase1-issue-grid phase1-yacht-order-fields">
-          ${phase1YachtOrderField('marina', 'Марина перед заказом', 'Марина')}
-          ${phase1YachtOrderField('berth', 'Место стоянки', 'Berth')}
-          ${phase1YachtOrderField('customer', 'Контакт заказчика', 'Имя / телефон')}
-          <label class="phase1-field">
-            <span>Регион цен</span>
-            <select data-yacht-order="price_region">${phase1YachtPriceRegionOptions()}</select>
-          </label>
-          <label class="phase1-field">
-            <span>Режим цены</span>
-            <select data-yacht-order="price_mode">${phase1YachtPriceModeOptions()}</select>
-          </label>
-          <label class="phase1-field phase1-yacht-price-toggle">
-            <span>Печать</span>
-            <label><input type="checkbox" data-yacht-order="show_prices" ${showPrices ? 'checked' : ''}> Показывать цены</label>
-          </label>
-          <label class="phase1-field phase1-yacht-price-toggle">
-            <span>Справочник</span>
-            <label><input type="checkbox" data-yacht-order="use_reference_prices" ${order.use_reference_prices ? 'checked' : ''}> Использовать примерные цены</label>
-          </label>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-screen="cash-session">Движок записей</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-journal">ЖЗ</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-records">Записи</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="home-tools">Инструменты дома</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Отчёты</button>
         </div>
-        ${phase1YachtModeButtons()}
-        <div class="phase1-yacht-reference-panel">
-          <p>Справочные цены - подсказка для наряда, не финансовый факт. После подстановки их можно править вручную.</p>
-          <p class="phase1-yacht-catalog-meta">Справочник: ${phase1Escape(order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION)} · обновлен: ${phase1Escape(order.price_catalog_updated_at || 'еще не обновлялся вручную')}</p>
-          ${isLocked ? '<p class="phase1-yacht-lock">Цены зафиксированы для печати: ' + phase1Escape(order.price_locked_at) + '. Автоматическая переподстановка заблокирована.</p>' : ''}
-          ${phase1YachtApprovedCatalogPanel(order)}
-          <div class="phase1-action-row">
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-refresh-price-catalog">Обновить справочник</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-apply-prices">Подставить цены региона</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-load-approved-prices">Загрузить approved</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-apply-approved-prices">Подставить approved</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-food">Добавить еду</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-fuel">Добавить топливо</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-tech">Добавить технику</button>
-          </div>
-        </div>
-        <div class="phase1-yacht-table-wrap">
-          <table class="phase1-yacht-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Раздел</th>
-                <th>Позиция</th>
-                <th>Кол-во</th>
-                <th>Ед.</th>
-                <th class="phase1-yacht-price-cell">Цена</th>
-                <th class="phase1-yacht-price-cell">Итого</th>
-              </tr>
-            </thead>
-            <tbody>${phase1YachtOrderRows()}</tbody>
-          </table>
-        </div>
-        <div class="phase1-yacht-order-footer">
-          <strong class="phase1-yacht-price-cell">Всего: <span data-yacht-total>${phase1Money(phase1YachtOrderTotal())}</span></strong>
-          <span class="phase1-yacht-section-total phase1-yacht-price-cell">${phase1Escape(modeLabel)}: <b data-yacht-mode-total>${phase1Money(phase1YachtOrderModeTotal(mode))}</b></span>
-          <div class="phase1-action-row">
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-add-row">Добавить строку</button>
-            <button class="phase1-secondary-action" type="button" data-phase-action="yacht-reset-package">Базовый пакет</button>
-            ${isLocked ? '<button class="phase1-secondary-action" type="button" data-phase-action="yacht-new-price-draft">Новая копия с новыми ценами</button>' : ''}
-            <button class="phase1-primary-action" type="button" data-phase-action="yacht-print-order">Печать наряда</button>
-          </div>
+      </section>
+      <section class="phase1-hero-line">
+        ${phase1Metric('Люди', members)}
+        ${phase1Metric('Журналы', cards)}
+        ${phase1Metric('Касса', phase1WorkspaceMoney(phase1AdminCash()))}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderHomeTools() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Инструменты дома', 'Домашние рабочие действия отделены от общего workspace shell.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('home-household', 'Домочадцы и помощники', 'Кто участвует, кто тратит, кто сдаёт журналы')}
+        ${phase1PathButton('home-shopping', 'Покупки', 'Живой журнал для бытовых покупок и расходов')}
+        ${phase1PathButton('home-budget', 'Домашний бюджет', 'Касса, выдачи, сборка и отчёты')}
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderHomeHousehold() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Домочадцы и помощники', 'Люди дома работают через тот же group engine, но в домашнем контексте.', '')}
+      <section class="phase1-list-panel">
+        <h2>Что здесь делать</h2>
+        <div class="phase1-action-row">
+          <button class="phase1-primary-action" type="button" data-phase-screen="team">Открыть людей</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="employee">Моя карточка</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Мои журналы</button>
         </div>
       </section>
     </div>
   `;
 }
 
+function phase1RenderHomeShopping() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Покупки', 'Бытовые покупки идут через обычный Cash / Card journal, без отдельной домашней арифметики.', '')}
+      ${phase1RenderJournalEntryPanel(phase1WorkspaceTitle() + ' · покупки')}
+      <section class="phase1-action-row">
+        <button class="phase1-primary-action" type="button" data-phase-screen="journal-choice">Открыть журнал</button>
+        <button class="phase1-secondary-action" type="button" data-phase-journal-stream="cash">Наличные</button>
+        <button class="phase1-secondary-action" type="button" data-phase-journal-stream="card">Карта</button>
+      </section>
+    </div>
+  `;
+}
+
+function phase1RenderHomeBudget() {
+  return `
+    <div class="phase1-page">
+      ${phase1Header('Домашний бюджет', 'Касса, выдачи и домашние отчёты работают на существующем group engine.', '')}
+      <section class="phase1-start-paths">
+        ${phase1PathButton('admin', 'Домашняя касса', 'Добавить деньги, выдать, пригласить, проверить')}
+        ${phase1PathButton('assembly', 'Сборка отчёта', 'Собрать домашний общий отчёт')}
+        ${phase1PathButton('reports', 'Отчёты', 'Посмотреть закрытые и текущие домашние отчёты')}
+      </section>
+    </div>
+  `;
+}
+
 function phase1FocusYachtBunkering() {
-  window.setTimeout(function() {
-    const order = document.getElementById('phase1YachtBunkering');
-    if (!order) return;
-    order.classList.add('is-focus-bunkering');
-    if (typeof order.focus === 'function') {
-      try {
-        order.focus({preventScroll: true});
-      } catch (error) {
-        order.focus();
-      }
-    }
-    if (typeof order.scrollIntoView === 'function') {
-      order.scrollIntoView({behavior: 'smooth', block: 'start'});
-    }
-    window.setTimeout(function() {
-      order.classList.remove('is-focus-bunkering');
-    }, 1600);
-  }, 30);
+  qlOpenPhaseScreen('yacht-bunkering');
 }
 
 function phase1RenderTemplates() {
@@ -5013,8 +7472,8 @@ function phase1RenderTemplates() {
     <div class="phase1-page">
       ${phase1Header('Готовые шаблоны', 'Шаблоны помогают начать с понятного сценария. В MVP они ведут в обычный рабочий путь FinDesk.', '')}
       <section class="phase1-start-paths">
-        ${phase1PathButton('yacht', 'Yacht', 'Яхта, капитан, экипаж, бункеровка и стартовый пакет')}
-        ${phase1PathButton('team', 'Home', 'Дом, помощники, покупки и отчеты')}
+        ${phase1PathButton('yacht-template', 'Yacht', 'Яхта, капитан, экипаж, бункеровка и стартовый пакет')}
+        ${phase1PathButton('home-template', 'Home', 'Дом, помощники, покупки и отчеты')}
         ${phase1PathButton('solo', 'Personal', 'Личный журнал денег')}
       </section>
     </div>
@@ -5684,7 +8143,7 @@ function phase1RenderProfile() {
         </article>
         <div class="phase1-action-row">
           <button class="phase1-secondary-action" type="button" data-open-install="auto">Install Web App</button>
-          <button class="phase1-secondary-action" type="button" data-phase-screen="welcome">Workspace</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="workspace-hub">Workspace</button>
           <button class="phase1-primary-action" type="button" data-phase-logout>Выйти</button>
         </div>
       </section>
@@ -5704,8 +8163,30 @@ function phase1Render(screen, loading) {
     return;
   }
 
-  if (target === 'solo') node.innerHTML = phase1RenderSolo();
+  if (target === 'workspace-hub') node.innerHTML = phase1RenderWorkspaceHub();
+  else if (target === 'workspace-trash') node.innerHTML = phase1RenderWorkspaceTrash();
+  else if (target === 'workspace-create') node.innerHTML = phase1RenderWorkspaceCreate();
+  else if (target === 'workspace-home') node.innerHTML = phase1RenderWorkspaceHome();
+  else if (target === 'cash-session') node.innerHTML = phase1RenderCashSession();
+  else if (target === 'cash-journal') node.innerHTML = phase1RenderCashJournal();
+  else if (target === 'cash-records') node.innerHTML = phase1RenderCashRecords();
+  else if (target === 'cash-report') node.innerHTML = phase1RenderCashReport();
+  else if (target === 'cash-participant') node.innerHTML = phase1RenderCashParticipantView();
+  else if (target === 'yacht-template') node.innerHTML = phase1RenderYachtTemplate();
+  else if (target === 'home-template') node.innerHTML = phase1RenderHomeTemplate();
+  else if (target === 'home-home') node.innerHTML = phase1RenderHomeHome();
+  else if (target === 'home-tools') node.innerHTML = phase1RenderHomeTools();
+  else if (target === 'home-household') node.innerHTML = phase1RenderHomeHousehold();
+  else if (target === 'home-shopping') node.innerHTML = phase1RenderHomeShopping();
+  else if (target === 'home-budget') node.innerHTML = phase1RenderHomeBudget();
+  else if (target === 'solo') node.innerHTML = phase1RenderSolo();
   else if (target === 'templates') node.innerHTML = phase1RenderTemplates();
+  else if (target === 'yacht-home') node.innerHTML = phase1RenderYachtHome();
+  else if (target === 'yacht-tools') node.innerHTML = phase1RenderYachtTools();
+  else if (target === 'yacht-bunkering') node.innerHTML = phase1RenderYachtBunkering();
+  else if (target === 'yacht-fuel') node.innerHTML = phase1RenderYachtFuel();
+  else if (target === 'yacht-products') node.innerHTML = phase1RenderYachtProducts();
+  else if (target === 'yacht-settings') node.innerHTML = phase1RenderYachtSettings();
   else if (target === 'yacht') node.innerHTML = phase1RenderYacht();
   else if (target === 'journal-choice') node.innerHTML = phase1RenderJournalChoice();
   else if (target === 'journal') node.innerHTML = phase1RenderJournal();
@@ -5731,6 +8212,15 @@ async function phase1LoadSnapshot(options) {
       qlGroups = groupsData.groups || [];
       phase1Snapshot.groups = qlGroups;
     }
+    const trashData = await qlApi('group_trash_list', {});
+    if (trashData.ok) {
+      phase1Snapshot.trashGroups = trashData.groups || [];
+    }
+    const companyData = await qlApi('company_profile_get', {});
+    if (companyData.ok) {
+      phase1Snapshot.companyProfile = companyData.profile || null;
+      qlBdCompanyProfile = companyData.profile || qlBdCompanyProfile;
+    }
     const group = phase1SelectedGroup();
     phase1Snapshot.group = group;
     if (!phase1WorkspaceReady()) {
@@ -5754,7 +8244,7 @@ async function phase1LoadSnapshot(options) {
       qlApi('on_the_go_card_list', Object.assign({limit: 80, include_archived: 1}, groupPayload)),
       qlApi('on_the_go_tape_list', Object.assign({stream_type: phase1Stream}, groupPayload)),
       qlApi('ledger_balance', groupPayload),
-      qlApi('on_the_go_list', {session_type: phase1Stream, limit: 200}),
+      qlApi('on_the_go_list', Object.assign({session_type: phase1Stream, limit: 200}, groupPayload)),
       group && group.id ? qlApi('findesk_report_assembly_get', groupPayload) : Promise.resolve({ok: false}),
       group && group.id ? qlApi('findesk_report_list', groupPayload) : Promise.resolve({ok: false, reports: []})
     ]);
@@ -5794,7 +8284,7 @@ async function phase1Refresh(options) {
 
 function qlOpenPhaseScreen(screen, options) {
   const opts = options || {};
-  const target = phase1NormalizeScreen(screen || 'welcome');
+  const target = phase1RouteGuardScreen(screen || 'welcome');
   const previous = phase1NormalizeScreen(phase1CurrentScreen || 'welcome');
 
   if (target === 'solo' && (!phase1Workspace || phase1Workspace.mode !== 'solo')) {
@@ -5802,8 +8292,17 @@ function qlOpenPhaseScreen(screen, options) {
     phase1SnapshotLoadedAt = 0;
   }
   if ((target === 'journal-choice' || target === 'journal') && (!phase1Workspace || phase1Workspace.mode === 'none')) {
-    phase1SetGroup('solo');
-    phase1SnapshotLoadedAt = 0;
+    const items = phase1WorkspaceItems();
+    if (items.length === 1) {
+      phase1SetGroup(items[0].id);
+      phase1SnapshotLoadedAt = 0;
+    } else if (items.length > 1) {
+      qlOpenPhaseScreen('workspace-hub', {history: opts.history || 'replace', stack: false});
+      return;
+    } else {
+      qlOpenPhaseScreen('welcome', {history: opts.history || 'replace', stack: false});
+      return;
+    }
   }
 
   if (target !== previous && opts.stack !== false && !qlBrowserHistoryApplying) {
@@ -5821,13 +8320,143 @@ function qlOpenPhaseScreen(screen, options) {
   qlWriteBrowserState('product', {phase_screen: target, stream_type: phase1Stream}, opts.history || 'push');
 }
 
+async function phase1OpenWorkspace(workspaceId) {
+  const id = String(workspaceId || '').trim();
+  if (!id) return;
+  phase1SetGroup(id);
+  phase1SnapshotLoadedAt = 0;
+  if (id === 'solo') {
+    await qlApi('findesk_workspace_set', {mode: 'solo', group_id: 0});
+  } else if (id.indexOf('group:') === 0) {
+    const groupId = Number(id.replace('group:', '') || 0);
+    if (groupId > 0) {
+      await qlApi('findesk_workspace_set', {mode: 'group', group_id: groupId});
+    }
+  }
+  await phase1Refresh({force: true});
+  const kind = id !== 'solo' ? phase1WorkspaceKind(phase1SelectedGroup()) : 'solo';
+  if (kind === 'yacht') {
+    await phase1LoadYachtStateFromAtlas(Number(phase1Workspace.groupId || 0));
+  }
+  const target = kind === 'yacht'
+    ? 'yacht-home'
+    : (kind === 'home' ? 'home-home' : 'workspace-home');
+  qlOpenPhaseScreen(target, {history: 'replace', stack: false});
+}
+
+function phase1OpenWorkspaceTrashModal(workspaceId) {
+  const id = String(workspaceId || '').trim();
+  const item = phase1WorkspaceItems().find(function(workspace) {
+    return workspace.id === id;
+  });
+  if (!item || item.id === 'solo' || !phase1WorkspaceCanManage(item)) return;
+  phase1WorkspaceTrashTarget = item;
+  phase1Render('workspace-hub');
+}
+
+function phase1CloseWorkspaceTrashModal() {
+  phase1WorkspaceTrashTarget = null;
+  phase1Render('workspace-hub');
+}
+
+async function phase1ConfirmWorkspaceTrash() {
+  if (!phase1WorkspaceTrashTarget) return;
+  const field = document.querySelector('[data-workspace-trash-confirm]');
+  const typed = field ? field.value.trim().toLowerCase() : '';
+  if (typed !== 'удалить') {
+    phase1Notice = 'Для удаления напишите слово: удалить';
+    phase1Render('workspace-hub');
+    return;
+  }
+  const groupId = Number(String(phase1WorkspaceTrashTarget.id || '').replace('group:', '') || 0);
+  if (!groupId) return;
+  const result = await qlApi('group_trash', {group_id: groupId});
+  if (!result.ok) {
+    phase1Notice = 'Пространство не удалено: ' + (result.message || result.error || 'ошибка');
+    phase1Render('workspace-hub');
+    return;
+  }
+  phase1AddWorkspaceLocalTrash(phase1WorkspaceTrashTarget);
+  phase1Snapshot.groups = (phase1Snapshot.groups || []).filter(function(group) {
+    return Number(group.id || 0) !== groupId;
+  });
+  if (phase1Workspace && phase1Workspace.mode === 'group' && Number(phase1Workspace.groupId || 0) === groupId) {
+    phase1SetGroup('none');
+    await qlApi('findesk_workspace_set', {mode: 'none', group_id: 0});
+  }
+  phase1WorkspaceTrashTarget = null;
+  phase1Notice = 'Пространство перемещено в корзину на 60 дней.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('workspace-hub', {history: 'replace', stack: false});
+}
+
+async function phase1RestoreWorkspace(workspaceId) {
+  const groupId = Number(String(workspaceId || '').replace('group:', '') || 0);
+  if (!groupId) return;
+  const result = await qlApi('group_restore', {group_id: groupId});
+  if (!result.ok) {
+    phase1Notice = 'Пространство не восстановлено: ' + (result.message || result.error || 'ошибка');
+    phase1Render('workspace-hub');
+    return;
+  }
+  phase1RemoveWorkspaceLocalTrash(groupId);
+  phase1Notice = 'Пространство восстановлено.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('workspace-hub', {history: 'replace', stack: false});
+}
+
 function phase1GoBack() {
   const previous = phase1ScreenStack.pop();
   if (previous) {
     qlOpenPhaseScreen(previous, {stack: false, history: 'replace'});
     return;
   }
-  if (phase1NormalizeScreen(phase1CurrentScreen) !== 'welcome') {
+  const current = phase1NormalizeScreen(phase1CurrentScreen);
+  if (current === 'workspace-trash') {
+    qlOpenPhaseScreen('workspace-hub', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'yacht-products' || current === 'yacht-fuel') {
+    qlOpenPhaseScreen('yacht-bunkering', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'yacht-bunkering' || current === 'yacht-settings') {
+    qlOpenPhaseScreen('yacht-tools', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'yacht-tools') {
+    qlOpenPhaseScreen('yacht-home', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'yacht-home') {
+    qlOpenPhaseScreen('workspace-hub', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'home-household' || current === 'home-shopping' || current === 'home-budget') {
+    qlOpenPhaseScreen('home-tools', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'home-tools') {
+    qlOpenPhaseScreen('home-home', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current === 'home-home') {
+    qlOpenPhaseScreen('workspace-hub', {stack: false, history: 'replace'});
+    return;
+  }
+  if (phase1WorkspaceReady() && current !== 'workspace-home') {
+    qlOpenPhaseScreen('workspace-home', {stack: false, history: 'replace'});
+    return;
+  }
+  if (phase1WorkspaceReady() && current === 'workspace-home') {
+    qlOpenPhaseScreen('workspace-hub', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current !== 'workspace-hub' && phase1HasAnyWorkspace()) {
+    qlOpenPhaseScreen('workspace-hub', {stack: false, history: 'replace'});
+    return;
+  }
+  if (current !== 'welcome') {
     qlOpenPhaseScreen('welcome', {stack: false, history: 'replace'});
   }
 }
@@ -6263,18 +8892,43 @@ function phase1SyncYachtFromDom() {
     if (!key) return;
     if (key === 'show_prices') {
       order.show_prices = !!field.checked;
+    } else if (key === 'fuel_print_prices') {
+      order.fuel_print_prices = !!field.checked;
     } else if (key === 'use_reference_prices') {
       order.use_reference_prices = !!field.checked;
     } else {
       order[key] = field.value || '';
     }
   });
+  const provisioning = Object.assign({}, order.provisioning || {});
+  document.querySelectorAll('[data-yacht-provision]').forEach(function(field) {
+    const key = field.getAttribute('data-yacht-provision') || '';
+    if (!key) return;
+    if (field.type === 'checkbox') {
+      provisioning[key] = !!field.checked;
+    } else if (key === 'people_count' || key === 'days') {
+      provisioning[key] = Math.max(1, Number(field.value || 1));
+    } else {
+      provisioning[key] = field.value || '';
+    }
+  });
+  order.provisioning = provisioning;
+  const selectedProvisionKeys = [];
+  document.querySelectorAll('[data-yacht-provision-item]').forEach(function(field) {
+    if (field.checked) {
+      const key = String(field.getAttribute('data-yacht-provision-item') || '').trim();
+      if (key) selectedProvisionKeys.push(key);
+    }
+  });
+  if (document.querySelector('[data-yacht-provision-item]')) {
+    order.provision_selected_keys = Array.from(new Set(selectedProvisionKeys));
+  }
   const rows = Array.isArray(order.rows) ? order.rows.map(function(row) {
     return Object.assign({}, row);
   }) : [];
   document.querySelectorAll('[data-yacht-row]').forEach(function(rowNode) {
-    const row = {enabled: true, category: '', item: '', qty: 0, unit: '', price: 0};
     const index = Number(rowNode.getAttribute('data-yacht-row') || rows.length);
+    const row = Object.assign({enabled: true, category: '', item: '', qty: 0, unit: '', price: 0}, rows[index] || {});
     rowNode.querySelectorAll('[data-yacht-row-field]').forEach(function(field) {
       const key = field.getAttribute('data-yacht-row-field') || '';
       if (!key) return;
@@ -6294,12 +8948,18 @@ function phase1SyncYachtFromDom() {
 }
 
 function phase1UpdateYachtTotalDom() {
+  const current = phase1NormalizeScreen(phase1CurrentScreen);
+  const options = current === 'yacht-fuel' ? {allowedModes: ['fuel', 'technical']} : null;
   const total = document.querySelector('[data-yacht-total]');
-  if (total) total.textContent = phase1Money(phase1YachtOrderTotal());
+  if (total) total.textContent = phase1Money(phase1YachtOrderTotal(options));
   const modeTotal = document.querySelector('[data-yacht-mode-total]');
-  if (modeTotal) modeTotal.textContent = phase1Money(phase1YachtOrderModeTotal(String((phase1YachtState.order || {}).mode || 'all')));
+  if (modeTotal) {
+    modeTotal.textContent = current === 'yacht-fuel'
+      ? phase1Money(phase1YachtOrderTotal(options))
+      : phase1Money(phase1YachtOrderModeTotal(String((phase1YachtState.order || {}).mode || 'all')));
+  }
   const order = document.querySelector('.phase1-yacht-order');
-  if (order) order.classList.toggle('hide-prices', (phase1YachtState.order || {}).show_prices === false);
+  if (order) order.classList.toggle('hide-prices', current !== 'yacht-fuel' && (phase1YachtState.order || {}).show_prices === false);
   document.querySelectorAll('[data-yacht-row]').forEach(function(rowNode) {
     const qty = phase1Number((rowNode.querySelector('[data-yacht-row-field="qty"]') || {}).value || 0);
     const price = phase1Number((rowNode.querySelector('[data-yacht-row-field="price"]') || {}).value || 0);
@@ -6321,7 +8981,8 @@ async function phase1CreateYachtWorkspace() {
   phase1Render('yacht');
   const created = await qlApi('group_create', {
     name: 'Yacht: ' + name,
-    description: 'Yacht template workspace'
+    description: 'Yacht template workspace',
+    workspace_type: 'yacht'
   });
   if (!created.ok || !created.group) {
     phase1Notice = 'Среда яхты не создана: ' + (created.message || created.error || 'ошибка');
@@ -6331,58 +8992,113 @@ async function phase1CreateYachtWorkspace() {
   const groupId = Number(created.group.id || 0);
   phase1SetGroup('group:' + groupId);
   await qlApi('findesk_workspace_set', {mode: 'group', group_id: groupId});
+  await phase1SaveYachtStateToAtlas({workspaceId: groupId, silent: true});
   phase1Notice = 'Среда яхты создана.';
   await phase1Refresh({force: true});
-  qlOpenPhaseScreen('team', {history: 'replace', stack: false});
+  await phase1LoadYachtStateFromAtlas(groupId);
+  qlOpenPhaseScreen('yacht-home', {history: 'replace', stack: false});
+}
+
+async function phase1CreateHomeWorkspace() {
+  const input = document.getElementById('phase1HomeName');
+  const rawName = input ? String(input.value || '').trim() : '';
+  const baseName = rawName || 'Home';
+  const name = /^home:/i.test(baseName) || /^дом/i.test(baseName) ? baseName : ('Home: ' + baseName);
+  phase1Notice = 'Создаю Home workspace...';
+  phase1Render('home-template');
+  const created = await qlApi('group_create', {
+    name,
+    description: 'Home template workspace',
+    workspace_type: 'home'
+  });
+  if (!created.ok || !created.group) {
+    phase1Notice = 'Home workspace не создан: ' + (created.message || created.error || 'ошибка');
+    phase1Render('home-template');
+    return;
+  }
+  const groupId = Number(created.group.id || 0);
+  phase1SetGroup('group:' + groupId);
+  await qlApi('findesk_workspace_set', {mode: 'group', group_id: groupId});
+  phase1Notice = 'Home workspace создан.';
+  await phase1Refresh({force: true});
+  qlOpenPhaseScreen('home-home', {history: 'replace', stack: false});
 }
 
 function phase1AddYachtRow() {
   phase1SyncYachtFromDom();
   const order = phase1YachtState.order || {};
-  const mode = String(order.mode || 'all');
+  const current = phase1NormalizeScreen(phase1CurrentScreen);
+  const mode = current === 'yacht-fuel' ? 'fuel' : String(order.mode || 'all');
   order.rows = Array.isArray(order.rows) ? order.rows : [];
-  if (mode === 'fuel') order.rows.push({enabled: true, category: 'Топливо', item: 'Топливо', qty: 0, unit: 'л', price: 0});
+  if (mode === 'fuel') order.rows.push({enabled: true, category: '', item: '', qty: 0, unit: '', price: 0, category_placeholder: 'Своя категория', item_placeholder: 'Своя позиция', unit_placeholder: 'ед.'});
   else if (mode === 'technical') order.rows.push({enabled: true, category: 'Техника', item: '', qty: 1, unit: 'шт.', price: 0});
   else order.rows.push({enabled: true, category: mode === 'food' ? 'Еда' : '', item: '', qty: 1, unit: 'шт.', price: 0});
   phase1YachtState.order = order;
   phase1WriteYachtState();
-  phase1Render('yacht');
+  phase1Render(phase1YachtOrderRenderTarget());
 }
 
 function phase1AddYachtTypedRow(type) {
   phase1SyncYachtFromDom();
   const order = phase1YachtState.order || {};
-  order.rows = Array.isArray(order.rows) ? order.rows : [];
   if (type === 'fuel') {
+    order.rows = Array.isArray(order.rows) ? order.rows : [];
     order.mode = 'fuel';
     order.rows.push({enabled: true, category: 'Топливо', item: 'Дизель', qty: 0, unit: 'л', price: 0});
-  } else if (type === 'technical') {
+    phase1YachtState.order = order;
+    phase1WriteYachtState();
+    phase1Render(phase1YachtOrderRenderTarget());
+    return;
+  }
+  if (type === 'technical') {
+    order.rows = Array.isArray(order.rows) ? order.rows : [];
     order.mode = 'technical';
     order.rows.push({enabled: true, category: 'Техника', item: 'Запчасть / расходник', qty: 1, unit: 'шт.', price: 0});
-  } else {
-    order.mode = 'food';
-    order.rows.push({enabled: true, category: 'Еда', item: 'Позиция магазина', qty: 1, unit: 'шт.', price: 0});
+    phase1YachtState.order = order;
+    phase1WriteYachtState();
+    phase1Render(phase1YachtOrderRenderTarget());
+    return;
   }
+  const manualKey = 'manual-product-' + Date.now();
+  const reference = phase1YachtProvisionReferencePrice('Продукты', {title: 'Ручная позиция', item_key: manualKey}, order);
+  order.product_rows = Array.isArray(order.product_rows) ? order.product_rows : [];
+  order.product_rows.push(phase1NormalizeYachtProductRow({
+    source_key: manualKey,
+    category: 'Продукты',
+    item: 'Ручная позиция',
+    qty: 1,
+    unit: 'шт.',
+    qty_display: '1 шт.',
+    price: reference.price,
+    price_key: reference.key,
+    note: 'Добавлено вручную'
+  }, manualKey));
   phase1YachtState.order = order;
   phase1WriteYachtState();
-  phase1Render('yacht');
+  phase1Notice = 'Ручная продуктовая позиция добавлена в список закупки.';
+  phase1Render(phase1YachtProvisionRenderTarget());
 }
 
 function phase1ApplyYachtReferencePrices() {
   phase1SyncYachtFromDom();
+  const renderTarget = phase1YachtOrderRenderTarget();
   const order = phase1YachtState.order || {};
   if (phase1YachtOrderLocked(order)) {
     phase1Notice = 'Цены уже зафиксированы для печати. Создайте новую копию, чтобы применить свежие цены.';
-    phase1Render('yacht');
+    phase1Render(renderTarget);
     return;
   }
   if (!order.use_reference_prices) {
     phase1Notice = 'Сначала включите справочные цены.';
-    phase1Render('yacht');
+    phase1Render(renderTarget);
     return;
   }
   order.rows = (Array.isArray(order.rows) ? order.rows : []).map(function(row) {
     const next = Object.assign({}, row);
+    if (renderTarget === 'yacht-fuel') {
+      const item = String(next.item || '').trim().toLowerCase();
+      if (item !== 'дизель' && item !== 'diesel') return next;
+    }
     const enginePrice = phase1YachtEnginePrice(next, order);
     if (enginePrice !== null) {
       next.price = enginePrice;
@@ -6392,56 +9108,70 @@ function phase1ApplyYachtReferencePrices() {
   phase1YachtState.order = order;
   phase1WriteYachtState();
   phase1Notice = 'Справочные цены подставлены. Проверьте вручную перед печатью.';
-  phase1Render('yacht');
+  phase1Render(renderTarget);
 }
 
 async function phase1LoadYachtApprovedCatalog(options) {
   phase1SyncYachtFromDom();
   const order = phase1YachtState.order || {};
+  const family = options && options.family
+    ? String(options.family)
+    : (phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-products' ? 'food' : 'fuel');
+  const renderTarget = phase1YachtPriceRenderTarget(family);
   const render = !options || options.render !== false;
   if (render) {
     phase1YachtApprovedLoading = true;
-    phase1Render('yacht');
+    phase1Render(renderTarget);
   }
   const result = await qlApi('yacht_price_approved_catalog', {
     region: String(order.price_region || 'adriatic_balkans'),
-    family: 'fuel'
+    family
   });
   phase1YachtApprovedLoading = false;
   if (!result.ok) {
     phase1Notice = 'Approved prices не загружены: ' + (result.message || result.error || 'ошибка');
-    if (render) phase1Render('yacht');
+    if (render) phase1Render(renderTarget);
     return null;
   }
   if (!result.catalog) {
     phase1YachtApprovedCatalog = null;
     phase1Notice = 'Approved prices для региона пока нет.';
-    if (render) phase1Render('yacht');
+    if (render) phase1Render(renderTarget);
     return null;
   }
   phase1YachtApprovedCatalog = result.catalog;
+  order.price_snapshot = result.catalog;
+  order.price_catalog_version = 'atlas:' + String(result.catalog.region || '') + ':' + String(result.catalog.family || '');
+  phase1YachtTouchPriceCatalog(order, result.catalog.approved_at ? new Date(result.catalog.approved_at) : new Date());
+  phase1YachtState.order = order;
+  phase1WriteYachtState();
   phase1Notice = 'Approved prices загружены. Подстановка не выполнена автоматически.';
-  if (render) phase1Render('yacht');
+  if (render) phase1Render(renderTarget);
   return result.catalog;
 }
 
 async function phase1ApplyYachtApprovedPrices() {
   phase1SyncYachtFromDom();
+  const renderTarget = phase1YachtOrderRenderTarget();
   const order = phase1YachtState.order || {};
   if (phase1YachtOrderLocked(order)) {
     phase1Notice = 'Цены уже зафиксированы для печати. Создайте новую копию, чтобы применить approved prices.';
-    phase1Render('yacht');
+    phase1Render(renderTarget);
     return;
   }
   const catalog = phase1YachtApprovedCatalog || await phase1LoadYachtApprovedCatalog({render: false});
   if (!catalog) {
-    phase1Render('yacht');
+    phase1Render(renderTarget);
     return;
   }
   let applied = 0;
   let skipped = 0;
   order.rows = (Array.isArray(order.rows) ? order.rows : []).map(function(row) {
     const next = Object.assign({}, row);
+    if (renderTarget === 'yacht-fuel') {
+      const item = String(next.item || '').trim().toLowerCase();
+      if (item !== 'дизель' && item !== 'diesel') return next;
+    }
     const approvedPrice = phase1YachtApprovedPriceFor(next, order);
     if (approvedPrice !== null) {
       next.price = approvedPrice;
@@ -6452,7 +9182,7 @@ async function phase1ApplyYachtApprovedPrices() {
     return next;
   });
   order.price_catalog_version = 'approved:' + String(catalog.region || '') + ':' + String(catalog.family || '');
-  order.price_catalog_updated_at = catalog.approved_at ? new Date(catalog.approved_at).toLocaleString('ru-RU') : new Date().toLocaleString('ru-RU');
+  phase1YachtTouchPriceCatalog(order, catalog.approved_at ? new Date(catalog.approved_at) : new Date());
   order.approved_price_catalog = {
     status: catalog.status || '',
     approved_at: catalog.approved_at || '',
@@ -6467,7 +9197,7 @@ async function phase1ApplyYachtApprovedPrices() {
   phase1Notice = applied
     ? 'Approved prices подставлены: ' + applied + '. Пропущено: ' + skipped + '.'
     : 'В текущих строках нет совпадений с approved prices.';
-  phase1Render('yacht');
+  phase1Render(renderTarget);
 }
 
 function phase1NewYachtPriceDraft() {
@@ -6475,47 +9205,65 @@ function phase1NewYachtPriceDraft() {
   const order = Object.assign({}, phase1YachtState.order || {});
   order.price_locked_at = '';
   order.price_snapshot = null;
-  order.price_catalog_updated_at = new Date().toLocaleString('ru-RU');
+  phase1YachtTouchPriceCatalog(order);
   phase1YachtState.order = order;
   phase1WriteYachtState();
   phase1Notice = 'Создана новая рабочая копия. Теперь можно применять свежие цены.';
-  phase1Render('yacht');
+  phase1Render(phase1YachtOrderRenderTarget());
 }
 
-function phase1RefreshYachtPriceCatalog() {
+async function phase1RefreshYachtPriceCatalog() {
   phase1SyncYachtFromDom();
   const order = phase1YachtState.order || {};
-  order.price_catalog_version = PHASE1_YACHT_PRICE_CATALOG_VERSION;
-  order.price_catalog_updated_at = new Date().toLocaleString('ru-RU');
   if (!PHASE1_YACHT_PRICE_ENGINE[order.price_region]) {
     order.price_region = 'adriatic_balkans';
   }
+  const family = phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-products' ? 'food' : 'fuel';
+  const result = await qlApi('yacht_price_snapshot_refresh', {
+    region: String(order.price_region || 'adriatic_balkans'),
+    family
+  });
+  if (!result.ok || !result.catalog) {
+    phase1Notice = 'Справочник Atlas не обновлен: ' + (result.message || result.error || 'ошибка');
+    phase1Render(phase1YachtPriceRenderTarget(family));
+    return;
+  }
+  phase1YachtApprovedCatalog = result.catalog;
+  order.price_snapshot = result.catalog;
+  order.price_catalog_version = 'atlas:' + String(result.catalog.region || '') + ':' + String(result.catalog.family || '');
+  phase1YachtTouchPriceCatalog(order, result.catalog.approved_at ? new Date(result.catalog.approved_at) : new Date());
   phase1YachtState.order = order;
   phase1WriteYachtState();
-  phase1Notice = 'Справочник обновлен локально. Строки наряда не изменены.';
-  phase1Render('yacht');
+  if (family === 'food') phase1RefreshYachtProductReferencePrices();
+  phase1Notice = 'Справочник Atlas обновлен: ' + String(result.catalog.region_label || result.catalog.region || '') + ' / ' + family + '. Строки наряда не изменены автоматически.';
+  phase1Render(phase1YachtPriceRenderTarget(family));
 }
 
 function phase1ResetYachtPackage() {
   phase1SyncYachtFromDom();
-  phase1YachtState.order.rows = PHASE1_YACHT_PACKAGE_DEFAULTS.map(function(row) {
+  phase1YachtState.order.rows = PHASE1_YACHT_FUEL_DEFAULTS.map(function(row) {
     return Object.assign({}, row);
   });
+  phase1YachtState.order.fuel_package_version = PHASE1_YACHT_FUEL_PACKAGE_VERSION;
+  phase1YachtState.order.fuel_print_prices = false;
   phase1YachtState.order.price_locked_at = '';
   phase1YachtState.order.price_snapshot = null;
   phase1WriteYachtState();
-  phase1Render('yacht');
+  phase1Render(phase1YachtOrderRenderTarget());
 }
 
 function phase1PrintYachtOrder() {
   phase1SyncYachtFromDom();
   const order = phase1YachtState.order || {};
+  const printTarget = phase1YachtOrderRenderTarget();
+  const hideFuelPricesForPrint = printTarget === 'yacht-fuel' && !order.fuel_print_prices;
   if (!phase1YachtOrderLocked(order)) {
     order.price_locked_at = new Date().toLocaleString('ru-RU');
     order.price_snapshot = {
       locked_at: order.price_locked_at,
       price_catalog_version: order.price_catalog_version || PHASE1_YACHT_PRICE_CATALOG_VERSION,
       price_catalog_updated_at: order.price_catalog_updated_at || '',
+      price_catalog_updated_at_iso: order.price_catalog_updated_at_iso || '',
       approved_price_catalog: order.approved_price_catalog || null,
       rows: (Array.isArray(order.rows) ? order.rows : []).map(function(row) {
         return {
@@ -6530,19 +9278,23 @@ function phase1PrintYachtOrder() {
     phase1YachtState.order = order;
     phase1WriteYachtState();
   }
-  phase1Render('yacht');
-  setTimeout(function() {
-    document.body.classList.add('phase1-print-yacht-order');
-    window.print();
-    setTimeout(function() {
-      document.body.classList.remove('phase1-print-yacht-order');
-    }, 500);
-  }, 80);
+  phase1Render(printTarget);
+  document.body.classList.add('phase1-print-yacht-order');
+  document.body.classList.toggle('phase1-print-yacht-hide-prices', hideFuelPricesForPrint);
+  const cleanup = function() {
+    document.body.classList.remove('phase1-print-yacht-order');
+    document.body.classList.remove('phase1-print-yacht-hide-prices');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  void document.body.offsetHeight;
+  window.print();
+  setTimeout(cleanup, 1200);
 }
 
 window.qlOpenPhaseScreen = qlOpenPhaseScreen;
 
-document.addEventListener('click', function(event) {
+document.addEventListener('click', async function(event) {
   const shellBack = event.target.closest('[data-phase-back]');
   if (shellBack) {
     event.preventDefault();
@@ -6574,7 +9326,78 @@ document.addEventListener('click', function(event) {
     const mode = yachtMode.getAttribute('data-yacht-mode') || 'all';
     phase1YachtState.order = Object.assign({}, phase1YachtState.order || {}, {mode});
     phase1WriteYachtState();
-    phase1Render('yacht');
+    phase1Render(phase1YachtOrderRenderTarget());
+    return;
+  }
+
+  const workspaceOpen = event.target.closest('[data-workspace-open]');
+  if (workspaceOpen) {
+    event.preventDefault();
+    phase1OpenWorkspace(workspaceOpen.getAttribute('data-workspace-open'));
+    return;
+  }
+
+  const workspaceTrash = event.target.closest('[data-workspace-trash]');
+  if (workspaceTrash) {
+    event.preventDefault();
+    phase1OpenWorkspaceTrashModal(workspaceTrash.getAttribute('data-workspace-trash'));
+    return;
+  }
+
+  const workspaceRestore = event.target.closest('[data-workspace-restore]');
+  if (workspaceRestore) {
+    event.preventDefault();
+    phase1RestoreWorkspace(workspaceRestore.getAttribute('data-workspace-restore'));
+    return;
+  }
+
+  const cashParticipantButton = event.target.closest('[data-phase-cash-participant-select]');
+  if (cashParticipantButton) {
+    event.preventDefault();
+    phase1CashParticipantId = String(cashParticipantButton.getAttribute('data-phase-cash-participant-select') || 'owner');
+    phase1CashDraftTouched = false;
+    qlOpenPhaseScreen('cash-journal');
+    return;
+  }
+
+  const cashParticipantViewButton = event.target.closest('[data-phase-cash-participant-view]');
+  if (cashParticipantViewButton) {
+    event.preventDefault();
+    phase1CashParticipantToken = String(cashParticipantViewButton.getAttribute('data-phase-cash-participant-view') || '');
+    phase1CashParticipantPayload = null;
+    phase1CashParticipantDraftTouched = false;
+    await phase1LoadCashParticipantView(phase1CashParticipantToken, {render: false});
+    qlOpenPhaseScreen('cash-participant');
+    return;
+  }
+
+  const cashParticipantCopyButton = event.target.closest('[data-phase-cash-participant-copy]');
+  if (cashParticipantCopyButton) {
+    event.preventDefault();
+    const token = String(cashParticipantCopyButton.getAttribute('data-phase-cash-participant-copy') || '');
+    const participant = phase1CashParticipants().find(function(item) {
+      return String(item.invite_token || '') === token;
+    }) || {invite_token: token, display_name: 'Участник'};
+    const text = phase1CashParticipantInviteText(participant);
+    const ok = typeof qlCopyTextToClipboard === 'function'
+      ? await qlCopyTextToClipboard(text)
+      : false;
+    phase1Notice = ok ? 'Приглашение участника скопировано.' : 'Не удалось скопировать приглашение.';
+    phase1Render('cash-session');
+    return;
+  }
+
+  const workspaceTrashConfirm = event.target.closest('[data-workspace-trash-confirm-action]');
+  if (workspaceTrashConfirm) {
+    event.preventDefault();
+    phase1ConfirmWorkspaceTrash();
+    return;
+  }
+
+  const trashCancelButton = event.target.closest('button[data-workspace-trash-cancel]');
+  if (trashCancelButton || (event.target.classList && event.target.classList.contains('phase1-modal-backdrop') && event.target.hasAttribute('data-workspace-trash-cancel'))) {
+    event.preventDefault();
+    phase1CloseWorkspaceTrashModal();
     return;
   }
 
@@ -6602,6 +9425,38 @@ document.addEventListener('click', function(event) {
     }
     if (action === 'journal-refresh') {
       phase1Refresh({force: true});
+      return;
+    }
+    if (action === 'cash-session-refresh') {
+      await phase1EnsureCashSession({force: true});
+      return;
+    }
+    if (action === 'cash-session-close') {
+      await phase1CloseCashSession();
+      return;
+    }
+    if (action === 'cash-notebook-save') {
+      await phase1SaveCashNotebook({submit: false});
+      return;
+    }
+    if (action === 'cash-notebook-submit') {
+      await phase1SaveCashNotebook({submit: true});
+      return;
+    }
+    if (action === 'cash-participant-add') {
+      await phase1AddCashParticipant();
+      return;
+    }
+    if (action === 'cash-participant-remove') {
+      await phase1RemoveCashParticipant(phaseAction.getAttribute('data-phase-cash-participant-id'));
+      return;
+    }
+    if (action === 'cash-participant-save') {
+      await phase1SaveCashParticipantNotebook({submit: false});
+      return;
+    }
+    if (action === 'cash-participant-submit') {
+      await phase1SaveCashParticipantNotebook({submit: true});
       return;
     }
     if (action === 'admin-add-money') {
@@ -6642,12 +9497,24 @@ document.addEventListener('click', function(event) {
     }
     if (action === 'yacht-save') {
       phase1SyncYachtFromDom();
+      await phase1SaveYachtStateToAtlas({silent: false});
       phase1Notice = 'Яхта сохранена.';
       phase1Render('yacht');
       return;
     }
+    if (action === 'yacht-save-settings') {
+      phase1SyncYachtFromDom();
+      await phase1SaveYachtStateToAtlas({silent: false});
+      phase1Notice = 'Настройки яхты сохранены.';
+      phase1Render('yacht-settings');
+      return;
+    }
     if (action === 'yacht-create-workspace') {
       phase1CreateYachtWorkspace();
+      return;
+    }
+    if (action === 'home-create-workspace') {
+      phase1CreateHomeWorkspace();
       return;
     }
     if (action === 'yacht-scroll-bunkering') {
@@ -6675,15 +9542,39 @@ document.addEventListener('click', function(event) {
       return;
     }
     if (action === 'yacht-load-approved-prices') {
-      phase1LoadYachtApprovedCatalog();
+      await phase1LoadYachtApprovedCatalog();
       return;
     }
     if (action === 'yacht-apply-approved-prices') {
       phase1ApplyYachtApprovedPrices();
       return;
     }
+    if (action === 'yacht-calculate-provision') {
+      phase1CalculateYachtProvision();
+      return;
+    }
+    if (action === 'yacht-add-provision-selected') {
+      phase1AddYachtProvisionSelected();
+      return;
+    }
+    if (action === 'yacht-toggle-provision-category') {
+      phase1ToggleYachtProvisionCategory(phaseAction.getAttribute('data-yacht-provision-category-key'));
+      return;
+    }
+    if (action === 'yacht-fix-provision-category') {
+      phase1FixYachtProvisionCategory(phaseAction.getAttribute('data-yacht-provision-category-key'));
+      return;
+    }
+    if (action === 'yacht-remove-product-row') {
+      phase1RemoveYachtProductRow(phaseAction.getAttribute('data-yacht-product-row-remove'));
+      return;
+    }
+    if (action === 'yacht-clear-product-rows') {
+      phase1ClearYachtProductRows();
+      return;
+    }
     if (action === 'yacht-refresh-price-catalog') {
-      phase1RefreshYachtPriceCatalog();
+      await phase1RefreshYachtPriceCatalog();
       return;
     }
     if (action === 'yacht-reset-package') {
@@ -6801,11 +9692,28 @@ document.addEventListener('click', function(event) {
 });
 
 document.addEventListener('change', function(event) {
+  const workspaceSelect = event.target.closest('[data-phase-workspace-select]');
+  if (workspaceSelect) {
+    const value = String(workspaceSelect.value || '');
+    if (value === 'workspace-hub' || value === 'workspace-create') {
+      qlOpenPhaseScreen(value);
+    } else if (value) {
+      phase1OpenWorkspace(value);
+    }
+    return;
+  }
   const groupSelect = event.target.closest('[data-phase-group-select]');
   if (groupSelect) {
     phase1SetGroup(groupSelect.value);
     phase1SnapshotLoadedAt = 0;
     phase1Refresh({force: true});
+  }
+  const cashParticipantSelect = event.target.closest('[data-cash-participant-select]');
+  if (cashParticipantSelect) {
+    phase1CashParticipantId = String(cashParticipantSelect.value || 'owner');
+    phase1CashDraftTouched = false;
+    phase1Render('cash-journal');
+    return;
   }
   const crewRole = event.target.closest('[data-yacht-crew-role]');
   if (crewRole) {
@@ -6813,8 +9721,17 @@ document.addEventListener('change', function(event) {
     phase1Render('employee');
     return;
   }
-  if (event.target.closest('[data-yacht-field], [data-yacht-order], [data-yacht-row-field]')) {
+  if (event.target.closest('[data-yacht-field], [data-yacht-order], [data-yacht-row-field], [data-yacht-provision], [data-yacht-provision-item]')) {
     phase1SyncYachtFromDom();
+    if (phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-products' && event.target.closest('[data-yacht-provision-item]')) {
+      phase1UpdateYachtProvisionCategorySummaries();
+      return;
+    }
+    if (phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-products' && event.target.closest('[data-yacht-order]')) {
+      phase1RefreshYachtProductReferencePrices();
+      phase1Render('yacht-products');
+      return;
+    }
     phase1UpdateYachtTotalDom();
   }
 });
@@ -6827,12 +9744,22 @@ document.addEventListener('input', function(event) {
   if (event.target && event.target.id === 'phase1JournalLine') {
     phase1JournalLineDraft[phase1Stream] = event.target.value;
   }
+  if (event.target && event.target.id === 'phase1CashNotebook') {
+    phase1CashDraftTouched = true;
+  }
+  if (event.target && event.target.id === 'phase1CashParticipantNotebook') {
+    phase1CashParticipantDraftTouched = true;
+  }
   const crewCustom = event.target.closest('[data-yacht-crew-custom]');
   if (crewCustom) {
     phase1YachtSetCrewRole(crewCustom.getAttribute('data-yacht-crew-custom'), crewCustom.value);
   }
-  if (event.target.closest('[data-yacht-field], [data-yacht-order], [data-yacht-row-field]')) {
+  if (event.target.closest('[data-yacht-field], [data-yacht-order], [data-yacht-row-field], [data-yacht-provision], [data-yacht-provision-item]')) {
     phase1SyncYachtFromDom();
+    if (phase1NormalizeScreen(phase1CurrentScreen) === 'yacht-products' && event.target.closest('[data-yacht-provision-item]')) {
+      phase1UpdateYachtProvisionCategorySummaries();
+      return;
+    }
     phase1UpdateYachtTotalDom();
   }
 });
@@ -8974,6 +11901,7 @@ qlRenderUser = function(user) {
 const qlPreviousSetModuleForOnTheGo = window.qlSetModule || qlSetModule;
 qlSetModule = function(moduleName, options) {
   qlPreviousSetModuleForOnTheGo(moduleName, options);
+  if (typeof phase1ShellIsActive === 'function' && phase1ShellIsActive()) return;
   if (moduleName === 'ontherun') {
     setTimeout(qlLoadOnTheGo, 40);
   }

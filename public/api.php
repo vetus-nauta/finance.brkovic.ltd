@@ -428,6 +428,22 @@ try {
         ql_json(ql_group_delete(ql_input()));
     }
 
+    if ($action === 'group_trash') {
+        ql_json(ql_group_trash(ql_input()));
+    }
+
+    if ($action === 'group_restore') {
+        ql_json(ql_group_restore(ql_input()));
+    }
+
+    if ($action === 'group_trash_list') {
+        ql_json(ql_group_trash_list(ql_input()));
+    }
+
+    if ($action === 'group_trash_purge_expired') {
+        ql_json(ql_group_trash_purge_expired(ql_input()));
+    }
+
 
     if ($action === 'category_list') {
         ql_json(ql_category_list(ql_input()));
