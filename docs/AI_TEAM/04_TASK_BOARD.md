@@ -1888,3 +1888,29 @@ Control:
 - no production deploy;
 - no official settlement formula change;
 - this is ЖЗ input discipline, not final report audit.
+
+## Director Sprint 2026-06-07 - Personal Journal Records Reports Discipline Lock
+
+Status: product logic captured; implementation next.
+
+Locked behavior:
+
+- ЖЗ edits one active record only and must not contain the records list below it;
+- strict ЖЗ signs: `+` income, `-` expense, unsigned number is outside calculation;
+- Records page is card management with selected report/account context;
+- Records page always shows `Входящая сумма`, `Поступило`, and `Остаток` for the selected context;
+- unattached cards must appear under a visible `Без учета` context and calculate as movement without report opening income;
+- typing in ЖЗ creates/updates an active draft record card with date/time and must survive page exit;
+- Reports page owns create/start/fix/print/save/archive report lifecycle;
+- attachment/paperclip behavior belongs to ЖЗ active record context;
+- mobile-first: one-screen work surface, internal scroll where needed.
+
+Reference:
+
+- `docs/AI_TEAM/92_PERSONAL_JOURNAL_RECORDS_REPORTS_DISCIPLINE_2026-06-07.md`.
+
+Next implementation slice:
+
+- strict parser/warning correction for `+500`, `-300`, unsigned number rejection;
+- duplicate title cleanup;
+- active draft autosave card foundation.
