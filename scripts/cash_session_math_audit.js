@@ -173,8 +173,10 @@ const fixtures = [
 ];
 
 const parserChecks = [
+  { line: '+100', kind: 'contribution', amount: 100 },
   { line: '+100 advance', kind: 'contribution', amount: 100 },
   { line: '40 fuel', kind: 'note', amount: 0 },
+  { line: '-40', kind: 'expense', amount: -40 },
   { line: '-40 fuel', kind: 'expense', amount: -40 },
   { line: '=40 fuel', kind: 'note', amount: 0 },
   { line: '_40 fuel', kind: 'note', amount: 0 },
@@ -198,7 +200,7 @@ const review = fixtures.filter((item) => item.status === 'requires_review');
 console.log(JSON.stringify({
   checked_at: new Date().toISOString(),
   audit_status: 'preview_not_final',
-  parser_rule: '+number text is income; -number text is expense; unsigned number text and any other prefix/text are notes outside calculation.',
+  parser_rule: '+number or +number text is income; -number or -number text is expense; unsigned number text and any other prefix/text are notes outside calculation.',
   parser_checks: parserChecks,
   scenarios: fixtures,
   summary: {

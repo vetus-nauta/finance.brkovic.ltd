@@ -1914,3 +1914,44 @@ Next implementation slice:
 - strict parser/warning correction for `+500`, `-300`, unsigned number rejection;
 - duplicate title cleanup;
 - active draft autosave card foundation.
+
+## Director Sprint 2026-06-07 - Records Context Autosave Implementation
+
+Status: implemented locally; QA passed; GitHub commit pending.
+
+Implemented:
+
+- added compatible `record_cards` and `cash_reports` fields to Atlas cash sessions without removing legacy `batches`;
+- saving ЖЗ draft now creates/updates an active draft record card with date/time;
+- submitting ЖЗ now converts the active draft card into a fixed record card and still writes the legacy batch for current preview/audit compatibility;
+- participant self-view save/submit follows the same record-card discipline;
+- parser now accepts `+100`, `+100 text`, `-40`, `-40 text` and rejects unsigned numbers / `=` / `_` into note outside calculation;
+- ЖЗ warning now shows the exact invalid current line in red with a short explanation;
+- ЖЗ screen reduced duplicate wording and shows autosave status;
+- Records page rebuilt around context selector: `Без учета` first, reports next when available;
+- Records page summary shows `Входящая сумма`, `Поступило`, `Расход`, `Остаток` for the selected context;
+- cards from the selected context are first visual layer, unrelated cards are dimmed;
+- `К записям` saves note-only/invalid-only draft before leaving ЖЗ;
+- attachment entry point added as modal skeleton for active record context.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `npm run audit:cash` passed with parser checks for `+100`, `+100 text`, `-40`, `-40 text`, unsigned number, `=`, `_`;
+- `npm run check:atlas` passed;
+- HTTP/Atlas smoke created temporary workspace/session, saved draft card, fixed record card, legacy batch, then removed all smoke data.
+
+Control:
+
+- no production deploy;
+- no official settlement formula change;
+- current report preview remains `preview_not_final`.
+
+Next implementation slice:
+
+- add Reports/Учет lifecycle: create/start with opening amount, fix/lock, print/save/archive;
+- add selector to assign/reassign any record card to a report/account;
+- replace attachment modal skeleton with real file/photo storage;
+- run responsive pass for desktop/iPad/iPhone after report lifecycle is wired.

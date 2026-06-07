@@ -121,6 +121,121 @@
   font-weight: 900;
 }
 
+.phase1-cash-line-invalid {
+  display: block;
+  margin-bottom: 4px;
+  color: #b42318;
+  font-weight: 950;
+}
+
+.phase1-cash-line-help {
+  display: block;
+  color: rgba(70, 46, 11, .78);
+}
+
+.phase1-cash-line-ok {
+  display: block;
+  color: #146c43;
+  font-weight: 850;
+}
+
+.phase1-cash-context-strip {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.phase1-cash-context-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.phase1-cash-context-strip button {
+  min-width: 156px;
+  padding: 12px 14px;
+  border: 1px solid rgba(18, 48, 64, .13);
+  border-radius: 18px;
+  background: rgba(255,255,255,.72);
+  color: #18323e;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(19, 43, 58, .06);
+}
+
+.phase1-cash-context-strip button.active {
+  border-color: rgba(10,132,255,.36);
+  background: linear-gradient(145deg, rgba(232,244,255,.96), rgba(255,255,255,.9));
+}
+
+.phase1-cash-context-strip b,
+.phase1-cash-context-strip span {
+  display: block;
+}
+
+.phase1-cash-context-strip span {
+  margin-top: 4px;
+  color: rgba(30, 55, 68, .58);
+  font-size: .76rem;
+  font-weight: 800;
+}
+
+.phase1-cash-records-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.phase1-cash-records-head h2 {
+  margin: 0;
+}
+
+.phase1-cash-records-head p {
+  margin: 4px 0 0;
+  color: rgba(30, 55, 68, .62);
+  font-weight: 750;
+}
+
+.phase1-cash-record-card {
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.phase1-cash-record-card + .phase1-cash-record-card {
+  margin-top: 14px;
+}
+
+.phase1-cash-record-card.dimmed {
+  opacity: .36;
+}
+
+.phase1-cash-record-card.active {
+  opacity: 1;
+}
+
+.phase1-cash-entry-list.compact {
+  margin-top: 8px;
+}
+
+.phase1-cash-entry-list .contribution strong {
+  color: #146c43;
+}
+
+.phase1-cash-entry-list .expense strong {
+  color: #b42318;
+}
+
+.phase1-cash-attachment-modal {
+  max-width: 460px;
+}
+
+.phase1-cash-attachment-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .phase1-cash-participants {
   border-color: rgba(22, 77, 92, .14);
 }

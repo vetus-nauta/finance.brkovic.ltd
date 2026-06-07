@@ -769,8 +769,8 @@ function parseCashNotebook(text) {
     const raw = String(line || '').trim();
     if (!raw) return;
     const clean = raw.replace(/^\s*[✓✔]\s*/u, '').trim();
-    const contributionMatch = clean.match(/^\+\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s+(.+)$/i);
-    const expenseMatch = clean.match(/^-\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s+(.+)$/i);
+    const contributionMatch = clean.match(/^\+\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)(?:\s+(.+))?$/i);
+    const expenseMatch = clean.match(/^-\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)(?:\s+(.+))?$/i);
     const match = contributionMatch || expenseMatch;
     if (!match) {
       entries.push({
@@ -797,6 +797,102 @@ function parseCashNotebook(text) {
     });
   });
   return entries;
+}
+
+function cashReportId(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw || raw === 'null' || raw === 'undefined') return null;
+  return raw.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || null;
+}
+
+function cashRecordCards(session) {
+  return Array.isArray(session && session.record_cards) ? session.record_cards : [];
+}
+
+function cashReports(session) {
+  return Array.isArray(session && session.cash_reports) ? session.cash_reports : [];
+}
+
+function publicCashReport(report) {
+  if (!report || typeof report !== 'object') return null;
+  return {
+    id: cashReportId(report.id),
+    title: String(report.title || 'Отчет').trim() || 'Отчет',
+    opening_amount: signedMoney(report.opening_amount || 0),
+    status: String(report.status || 'active'),
+    created_at: report.created_at || null,
+    started_at: report.started_at || report.created_at || null,
+    fixed_at: report.fixed_at || null,
+    archived_at: report.archived_at || null,
+  };
+}
+
+function publicCashRecordCard(card) {
+  if (!card || typeof card !== 'object') return null;
+  const entries = Array.isArray(card.entries) ? card.entries : parseCashNotebook(card.raw_text || card.draft_text || '');
+  const contribution = entries.reduce((sum, entry) => (
+    cashEntryKind(entry.entry_kind) === 'contribution' ? sum + Math.abs(Number(entry.amount || 0)) : sum
+  ), 0);
+  const expense = entries.reduce((sum, entry) => (
+    cashEntryKind(entry.entry_kind) === 'expense' ? sum + Math.abs(Number(entry.amount || 0)) : sum
+  ), 0);
+  return {
+    id: String(card.id || '').trim(),
+    report_id: cashReportId(card.report_id),
+    participant_id: cashParticipantId(card.participant_id || 'owner') || 'owner',
+    participant_display_name: String(card.participant_display_name || 'Участник'),
+    title: String(card.title || 'Запись').trim() || 'Запись',
+    status: String(card.status || 'draft'),
+    raw_text: String(card.raw_text || card.draft_text || '').replace(/\r/g, ''),
+    entries,
+    totals: {
+      contributions: signedMoney(contribution),
+      expenses: signedMoney(expense),
+      balance: signedMoney(contribution - expense),
+      lines: entries.length,
+    },
+    source_batch_id: card.source_batch_id || null,
+    created_at: card.created_at || null,
+    updated_at: card.updated_at || null,
+    fixed_at: card.fixed_at || null,
+  };
+}
+
+function cashNotebookDraftRecordId(session, participantId) {
+  const notebooks = session && session.notebooks && typeof session.notebooks === 'object' ? session.notebooks : {};
+  const notebook = notebooks[participantId] || {};
+  return String(notebook.active_record_id || '').trim();
+}
+
+function cashDraftRecordFromText(session, participant, input, updatedAt) {
+  const participantId = String(participant.id || 'owner');
+  const text = String(input.draft_text || input.notebook_text || '').replace(/\r/g, '');
+  const reportId = cashReportId(input.report_id);
+  const recordId = cashNotebookDraftRecordId(session, participantId)
+    || `record_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const existing = cashRecordCards(session).find((card) => String(card.id || '') === recordId) || {};
+  const titleSource = String(input.record_title || existing.title || '').trim();
+  return {
+    id: recordId,
+    report_id: reportId,
+    participant_id: participantId,
+    participant_display_name: participant.display_name,
+    title: titleSource || `Активная запись ${updatedAt.toLocaleString('ru-RU')}`,
+    status: 'draft',
+    raw_text: text,
+    entries: parseCashNotebook(text),
+    source: String(input.source || existing.source || 'manual'),
+    created_at: existing.created_at || updatedAt,
+    updated_at: updatedAt,
+  };
+}
+
+function cashUpsertRecordCard(cards, nextCard) {
+  const list = Array.isArray(cards) ? cards.slice() : [];
+  const index = list.findIndex((card) => String(card.id || '') === String(nextCard.id || ''));
+  if (index >= 0) list[index] = Object.assign({}, list[index], nextCard);
+  else list.push(nextCard);
+  return list;
 }
 
 function defaultCashParticipant(user, mode = 'group') {
@@ -948,6 +1044,8 @@ function publicCashSession(session) {
   if (!session) return null;
   const totals = cashParticipantTotals(session);
   const notebooks = session.notebooks && typeof session.notebooks === 'object' ? session.notebooks : {};
+  const recordCards = cashRecordCards(session).map(publicCashRecordCard).filter(Boolean);
+  const reports = cashReports(session).map(publicCashReport).filter(Boolean);
   return {
     id: session.id,
     workspace_id: session.workspace_id,
@@ -960,6 +1058,8 @@ function publicCashSession(session) {
     notebooks,
     draft_text: session.notebooks && session.notebooks.owner ? String(session.notebooks.owner.draft_text || '') : '',
     batches: Array.isArray(session.batches) ? session.batches : [],
+    record_cards: recordCards,
+    cash_reports: reports,
     totals,
     settlement_preview: {
       audit_status: 'preview_not_final',
@@ -973,6 +1073,8 @@ function publicCashSession(session) {
 function cashArchiveSnapshot(session, closedByUserId = null) {
   const totals = cashParticipantTotals(session);
   const lines = cashSettlementLines(totals);
+  const recordCards = cashRecordCards(session).map(publicCashRecordCard).filter(Boolean);
+  const reports = cashReports(session).map(publicCashReport).filter(Boolean);
   return {
     schema_version: 1,
     audit_status: 'preview_not_final',
@@ -984,6 +1086,8 @@ function cashArchiveSnapshot(session, closedByUserId = null) {
     currency: session.currency || 'EUR',
     participants: activeCashParticipants(session),
     batches: Array.isArray(session.batches) ? session.batches : [],
+    record_cards: recordCards,
+    cash_reports: reports,
     totals,
     settlement_preview: {
       audit_status: 'preview_not_final',
@@ -1039,6 +1143,10 @@ function publicCashParticipantPayload(session, participant) {
       };
   const notebooks = session.notebooks && typeof session.notebooks === 'object' ? session.notebooks : {};
   const ownBatches = (Array.isArray(session.batches) ? session.batches : []).filter((batch) => String(batch.participant_id || '') === participantId);
+  const ownRecordCards = cashRecordCards(session)
+    .filter((card) => String(card.participant_id || '') === participantId)
+    .map(publicCashRecordCard)
+    .filter(Boolean);
   const previewLines = cashSettlementLines(totals).filter((line) => (
     String(line.from_participant_id || '') === participantId || String(line.to_participant_id || '') === participantId
   ));
@@ -1062,6 +1170,7 @@ function publicCashParticipantPayload(session, participant) {
       invite_token: participant.invite_token,
       draft_text: notebooks[participantId] ? String(notebooks[participantId].draft_text || '') : '',
       batches: ownBatches,
+      record_cards: ownRecordCards,
       totals: ownTotals,
       settlement_preview: {
         audit_status: 'preview_not_final',
@@ -1107,6 +1216,8 @@ async function cashSessionGetOrCreate(database, input) {
     participants: [defaultCashParticipant(user, context.mode)],
     notebooks: { owner: { draft_text: '', updated_at: null } },
     batches: [],
+    record_cards: [],
+    cash_reports: [],
     created_at: now(),
     updated_at: now(),
   };
@@ -1125,9 +1236,20 @@ async function cashSessionSaveDraft(database, input) {
   if (!cashParticipantById(session, participantId)) return { ok: false, error: 'cash_participant_not_found' };
   const updatedAt = now();
   const notebookKey = `notebooks.${participantId}`;
+  const draftText = String(input.draft_text || input.notebook_text || '').replace(/\r/g, '');
+  const participant = cashParticipantById(session, participantId);
+  const draftRecord = draftText.trim() ? cashDraftRecordFromText(session, participant, Object.assign({}, input, { draft_text: draftText }), updatedAt) : null;
+  const setPayload = {
+    [`${notebookKey}.draft_text`]: draftText,
+    [`${notebookKey}.updated_at`]: updatedAt,
+    updated_at: updatedAt,
+  };
+  if (draftRecord) setPayload[`${notebookKey}.active_record_id`] = draftRecord.id;
+  const updatePayload = { $set: setPayload };
+  if (draftRecord) updatePayload.$set.record_cards = cashUpsertRecordCard(session.record_cards, draftRecord);
   const result = await database.collection('cash_sessions').findOneAndUpdate(
     { id: sessionId, owner_user_id: user.id, status: 'active' },
-    { $set: { [`${notebookKey}.draft_text`]: String(input.draft_text || input.notebook_text || '').replace(/\r/g, ''), [`${notebookKey}.updated_at`]: updatedAt, updated_at: updatedAt } },
+    updatePayload,
     { returnDocument: 'after' }
   );
   if (!result) return { ok: false, error: 'cash_session_not_found' };
@@ -1147,6 +1269,8 @@ async function cashSessionSubmitDraft(database, input) {
   const text = String(input.draft_text || input.notebook_text || notebook.draft_text || '').replace(/\r/g, '').trim();
   if (!text) return { ok: false, error: 'empty_notebook' };
   const entries = parseCashNotebook(text);
+  const activeRecordId = cashNotebookDraftRecordId(session, participantId)
+    || `record_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const batch = {
     id: `batch_${Date.now()}`,
     participant_id: participantId,
@@ -1157,11 +1281,33 @@ async function cashSessionSubmitDraft(database, input) {
     created_at: now(),
   };
   const updatedAt = now();
+  const existingCard = cashRecordCards(session).find((card) => String(card.id || '') === activeRecordId) || {};
+  const fixedRecord = {
+    id: activeRecordId,
+    report_id: cashReportId(input.report_id || existingCard.report_id),
+    participant_id: participantId,
+    participant_display_name: participant.display_name,
+    title: String(input.record_title || existingCard.title || '').trim() || `Запись ${updatedAt.toLocaleString('ru-RU')}`,
+    status: 'fixed',
+    raw_text: text,
+    entries,
+    source: String(input.source || existingCard.source || 'manual'),
+    source_batch_id: batch.id,
+    created_at: existingCard.created_at || updatedAt,
+    updated_at: updatedAt,
+    fixed_at: updatedAt,
+  };
   await database.collection('cash_sessions').updateOne(
     { id: sessionId, owner_user_id: user.id, status: 'active' },
     {
       $push: { batches: batch },
-      $set: { [`notebooks.${participantId}.draft_text`]: '', [`notebooks.${participantId}.updated_at`]: updatedAt, updated_at: updatedAt },
+      $set: {
+        record_cards: cashUpsertRecordCard(session.record_cards, fixedRecord),
+        [`notebooks.${participantId}.draft_text`]: '',
+        [`notebooks.${participantId}.updated_at`]: updatedAt,
+        [`notebooks.${participantId}.active_record_id`]: '',
+        updated_at: updatedAt,
+      },
     }
   );
   const updated = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id });
@@ -1238,9 +1384,20 @@ async function cashParticipantSaveDraft(database, input) {
   if (!participant) return { ok: false, error: 'cash_participant_not_found' };
   const participantId = String(participant.id || '');
   const updatedAt = now();
+  const draftText = String(input.draft_text || input.notebook_text || '').replace(/\r/g, '');
+  const draftRecord = draftText.trim() ? cashDraftRecordFromText(session, participant, Object.assign({}, input, { draft_text: draftText, source: input.source || 'participant' }), updatedAt) : null;
+  const setPayload = {
+    [`notebooks.${participantId}.draft_text`]: draftText,
+    [`notebooks.${participantId}.updated_at`]: updatedAt,
+    updated_at: updatedAt,
+  };
+  if (draftRecord) {
+    setPayload[`notebooks.${participantId}.active_record_id`] = draftRecord.id;
+    setPayload.record_cards = cashUpsertRecordCard(session.record_cards, draftRecord);
+  }
   await database.collection('cash_sessions').updateOne(
     { id: session.id, status: 'active', 'participants.invite_token': token },
-    { $set: { [`notebooks.${participantId}.draft_text`]: String(input.draft_text || input.notebook_text || '').replace(/\r/g, ''), [`notebooks.${participantId}.updated_at`]: updatedAt, updated_at: updatedAt } }
+    { $set: setPayload }
   );
   const updated = await cashParticipantSessionByToken(database, token);
   return publicCashParticipantPayload(updated, cashParticipantByToken(updated, token));
@@ -1256,21 +1413,46 @@ async function cashParticipantSubmitDraft(database, input) {
   const notebooks = session.notebooks && typeof session.notebooks === 'object' ? session.notebooks : {};
   const text = String(input.draft_text || input.notebook_text || (notebooks[participantId] && notebooks[participantId].draft_text) || '').replace(/\r/g, '').trim();
   if (!text) return { ok: false, error: 'empty_notebook' };
+  const entries = parseCashNotebook(text);
+  const activeRecordId = cashNotebookDraftRecordId(session, participantId)
+    || `record_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const batch = {
     id: `batch_${Date.now()}`,
     participant_id: participantId,
     participant_display_name: participant.display_name,
     raw_text: text,
-    entries: parseCashNotebook(text),
+    entries,
     source: String(input.source || 'participant'),
     created_at: now(),
   };
   const updatedAt = now();
+  const existingCard = cashRecordCards(session).find((card) => String(card.id || '') === activeRecordId) || {};
+  const fixedRecord = {
+    id: activeRecordId,
+    report_id: cashReportId(input.report_id || existingCard.report_id),
+    participant_id: participantId,
+    participant_display_name: participant.display_name,
+    title: String(input.record_title || existingCard.title || '').trim() || `Запись ${updatedAt.toLocaleString('ru-RU')}`,
+    status: 'fixed',
+    raw_text: text,
+    entries,
+    source: String(input.source || existingCard.source || 'participant'),
+    source_batch_id: batch.id,
+    created_at: existingCard.created_at || updatedAt,
+    updated_at: updatedAt,
+    fixed_at: updatedAt,
+  };
   await database.collection('cash_sessions').updateOne(
     { id: session.id, status: 'active', 'participants.invite_token': token },
     {
       $push: { batches: batch },
-      $set: { [`notebooks.${participantId}.draft_text`]: '', [`notebooks.${participantId}.updated_at`]: updatedAt, updated_at: updatedAt },
+      $set: {
+        record_cards: cashUpsertRecordCard(session.record_cards, fixedRecord),
+        [`notebooks.${participantId}.draft_text`]: '',
+        [`notebooks.${participantId}.updated_at`]: updatedAt,
+        [`notebooks.${participantId}.active_record_id`]: '',
+        updated_at: updatedAt,
+      },
     }
   );
   const updated = await cashParticipantSessionByToken(database, token);
@@ -1633,7 +1815,7 @@ process.on('SIGINT', async () => {
 
 function startServer() {
   server.listen(PORT, HOST, async () => {
-    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes40`);
+    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes41`);
     try {
       await db();
       console.log(`MongoDB Atlas connected: ${MONGO_DB}`);
