@@ -1965,3 +1965,19 @@ Control:
 - official settlement math must be audited before final status is allowed;
 - no production deploy;
 - no official financial formulas were changed.
+
+## 2026-06-07: Settlement Math Requires Harness Before Final Status
+
+Decision: Universal Cash Session settlement math must pass deterministic local harness checks and explicit review notes before any report can move beyond `preview_not_final`.
+
+Implemented locally:
+
+- `npm run audit:cash` verifies current preview settlement helper behavior;
+- the harness uses exported server helpers rather than duplicate formula code;
+- known review cases are documented instead of hidden.
+
+Control:
+
+- no settlement formula was changed;
+- excluded participant and contribution surplus behavior require architect/auditor decision;
+- professional print report remains a preview document until review is complete.

@@ -1630,12 +1630,27 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-server.listen(PORT, HOST, async () => {
-  console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes38`);
-  try {
-    await db();
-    console.log(`MongoDB Atlas connected: ${MONGO_DB}`);
-  } catch (error) {
-    console.error(`MongoDB Atlas connection failed: ${error.message}`);
-  }
-});
+function startServer() {
+  server.listen(PORT, HOST, async () => {
+    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes38`);
+    try {
+      await db();
+      console.log(`MongoDB Atlas connected: ${MONGO_DB}`);
+    } catch (error) {
+      console.error(`MongoDB Atlas connection failed: ${error.message}`);
+    }
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  parseCashNotebook,
+  cashParticipantTotals,
+  cashSettlementLines,
+  publicCashSession,
+  cashArchiveSnapshot,
+  startServer,
+};

@@ -1830,3 +1830,32 @@ Control:
 
 - no production deploy;
 - `npm run check:atlas` should be used after IP/network changes or before blaming application code for Atlas failures.
+
+## Director Sprint 2026-06-07 - Settlement Preview Audit Harness V1
+
+Status: local audit harness implemented; checks passed; no formula changes made.
+
+Done locally:
+
+- exported cash math helpers from the Atlas local server without auto-starting HTTP when imported;
+- added `npm run audit:cash`;
+- added deterministic in-memory scenarios for expenses, mixed participants, excluded participant and contribution/cash-in behavior;
+- current preview math is now reproducible outside the browser and outside Atlas data.
+
+QA:
+
+- `npm run audit:cash` passed;
+- scenarios: 5 total, 0 failed, 2 `requires_review`;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check scripts/cash_session_math_audit.js` passed;
+- `git diff --check` passed.
+
+Findings requiring architect/auditor decision:
+
+- excluded participant expenses are reimbursed while that participant is excluded from share;
+- contributions/cash-in create surplus credit that is not fully allocated by settlement transfer lines.
+
+Control:
+
+- no official financial formulas were changed;
+- report remains `preview_not_final`.

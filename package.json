@@ -4,6 +4,7 @@
   },
   "scripts": {
     "start:atlas": "node server/findesk-atlas-server.js",
-    "check:atlas": "node scripts/atlas_connection_smoke.js"
+    "check:atlas": "node scripts/atlas_connection_smoke.js",
+    "audit:cash": "node scripts/cash_session_math_audit.js"
   }
 }

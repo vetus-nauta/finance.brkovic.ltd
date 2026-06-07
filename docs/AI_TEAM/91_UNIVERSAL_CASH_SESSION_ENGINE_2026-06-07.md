@@ -229,3 +229,33 @@ Current limitation:
 - settlement math is still not audited as an official final report;
 - browser-native print/PDF is used, not server-side PDF generation;
 - detailed attachment/check evidence is not included in this slice.
+
+## Local Slice 7 - Settlement Preview Audit Harness V1
+
+Implemented locally on 2026-06-07:
+
+- server cash math helpers can be imported without starting the HTTP server;
+- `npm run audit:cash` runs deterministic in-memory settlement scenarios against the same helper functions used by the server;
+- current preview behavior is covered for:
+  - two participants, one expense;
+  - two participants, equal expenses;
+  - three participants, mixed expenses;
+  - participant excluded from split but carrying expenses;
+  - contribution/cash-in scenario.
+
+Audit result:
+
+- scenarios total: 5;
+- failed: 0;
+- requires product/auditor review: 2.
+
+Requires review:
+
+- excluded participant expenses are reimbursed while the participant is excluded from share;
+- contributions are treated as participant credit and can create remaining cash surplus that settlement lines do not allocate.
+
+Control:
+
+- no settlement formula was changed in this slice;
+- report status remains `preview_not_final`;
+- this harness is not an auditor sign-off, it is a reproducible pre-audit control.
