@@ -1810,3 +1810,23 @@ Next:
 - check MongoDB Atlas Network Access and allow current public IP or a stable office/VPN IP;
 - rerun `npm run check:atlas` after the Atlas access change;
 - avoid restarting the working `18896` process until new Atlas handshakes pass.
+
+### Atlas TLS Stability Follow-up - 2026-06-07
+
+Status: resolved after Atlas Network Access update.
+
+Verification:
+
+- public IP remained `77.222.27.84`;
+- `npm run check:atlas` passed;
+- all three Atlas TLS probes returned `ok: true` with `TLSv1.3`;
+- MongoDB driver ping returned `ok: true`;
+- new local Atlas server started on `http://127.0.0.1:18899/app.php?build=routes38`;
+- new server process connected to Atlas database `finance_brkovic_ltd`;
+- `current_user` and `cash_session_get_or_create` passed on port `18899`;
+- active `Yacht: Ckaudia Z` session remained clean: one participant, zero batches.
+
+Control:
+
+- no production deploy;
+- `npm run check:atlas` should be used after IP/network changes or before blaming application code for Atlas failures.
