@@ -236,6 +236,70 @@
   margin-top: 14px;
 }
 
+.phase1-cash-record-assign {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+  margin-top: 6px;
+}
+
+.phase1-cash-record-assign span {
+  color: rgba(30, 55, 68, .58);
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.phase1-cash-record-assign select,
+.phase1-cash-report-form input {
+  min-height: 38px;
+  border: 1px solid rgba(18, 48, 64, .16);
+  border-radius: 12px;
+  padding: 0 10px;
+  background: #fff;
+  color: #17323e;
+  font: 800 .88rem/1 "Trebuchet MS", Arial, sans-serif;
+}
+
+.phase1-cash-report-create {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.phase1-cash-report-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(130px, .45fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.phase1-cash-report-row {
+  align-items: center;
+}
+
+.phase1-cash-report-row.fixed {
+  background: linear-gradient(145deg, rgba(240,247,241,.94), rgba(255,255,255,.84));
+}
+
+.phase1-cash-report-row.archived {
+  opacity: .68;
+  background: linear-gradient(145deg, rgba(245,242,235,.82), rgba(255,255,255,.72));
+}
+
+@media (max-width: 760px) {
+  .phase1-cash-report-create,
+  .phase1-cash-report-form {
+    grid-template-columns: 1fr;
+  }
+
+  .phase1-cash-record-assign {
+    min-width: 0;
+  }
+}
+
 .phase1-cash-participants {
   border-color: rgba(22, 77, 92, .14);
 }

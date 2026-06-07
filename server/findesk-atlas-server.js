@@ -813,6 +813,12 @@ function cashReports(session) {
   return Array.isArray(session && session.cash_reports) ? session.cash_reports : [];
 }
 
+function cashReportStatus(value, fallback = 'active') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['active', 'fixed', 'archived'].includes(raw)) return raw;
+  return fallback;
+}
+
 function publicCashReport(report) {
   if (!report || typeof report !== 'object') return null;
   return {
@@ -893,6 +899,30 @@ function cashUpsertRecordCard(cards, nextCard) {
   if (index >= 0) list[index] = Object.assign({}, list[index], nextCard);
   else list.push(nextCard);
   return list;
+}
+
+function cashReportById(session, reportId) {
+  const id = cashReportId(reportId);
+  if (!id) return null;
+  return cashReports(session).find((report) => cashReportId(report.id) === id) || null;
+}
+
+function cashRecordCardFromBatch(batch, reportId = null, updatedAt = now()) {
+  return {
+    id: String(batch && batch.id || `legacy_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`),
+    report_id: cashReportId(reportId),
+    participant_id: cashParticipantId(batch && batch.participant_id || 'owner') || 'owner',
+    participant_display_name: String(batch && batch.participant_display_name || 'Участник'),
+    title: 'Зафиксированная запись',
+    status: 'fixed',
+    raw_text: String(batch && batch.raw_text || ''),
+    entries: Array.isArray(batch && batch.entries) ? batch.entries : parseCashNotebook(batch && batch.raw_text || ''),
+    source: String(batch && batch.source || 'legacy_batch'),
+    source_batch_id: batch && batch.id || null,
+    created_at: batch && batch.created_at || updatedAt,
+    updated_at: updatedAt,
+    fixed_at: batch && batch.created_at || updatedAt,
+  };
 }
 
 function defaultCashParticipant(user, mode = 'group') {
@@ -1312,6 +1342,103 @@ async function cashSessionSubmitDraft(database, input) {
   );
   const updated = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id });
   return { ok: true, session: publicCashSession(updated), batch };
+}
+
+async function cashReportCreate(database, input) {
+  const user = await currentUser(database);
+  const sessionId = Number(input.session_id || input.id || 0);
+  if (!sessionId) return { ok: false, error: 'invalid_session_id' };
+  const session = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id, status: 'active' });
+  if (!session) return { ok: false, error: 'cash_session_not_found' };
+  const title = String(input.title || input.report_title || '').trim().replace(/\s+/g, ' ').slice(0, 140);
+  if (!title) return { ok: false, error: 'empty_report_title' };
+  const updatedAt = now();
+  const report = {
+    id: cashReportId(input.report_id) || `report_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    title,
+    opening_amount: signedMoney(input.opening_amount || input.incoming_amount || 0),
+    status: 'active',
+    created_at: updatedAt,
+    started_at: updatedAt,
+    updated_at: updatedAt,
+  };
+  const reports = cashReports(session).concat([report]);
+  await database.collection('cash_sessions').updateOne(
+    { id: sessionId, owner_user_id: user.id, status: 'active' },
+    { $set: { cash_reports: reports, updated_at: updatedAt } }
+  );
+  const updated = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id });
+  return { ok: true, report: publicCashReport(report), session: publicCashSession(updated) };
+}
+
+async function cashReportSetStatus(database, input) {
+  const user = await currentUser(database);
+  const sessionId = Number(input.session_id || input.id || 0);
+  const reportId = cashReportId(input.report_id);
+  if (!sessionId) return { ok: false, error: 'invalid_session_id' };
+  if (!reportId) return { ok: false, error: 'invalid_report_id' };
+  const session = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id, status: 'active' });
+  if (!session) return { ok: false, error: 'cash_session_not_found' };
+  const updatedAt = now();
+  let found = null;
+  const nextStatus = cashReportStatus(input.status || input.report_status || input.action, 'active');
+  const reports = cashReports(session).map((report) => {
+    if (cashReportId(report.id) !== reportId) return report;
+    const next = Object.assign({}, report, {
+      status: nextStatus,
+      updated_at: updatedAt,
+    });
+    if (nextStatus === 'fixed') next.fixed_at = updatedAt;
+    if (nextStatus === 'archived') next.archived_at = updatedAt;
+    if (nextStatus === 'active') {
+      next.restored_at = updatedAt;
+      next.fixed_at = null;
+      next.archived_at = null;
+    }
+    found = next;
+    return next;
+  });
+  if (!found) return { ok: false, error: 'cash_report_not_found' };
+  await database.collection('cash_sessions').updateOne(
+    { id: sessionId, owner_user_id: user.id, status: 'active' },
+    { $set: { cash_reports: reports, updated_at: updatedAt } }
+  );
+  const updated = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id });
+  return { ok: true, report: publicCashReport(found), session: publicCashSession(updated) };
+}
+
+async function cashRecordAssign(database, input) {
+  const user = await currentUser(database);
+  const sessionId = Number(input.session_id || input.id || 0);
+  const recordId = String(input.record_id || input.card_id || '').trim();
+  const reportId = cashReportId(input.report_id);
+  if (!sessionId) return { ok: false, error: 'invalid_session_id' };
+  if (!recordId) return { ok: false, error: 'invalid_record_id' };
+  const session = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id, status: 'active' });
+  if (!session) return { ok: false, error: 'cash_session_not_found' };
+  if (reportId && !cashReportById(session, reportId)) return { ok: false, error: 'cash_report_not_found' };
+  const updatedAt = now();
+  let found = null;
+  let cards = cashRecordCards(session).map((card) => {
+    if (String(card.id || '') !== recordId && String(card.source_batch_id || '') !== recordId) return card;
+    const next = Object.assign({}, card, { report_id: reportId, updated_at: updatedAt });
+    found = next;
+    return next;
+  });
+  if (!found) {
+    const batch = (Array.isArray(session.batches) ? session.batches : []).find((item) => String(item.id || '') === recordId);
+    if (batch) {
+      found = cashRecordCardFromBatch(batch, reportId, updatedAt);
+      cards = cashUpsertRecordCard(cards, found);
+    }
+  }
+  if (!found) return { ok: false, error: 'cash_record_not_found' };
+  await database.collection('cash_sessions').updateOne(
+    { id: sessionId, owner_user_id: user.id, status: 'active' },
+    { $set: { record_cards: cards, updated_at: updatedAt } }
+  );
+  const updated = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id });
+  return { ok: true, record: publicCashRecordCard(found), session: publicCashSession(updated) };
 }
 
 async function cashParticipantUpsert(database, input) {
@@ -1751,6 +1878,9 @@ async function api(action, input) {
   if (action === 'cash_session_get_or_create') return cashSessionGetOrCreate(database, input);
   if (action === 'cash_session_save_draft') return cashSessionSaveDraft(database, input);
   if (action === 'cash_session_submit_draft') return cashSessionSubmitDraft(database, input);
+  if (action === 'cash_report_create') return cashReportCreate(database, input);
+  if (action === 'cash_report_set_status') return cashReportSetStatus(database, input);
+  if (action === 'cash_record_assign') return cashRecordAssign(database, input);
   if (action === 'cash_participant_upsert') return cashParticipantUpsert(database, input);
   if (action === 'cash_participant_remove') return cashParticipantRemove(database, input);
   if (action === 'cash_participant_view') return cashParticipantView(database, input);
@@ -1815,7 +1945,7 @@ process.on('SIGINT', async () => {
 
 function startServer() {
   server.listen(PORT, HOST, async () => {
-    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes41`);
+    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes42`);
     try {
       await db();
       console.log(`MongoDB Atlas connected: ${MONGO_DB}`);

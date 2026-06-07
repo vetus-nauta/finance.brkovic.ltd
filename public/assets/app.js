@@ -5370,7 +5370,7 @@ function phase1CashNav(current) {
     ['cash-session', 'Движок'],
     ['cash-journal', 'ЖЗ'],
     ['cash-records', 'Записи'],
-    ['cash-report', 'Отчет']
+    ['cash-report', 'Отчеты']
   ];
   return `
     <section class="phase1-action-row phase1-cash-nav">
@@ -5441,7 +5441,7 @@ function phase1CashParticipantLink(token) {
   url.search = '';
   url.hash = '';
   url.searchParams.set('cashToken', inviteToken);
-  url.searchParams.set('build', 'routes41');
+  url.searchParams.set('build', 'routes42');
   return url.toString();
 }
 
@@ -6138,6 +6138,70 @@ function phase1CashRecordEntryRows(card) {
   `;
 }
 
+function phase1CashReportOptions(selectedId) {
+  const selected = String(selectedId || '');
+  const reports = phase1CashSessionReports().filter(function(report) {
+    return String(report.status || 'active') !== 'archived';
+  });
+  return '<option value="">Без учета</option>' + reports.map(function(report) {
+    const id = String(report.id || '');
+    return '<option value="' + phase1Escape(id) + '"' + (id === selected ? ' selected' : '') + '>' + phase1Escape(report.title || 'Отчет') + '</option>';
+  }).join('');
+}
+
+function phase1CashRecordAssignHtml(card) {
+  return `
+    <label class="phase1-cash-record-assign">
+      <span>Учет</span>
+      <select data-cash-record-report-assign="${phase1Escape(card.id || '')}" aria-label="Привязать запись к учету">
+        ${phase1CashReportOptions(card.report_id)}
+      </select>
+    </label>
+  `;
+}
+
+function phase1CashReportStatusLabel(status) {
+  const value = String(status || 'active');
+  if (value === 'fixed') return 'закреплен';
+  if (value === 'archived') return 'архив';
+  return 'активный';
+}
+
+function phase1CashReportActions(report) {
+  const id = String(report && report.id || '');
+  const status = String(report && report.status || 'active');
+  const open = '<button class="phase1-secondary-action" type="button" data-cash-report-open="' + phase1Escape(id) + '">Записи</button>';
+  if (status === 'archived') {
+    return open + '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-restore" data-cash-report-id="' + phase1Escape(id) + '">Вернуть</button>';
+  }
+  const fix = status === 'fixed'
+    ? ''
+    : '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-fix" data-cash-report-id="' + phase1Escape(id) + '">Закрепить</button>';
+  const archive = '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-archive" data-cash-report-id="' + phase1Escape(id) + '">В архив</button>';
+  return open + fix + archive;
+}
+
+function phase1CashReportRow(report, cards) {
+  const context = {
+    id: String(report.id || ''),
+    title: String(report.title || 'Отчет'),
+    opening: phase1Number(report.opening_amount || 0),
+    status: String(report.status || 'active')
+  };
+  const totals = phase1CashRecordContextTotals(cards, context);
+  return `
+    <article class="phase1-row-card phase1-cash-report-row ${phase1Escape(context.status)}">
+      <div>
+        <b>${phase1Escape(context.title)}</b>
+        <span>${phase1Escape(phase1CashReportStatusLabel(context.status))} · входящая ${phase1Money(totals.incoming)} · поступило ${phase1Money(totals.received)} · остаток ${phase1Money(totals.remaining)}</span>
+      </div>
+      <div class="phase1-action-row">
+        ${phase1CashReportActions(report)}
+      </div>
+    </article>
+  `;
+}
+
 function phase1RenderCashRecords() {
   if (!phase1CashSession) return phase1CashLoadingPanel();
   const cards = phase1CashRecordCards();
@@ -6183,7 +6247,10 @@ function phase1RenderCashRecords() {
                   <b>${phase1Escape(card.title || (card.status === 'draft' ? 'Активная запись' : 'Запись'))}</b>
                   <span>${phase1Escape(card.status === 'draft' ? 'активная карточка' : 'зафиксировано')} · ${phase1Escape(card.participant_display_name || phase1CashParticipantName(card.participant_id))} · ${phase1Escape(phase1CashReportDate(date))}</span>
                 </div>
-                <strong>${phase1Money(contribution - expense)}</strong>
+                <div>
+                  <strong>${phase1Money(contribution - expense)}</strong>
+                  ${phase1CashRecordAssignHtml(card)}
+                </div>
               </div>
               ${phase1CashRecordEntryRows(card)}
             </article>
@@ -6201,10 +6268,38 @@ function phase1RenderCashReport() {
   const lines = phase1CashSession.settlement_preview && Array.isArray(phase1CashSession.settlement_preview.lines)
     ? phase1CashSession.settlement_preview.lines
     : [];
+  const cards = phase1CashRecordCards();
+  const reports = phase1CashSessionReports();
+  const activeReports = reports.filter(function(report) { return String(report.status || 'active') !== 'archived'; });
+  const archivedReports = reports.filter(function(report) { return String(report.status || 'active') === 'archived'; });
   return `
     <div class="phase1-page phase1-page-cash-report">
-      ${phase1Header('Отчет-превью', 'Предварительный расчет Universal Cash Session. Это не утвержденный финансовый отчет.', '')}
+      ${phase1Header('Отчеты', 'Учетные контейнеры для карточек записей. Preview ниже не является финальным аудитом.', '')}
       ${phase1CashNav('cash-report')}
+      <section class="phase1-list-panel phase1-cash-report-create">
+        <div>
+          <span class="phase1-kicker">Новый учет</span>
+          <h2>Начать отчет</h2>
+          <p>Введите название и входящую сумму. Первая и следующие карточки могут быть привязаны к этому отчету через страницу записей.</p>
+        </div>
+        <div class="phase1-cash-report-form">
+          <input id="phase1CashReportTitle" type="text" placeholder="Например: Поездка в марину / Судовая касса">
+          <input id="phase1CashReportOpening" type="text" inputmode="decimal" placeholder="Входящая сумма, EUR">
+          <button class="phase1-primary-action" type="button" data-phase-action="cash-report-create">Начать отчет</button>
+        </div>
+      </section>
+      <section class="phase1-list-panel phase1-cash-report-list">
+        <h2>Активные и закрепленные отчеты</h2>
+        ${activeReports.length ? activeReports.map(function(report) {
+          return phase1CashReportRow(report, cards);
+        }).join('') : '<p class="phase1-empty">Отчетов пока нет. Создайте первый учет или ведите карточки в «Без учета».</p>'}
+      </section>
+      <section class="phase1-list-panel phase1-cash-report-list">
+        <h2>Архив отчетов</h2>
+        ${archivedReports.length ? archivedReports.map(function(report) {
+          return phase1CashReportRow(report, cards);
+        }).join('') : '<p class="phase1-empty">Архивных отчетов пока нет.</p>'}
+      </section>
       <section class="phase1-cash-metrics">
         <article><span>Внесено</span><b>${phase1Money(totals.total_contributions || 0)}</b></article>
         <article><span>Расходы</span><b>${phase1Money(totals.total_expenses || 0)}</b></article>
@@ -6212,7 +6307,7 @@ function phase1RenderCashReport() {
         <article><span>Статус</span><b>Preview</b></article>
       </section>
       <section class="phase1-list-panel">
-        <h2>Участники</h2>
+        <h2>Preview участников</h2>
         ${participants.length ? participants.map(function(item) {
           return `
             <article class="phase1-row-card">
@@ -6226,7 +6321,7 @@ function phase1RenderCashReport() {
         }).join('') : '<p class="phase1-empty">Участники не добавлены.</p>'}
       </section>
       <section class="phase1-list-panel">
-        <h2>Кому перевести</h2>
+        <h2>Preview переводов</h2>
         ${lines.length ? lines.map(function(line) {
           return `
             <article class="phase1-row-card">
@@ -6285,6 +6380,70 @@ async function phase1SaveCashNotebook(options) {
     return;
   }
   phase1Render(opts.nextScreen || (opts.submit ? 'cash-records' : phase1CurrentScreen));
+}
+
+async function phase1CreateCashReport() {
+  if (!phase1CashSession) await phase1EnsureCashSession({force: true});
+  if (!phase1CashSession) return;
+  const titleField = document.getElementById('phase1CashReportTitle');
+  const openingField = document.getElementById('phase1CashReportOpening');
+  const title = titleField ? String(titleField.value || '').trim() : '';
+  if (!title) {
+    phase1Notice = 'Введите название отчета.';
+    phase1Render('cash-report');
+    return;
+  }
+  const payload = await qlApi('cash_report_create', {
+    session_id: phase1CashSession.id,
+    title: title,
+    opening_amount: openingField ? phase1Number(openingField.value || 0) : 0
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Отчет не создан: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render('cash-report');
+    return;
+  }
+  phase1CashSession = payload.session || phase1CashSession;
+  phase1CashRecordsContext = payload.report && payload.report.id ? String(payload.report.id) : phase1CashRecordsContext;
+  phase1Notice = 'Отчет создан. Можно привязывать карточки записей.';
+  phase1Render('cash-report');
+}
+
+async function phase1SetCashReportStatus(reportId, status) {
+  if (!phase1CashSession) return;
+  const payload = await qlApi('cash_report_set_status', {
+    session_id: phase1CashSession.id,
+    report_id: String(reportId || ''),
+    status: status
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Статус отчета не изменен: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render('cash-report');
+    return;
+  }
+  phase1CashSession = payload.session || phase1CashSession;
+  phase1Notice = status === 'fixed'
+    ? 'Отчет закреплен.'
+    : (status === 'archived' ? 'Отчет отправлен в архив.' : 'Отчет возвращен в работу.');
+  phase1Render('cash-report');
+}
+
+async function phase1AssignCashRecord(recordId, reportId) {
+  if (!phase1CashSession) return;
+  const payload = await qlApi('cash_record_assign', {
+    session_id: phase1CashSession.id,
+    record_id: String(recordId || ''),
+    report_id: String(reportId || '')
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Карточка не привязана: ' + (payload.message || payload.error || 'ошибка');
+    phase1Render('cash-records');
+    return;
+  }
+  phase1CashSession = payload.session || phase1CashSession;
+  phase1CashRecordsContext = String(reportId || '') || 'unassigned';
+  phase1Notice = reportId ? 'Карточка привязана к отчету.' : 'Карточка перенесена в «Без учета».';
+  phase1Render('cash-records');
 }
 
 async function phase1LoadCashParticipantView(token, options) {
@@ -9978,6 +10137,14 @@ document.addEventListener('click', async function(event) {
     return;
   }
 
+  const cashReportOpenButton = event.target.closest('[data-cash-report-open]');
+  if (cashReportOpenButton) {
+    event.preventDefault();
+    phase1CashRecordsContext = String(cashReportOpenButton.getAttribute('data-cash-report-open') || 'unassigned') || 'unassigned';
+    qlOpenPhaseScreen('cash-records');
+    return;
+  }
+
   const workspaceTrashConfirm = event.target.closest('[data-workspace-trash-confirm-action]');
   if (workspaceTrashConfirm) {
     event.preventDefault();
@@ -10029,6 +10196,22 @@ document.addEventListener('click', async function(event) {
     if (action === 'cash-report-print') {
       if (!phase1CashSession) await phase1EnsureCashSession({force: true});
       if (phase1CashSession) phase1PrintCashReportDocument(phase1CashSession);
+      return;
+    }
+    if (action === 'cash-report-create') {
+      await phase1CreateCashReport();
+      return;
+    }
+    if (action === 'cash-report-fix') {
+      await phase1SetCashReportStatus(phaseAction.getAttribute('data-cash-report-id'), 'fixed');
+      return;
+    }
+    if (action === 'cash-report-archive') {
+      await phase1SetCashReportStatus(phaseAction.getAttribute('data-cash-report-id'), 'archived');
+      return;
+    }
+    if (action === 'cash-report-restore') {
+      await phase1SetCashReportStatus(phaseAction.getAttribute('data-cash-report-id'), 'active');
       return;
     }
     if (action === 'cash-attachment-modal') {
@@ -10320,6 +10503,14 @@ document.addEventListener('change', function(event) {
     phase1CashParticipantId = String(cashParticipantSelect.value || 'owner');
     phase1CashDraftTouched = false;
     phase1Render('cash-journal');
+    return;
+  }
+  const cashRecordAssignSelect = event.target.closest('[data-cash-record-report-assign]');
+  if (cashRecordAssignSelect) {
+    phase1AssignCashRecord(
+      cashRecordAssignSelect.getAttribute('data-cash-record-report-assign'),
+      cashRecordAssignSelect.value
+    );
     return;
   }
   const crewRole = event.target.closest('[data-yacht-crew-role]');

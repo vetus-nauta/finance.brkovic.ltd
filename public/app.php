@@ -20,7 +20,7 @@ header('Pragma: no-cache');
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="/assets/app.css?v=20260607-record-context-autosave-routes41">
+  <link rel="stylesheet" href="/assets/app.css?v=20260607-cash-report-lifecycle-routes42">
 </head>
 <body>
   <main class="ql-shell app-shell">
@@ -1547,9 +1547,9 @@ header('Pragma: no-cache');
     </div>
   </div>
 
-  <script src="/assets/i18n.js?v=20260607-record-context-autosave-routes41"></script>
+  <script src="/assets/i18n.js?v=20260607-cash-report-lifecycle-routes42"></script>
   <script src="/assets/donate.js?v=20260503-11"></script>
   <script src="/assets/notifications.js?v=20260503-11"></script>
-  <script src="/assets/app.js?v=20260607-record-context-autosave-routes41"></script>
+  <script src="/assets/app.js?v=20260607-cash-report-lifecycle-routes42"></script>
 </body>
 </html>

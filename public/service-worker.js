@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260607-record-context-autosave-routes41';
+const CACHE_NAME = 'findesk-20260607-cash-report-lifecycle-routes42';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

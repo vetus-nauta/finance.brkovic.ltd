@@ -1955,3 +1955,42 @@ Next implementation slice:
 - add selector to assign/reassign any record card to a report/account;
 - replace attachment modal skeleton with real file/photo storage;
 - run responsive pass for desktop/iPad/iPhone after report lifecycle is wired.
+
+## Director Sprint 2026-06-07 - Cash Report Lifecycle Implementation
+
+Status: implemented locally; QA passed; GitHub commit pending.
+
+Implemented:
+
+- added Atlas/API lifecycle for cash reports/accounting containers: create/start with opening amount, fix, archive, restore;
+- added API to assign/reassign a record card to a report or back to `Без учета`;
+- legacy `batches` can be converted into `record_cards` on first assignment, preserving old data usability;
+- `Отчет` navigation label changed to `Отчеты`;
+- Reports page now creates reports and lists active/fixed/archived reports;
+- each report row shows opening amount, received, remaining balance and actions;
+- Records page now has a report selector on each record card;
+- archived reports are hidden from assignment selector but visible in the archive list;
+- group settlement preview remains below report lifecycle and stays `preview_not_final`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `git diff --check` passed;
+- `npm run audit:cash` passed;
+- `npm run check:atlas` passed;
+- HTTP/Atlas smoke created temporary workspace/session/report, saved and fixed a record card, assigned it to the report, fixed/archived/restored the report, then removed all smoke data.
+
+Control:
+
+- no production deploy;
+- no official settlement formula change;
+- report lifecycle is a container/accounting layer, not final audited finance output.
+
+Next implementation slice:
+
+- print/save/archive view for individual fixed reports;
+- real attachment storage from the ЖЗ paperclip;
+- responsive QA pass for Records/Reports on desktop, iPad portrait/landscape and iPhone portrait/landscape;
+- apply this records/report discipline selectively to Yacht/Home/Family/Road surfaces.
