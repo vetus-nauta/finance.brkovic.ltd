@@ -100,7 +100,7 @@ const fixtures = [
       participant('guest', 'Guest'),
     ],
     batches: [
-      batch('owner', 'Captain', '100 provisions'),
+      batch('owner', 'Captain', '-100 provisions'),
     ],
   }, {
     lines: [{ from: 'guest', to: 'owner', amount: 50 }],
@@ -112,8 +112,8 @@ const fixtures = [
       participant('guest', 'Guest'),
     ],
     batches: [
-      batch('owner', 'Captain', '50 taxi'),
-      batch('guest', 'Guest', '50 lunch'),
+      batch('owner', 'Captain', '-50 taxi'),
+      batch('guest', 'Guest', '-50 lunch'),
     ],
   }, {
     lines: [],
@@ -126,8 +126,8 @@ const fixtures = [
       participant('guest_b', 'Guest B'),
     ],
     batches: [
-      batch('owner', 'Captain', '120 marina'),
-      batch('guest_a', 'Guest A', '30 groceries'),
+      batch('owner', 'Captain', '-120 marina'),
+      batch('guest_a', 'Guest A', '-30 groceries'),
     ],
   }, {
     lines: [
@@ -143,8 +143,8 @@ const fixtures = [
       participant('viewer', 'Viewer', false),
     ],
     batches: [
-      batch('owner', 'Captain', '80 fuel'),
-      batch('viewer', 'Viewer', '20 note-only-service'),
+      batch('owner', 'Captain', '-80 fuel'),
+      batch('viewer', 'Viewer', '-20 note-only-service'),
     ],
   }, {
     lines: [
@@ -162,7 +162,7 @@ const fixtures = [
     ],
     batches: [
       batch('owner', 'Captain', '+100 cash in'),
-      batch('owner', 'Captain', '60 provisions'),
+      batch('owner', 'Captain', '-60 provisions'),
     ],
   }, {
     lines: [{ from: 'guest', to: 'owner', amount: 30 }],
@@ -172,19 +172,42 @@ const fixtures = [
   }),
 ];
 
+const parserChecks = [
+  { line: '+100 advance', kind: 'contribution', amount: 100 },
+  { line: '40 fuel', kind: 'note', amount: 0 },
+  { line: '-40 fuel', kind: 'expense', amount: -40 },
+  { line: '=40 fuel', kind: 'note', amount: 0 },
+  { line: '_40 fuel', kind: 'note', amount: 0 },
+  { line: 'note: receipt later', kind: 'note', amount: 0 },
+].map((check) => {
+  const entry = parseCashNotebook(check.line)[0] || {};
+  const amount = signedMoney(entry.amount || 0);
+  const ok = entry.entry_kind === check.kind && Math.abs(amount - check.amount) <= EPS;
+  return {
+    line: check.line,
+    ok,
+    expected: { kind: check.kind, amount: check.amount },
+    actual: { kind: entry.entry_kind || '', amount },
+  };
+});
+
 const failed = fixtures.filter((item) => !item.ok);
+const parserFailed = parserChecks.filter((item) => !item.ok);
 const review = fixtures.filter((item) => item.status === 'requires_review');
 
 console.log(JSON.stringify({
   checked_at: new Date().toISOString(),
   audit_status: 'preview_not_final',
+  parser_rule: '+number text is income; -number text is expense; unsigned number text and any other prefix/text are notes outside calculation.',
+  parser_checks: parserChecks,
   scenarios: fixtures,
   summary: {
     total: fixtures.length,
     pass: fixtures.length - failed.length,
     failed: failed.length,
+    parser_failed: parserFailed.length,
     requires_review: review.length,
   },
 }, null, 2));
 
-if (failed.length) process.exit(1);
+if (failed.length || parserFailed.length) process.exit(1);

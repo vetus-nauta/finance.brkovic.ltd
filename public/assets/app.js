@@ -5439,7 +5439,7 @@ function phase1CashParticipantLink(token) {
   url.search = '';
   url.hash = '';
   url.searchParams.set('cashToken', inviteToken);
-  url.searchParams.set('build', 'routes38');
+  url.searchParams.set('build', 'routes40');
   return url.toString();
 }
 
@@ -5820,10 +5820,98 @@ function phase1CashDraftText() {
   return phase1CashSession ? phase1CashNotebookForParticipant(phase1CashSelectedParticipantId()) : '';
 }
 
+function phase1CashParseNotebookLine(rawLine) {
+  const raw = String(rawLine || '').replace(/^\s*[✓✔]\s*/u, '').trim();
+  if (!raw) return null;
+  const contribution = raw.match(/^\+\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s+(.+)$/i);
+  const expense = raw.match(/^-\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s+(.+)$/i);
+  const match = contribution || expense;
+  if (!match) {
+    return {raw: raw, accepted: false, kind: 'note', amount: 0, note: raw};
+  }
+  const amount = phase1Number(match[1]);
+  const note = String(match[2] || '').trim();
+  if (!amount || !note) return {raw: raw, accepted: false, kind: 'note', amount: 0, note: raw};
+  return {
+    raw: raw,
+    accepted: true,
+    kind: contribution ? 'contribution' : 'expense',
+    amount: amount,
+    note: note
+  };
+}
+
+function phase1CashNotebookStats(text) {
+  const stats = {accepted: 0, ignored: 0, contributions: 0, expenses: 0};
+  String(text || '').replace(/\r/g, '').split('\n').forEach(function(line) {
+    const raw = String(line || '').trim();
+    if (!raw) return;
+    const parsed = phase1CashParseNotebookLine(raw);
+    if (!parsed || !parsed.accepted) {
+      stats.ignored += 1;
+      return;
+    }
+    stats.accepted += 1;
+    if (parsed.kind === 'contribution') stats.contributions += parsed.amount;
+    if (parsed.kind === 'expense') stats.expenses += parsed.amount;
+  });
+  return stats;
+}
+
+function phase1CashSessionBalance(totals, draftStats) {
+  const source = totals || phase1CashTotals(phase1CashSession);
+  const draft = draftStats || {contributions: 0, expenses: 0};
+  return Number(source.total_contributions || 0) - Number(source.total_expenses || 0) + Number(draft.contributions || 0) - Number(draft.expenses || 0);
+}
+
+function phase1CashCurrentNotebookLine(textarea) {
+  const field = textarea || document.getElementById('phase1CashNotebook');
+  if (!field) return '';
+  const value = String(field.value || '');
+  const cursor = field.selectionStart == null ? value.length : field.selectionStart;
+  const start = value.lastIndexOf('\n', Math.max(0, cursor - 1)) + 1;
+  const endIndex = value.indexOf('\n', cursor);
+  const end = endIndex === -1 ? value.length : endIndex;
+  return value.slice(start, end);
+}
+
+function phase1CashLineWarningHtml(line) {
+  const raw = String(line || '').trim();
+  if (!raw) {
+    return 'Правило ЖЗ: <b>+500 аванс</b> считается приходом, <b>-40 топливо</b> считается расходом. Число без знака и все остальные строки не участвуют в расчете.';
+  }
+  const parsed = phase1CashParseNotebookLine(raw);
+  if (parsed && parsed.accepted) {
+    return parsed.kind === 'contribution'
+      ? 'Текущая строка будет учтена как приход: <b>' + phase1Escape(raw) + '</b>.'
+      : 'Текущая строка будет учтена как расход: <b>' + phase1Escape(raw) + '</b>.';
+  }
+  return 'Строка <b>' + phase1Escape(raw) + '</b> не принимается в расчет ЖЗ. Для прихода начните с <b>+</b>, для расхода начните с <b>-</b>. Число без знака не считается.';
+}
+
+function phase1UpdateCashNotebookDiscipline() {
+  const field = document.getElementById('phase1CashNotebook');
+  if (!field) return;
+  const warning = document.getElementById('phase1CashLineWarning');
+  const primary = document.querySelector('[data-phase-action="cash-journal-primary"]');
+  const balance = document.querySelector('[data-cash-journal-balance]');
+  const accepted = document.querySelector('[data-cash-journal-accepted]');
+  const ignored = document.querySelector('[data-cash-journal-ignored]');
+  const stats = phase1CashNotebookStats(field.value);
+  if (warning) warning.innerHTML = phase1CashLineWarningHtml(phase1CashCurrentNotebookLine(field));
+  if (primary) primary.textContent = stats.accepted ? 'Зафиксировать и к записям' : 'К записям';
+  if (balance) balance.textContent = phase1Money(phase1CashSessionBalance(phase1CashTotals(phase1CashSession), stats));
+  if (accepted) accepted.textContent = String(stats.accepted);
+  if (ignored) ignored.textContent = String(stats.ignored);
+}
+
 function phase1RenderCashJournal() {
   if (!phase1CashSession) return phase1CashLoadingPanel();
   const participantId = phase1CashSelectedParticipantId();
   const draft = phase1CashDraftText();
+  const draftStats = phase1CashNotebookStats(draft);
+  const balance = phase1CashSessionBalance(phase1CashTotals(phase1CashSession), draftStats);
+  const primaryLabel = draftStats.accepted ? 'Зафиксировать и к записям' : 'К записям';
   return `
     <div class="phase1-page phase1-page-cash-journal">
       ${phase1Header('ЖЗ', 'Рабочий журнал записей. Пишите естественно: взнос, расход или заметку.', '')}
@@ -5835,13 +5923,19 @@ function phase1RenderCashJournal() {
           <select data-cash-participant-select aria-label="Участник ЖЗ">${phase1CashParticipantOptions(participantId)}</select>
           <button type="button" data-phase-screen="cash-records">Записи</button>
         </div>
-        <textarea id="phase1CashNotebook" class="phase1-cash-notebook" rows="12" spellcheck="false" placeholder="+500 взнос&#10;40 продукты&#10;15 кофе&#10;заметка: чек у капитана">${phase1Escape(draft)}</textarea>
+        <section class="phase1-cash-journal-ledger" aria-label="Остаток ЖЗ">
+          <div><span>Остаток ЖЗ</span><b data-cash-journal-balance>${phase1Money(balance)}</b></div>
+          <div><span>Принято в расчет</span><b data-cash-journal-accepted>${phase1Escape(String(draftStats.accepted))}</b></div>
+          <div><span>Не в расчете</span><b data-cash-journal-ignored>${phase1Escape(String(draftStats.ignored))}</b></div>
+        </section>
+        <textarea id="phase1CashNotebook" class="phase1-cash-notebook" rows="12" spellcheck="false" placeholder="+500 взнос&#10;-40 продукты&#10;-15 кофе&#10;заметка: чек у капитана">${phase1Escape(draft)}</textarea>
         <div class="phase1-action-row">
           <button class="phase1-secondary-action" type="button" data-phase-action="cash-notebook-save">Сохранить черновик</button>
-          <button class="phase1-primary-action" type="button" data-phase-action="cash-notebook-submit">Зафиксировать записи</button>
+          <button class="phase1-primary-action" type="button" data-phase-action="cash-journal-primary">${phase1Escape(primaryLabel)}</button>
           <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
         </div>
-        <p class="phase1-status-line">${phase1Escape(phase1Notice || 'Плюс в начале строки считается взносом/приходом. Число без плюса считается расходом. Текст без суммы остается заметкой.')}</p>
+        <p id="phase1CashLineWarning" class="phase1-status-line phase1-cash-line-warning">${phase1CashLineWarningHtml('')}</p>
+        <p class="phase1-status-line">${phase1Escape(phase1Notice || 'ЖЗ живет только расчетом внутри себя: +строка идет в приход, -строка идет в расход, число без знака и остальные строки остаются вне расчета.')}</p>
       </section>
     </div>
   `;
@@ -6048,7 +6142,7 @@ function phase1RenderCashParticipantView() {
           <span>Мой ЖЗ</span>
           <b>${phase1Escape(participant.display_name || 'Участник')}</b>
         </div>
-        <textarea id="phase1CashParticipantNotebook" class="phase1-cash-notebook" rows="12" spellcheck="false" placeholder="+100 взнос&#10;40 продукты&#10;заметка: чек у меня">${phase1Escape(draft)}</textarea>
+        <textarea id="phase1CashParticipantNotebook" class="phase1-cash-notebook" rows="12" spellcheck="false" placeholder="+100 взнос&#10;-40 продукты&#10;заметка: чек у меня">${phase1Escape(draft)}</textarea>
         <div class="phase1-action-row">
           <button class="phase1-secondary-action" type="button" data-phase-action="cash-participant-save">Сохранить мой черновик</button>
           <button class="phase1-primary-action" type="button" data-phase-action="cash-participant-submit">Зафиксировать мои записи</button>
@@ -9712,6 +9806,12 @@ document.addEventListener('click', async function(event) {
       await phase1SaveCashNotebook({submit: false});
       return;
     }
+    if (action === 'cash-journal-primary') {
+      const stats = phase1CashNotebookStats(phase1CashNotebookValue());
+      if (stats.accepted > 0) await phase1SaveCashNotebook({submit: true});
+      else phase1Render('cash-records');
+      return;
+    }
     if (action === 'cash-notebook-submit') {
       await phase1SaveCashNotebook({submit: true});
       return;
@@ -10019,6 +10119,7 @@ document.addEventListener('input', function(event) {
   }
   if (event.target && event.target.id === 'phase1CashNotebook') {
     phase1CashDraftTouched = true;
+    phase1UpdateCashNotebookDiscipline();
   }
   if (event.target && event.target.id === 'phase1CashParticipantNotebook') {
     phase1CashParticipantDraftTouched = true;
@@ -10034,6 +10135,18 @@ document.addEventListener('input', function(event) {
       return;
     }
     phase1UpdateYachtTotalDom();
+  }
+});
+
+document.addEventListener('keyup', function(event) {
+  if (event.target && event.target.id === 'phase1CashNotebook') {
+    phase1UpdateCashNotebookDiscipline();
+  }
+});
+
+document.addEventListener('click', function(event) {
+  if (event.target && event.target.id === 'phase1CashNotebook') {
+    phase1UpdateCashNotebookDiscipline();
   }
 });
 

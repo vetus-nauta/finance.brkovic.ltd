@@ -1859,3 +1859,32 @@ Control:
 
 - no official financial formulas were changed;
 - report remains `preview_not_final`.
+
+## Director Sprint 2026-06-07 - ЖЗ Strict Sign Discipline
+
+Status: local strict ЖЗ parser/UI discipline implemented; audit harness passed.
+
+Done locally:
+
+- corrected ЖЗ rule: `+` means income, `-` means expense, unsigned number is not accepted into calculation;
+- backend `parseCashNotebook` follows the strict sign rule;
+- frontend ЖЗ current-line warning follows the same rule;
+- ЖЗ working page now shows one local balance, accepted line count, ignored line count;
+- ЖЗ primary button changes between `К записям` and `Зафиксировать и к записям`;
+- placeholders now show signed expenses;
+- build advanced to `routes40` / `20260607-cash-journal-sign-discipline-routes40`.
+
+QA:
+
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `node --check scripts/cash_session_math_audit.js` passed;
+- `git diff --check` passed;
+- `npm run audit:cash` passed with parser checks: `+100` contribution, `-40` expense, `40`, `=40`, `_40` notes outside calculation.
+
+Control:
+
+- no production deploy;
+- no official settlement formula change;
+- this is ЖЗ input discipline, not final report audit.

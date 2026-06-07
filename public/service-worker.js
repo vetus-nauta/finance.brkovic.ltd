@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260607-cash-professional-report-routes38';
+const CACHE_NAME = 'findesk-20260607-cash-journal-sign-discipline-routes40';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

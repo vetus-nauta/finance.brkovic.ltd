@@ -77,6 +77,50 @@
   font-weight: 500;
 }
 
+.phase1-cash-journal-ledger {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(104px, .5fr));
+  gap: 10px;
+}
+
+.phase1-cash-journal-ledger div {
+  min-height: 58px;
+  padding: 12px 14px;
+  border: 1px solid rgba(18, 48, 64, .10);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(255,255,255,.94), rgba(246,250,248,.84));
+  box-shadow: 0 10px 24px rgba(19, 43, 58, .06);
+}
+
+.phase1-cash-journal-ledger span {
+  display: block;
+  color: rgba(30, 55, 68, .58);
+  font-size: .74rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.phase1-cash-journal-ledger b {
+  display: block;
+  margin-top: 4px;
+  color: #112f3b;
+  font-size: 1.05rem;
+}
+
+.phase1-cash-line-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(201, 130, 16, .22);
+  border-radius: 14px;
+  background: rgba(255, 248, 235, .72);
+  color: #6b4b12;
+}
+
+.phase1-cash-line-warning b {
+  color: #2f2410;
+  font-weight: 900;
+}
+
 .phase1-cash-participants {
   border-color: rgba(22, 77, 92, .14);
 }
@@ -212,6 +256,10 @@
   }
 
   .phase1-cash-participant-form {
+    grid-template-columns: 1fr;
+  }
+
+  .phase1-cash-journal-ledger {
     grid-template-columns: 1fr;
   }
 }

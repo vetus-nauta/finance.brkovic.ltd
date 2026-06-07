@@ -259,3 +259,25 @@ Control:
 - no settlement formula was changed in this slice;
 - report status remains `preview_not_final`;
 - this harness is not an auditor sign-off, it is a reproducible pre-audit control.
+
+## Local Slice 8 - ЖЗ Strict Sign Discipline
+
+Implemented locally on 2026-06-07:
+
+- ЖЗ parser rule is strict:
+  - `+100 text` is income/contribution;
+  - `-40 text` is expense;
+  - `40 text` is not accepted into calculation;
+  - `=40 text`, `_40 text`, and any other non-matching line are notes outside calculation;
+- backend parser and frontend ЖЗ warning now use the same rule;
+- ЖЗ page shows only its own running balance, accepted line count, and ignored line count;
+- primary ЖЗ action says `К записям` when there are no accepted lines;
+- primary ЖЗ action says `Зафиксировать и к записям` when accepted lines exist;
+- participant ЖЗ placeholder uses the same sign discipline;
+- `npm run audit:cash` now checks the strict parser rule.
+
+Control:
+
+- settlement formulas were not changed;
+- unsigned numeric lines are deliberately outside calculation;
+- report remains `preview_not_final`.

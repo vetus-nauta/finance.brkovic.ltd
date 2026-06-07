@@ -769,7 +769,9 @@ function parseCashNotebook(text) {
     const raw = String(line || '').trim();
     if (!raw) return;
     const clean = raw.replace(/^\s*[✓✔]\s*/u, '').trim();
-    const match = clean.match(/^([+-])?\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s*(.*)$/i);
+    const contributionMatch = clean.match(/^\+\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s+(.+)$/i);
+    const expenseMatch = clean.match(/^-\s*(?:€|eur\s*)?(\d+(?:[.,]\d+)?)\s+(.+)$/i);
+    const match = contributionMatch || expenseMatch;
     if (!match) {
       entries.push({
         id: `entry_${Date.now()}_${index}`,
@@ -782,14 +784,13 @@ function parseCashNotebook(text) {
       });
       return;
     }
-    const sign = match[1] || '';
-    const amount = Number(String(match[2] || '0').replace(',', '.'));
-    const kind = sign === '+' ? 'contribution' : 'expense';
+    const amount = Number(String(match[1] || '0').replace(',', '.'));
+    const kind = contributionMatch ? 'contribution' : 'expense';
     entries.push({
       id: `entry_${Date.now()}_${index}`,
       line_index: index,
       raw_text: clean,
-      note: String(match[3] || '').trim() || clean,
+      note: String(match[2] || '').trim() || clean,
       amount: signedMoney(kind === 'contribution' ? Math.abs(amount) : -Math.abs(amount)),
       entry_kind: kind,
       created_at: now(),
@@ -1632,7 +1633,7 @@ process.on('SIGINT', async () => {
 
 function startServer() {
   server.listen(PORT, HOST, async () => {
-    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes38`);
+    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes40`);
     try {
       await db();
       console.log(`MongoDB Atlas connected: ${MONGO_DB}`);
