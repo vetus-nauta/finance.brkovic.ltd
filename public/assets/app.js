@@ -3589,7 +3589,7 @@ const PHASE2_SCREEN_TITLES = {
   'cash-session': 'Движок записей',
   'cash-journal': 'ЖЗ',
   'cash-records': 'Записи',
-  'cash-report': 'Отчет-превью',
+  'cash-report': 'Отчеты',
   'cash-participant': 'ЖЗ участника',
   solo: 'Solo Workspace',
   templates: 'Готовые шаблоны',
@@ -5442,7 +5442,7 @@ function phase1CashParticipantLink(token) {
   url.search = '';
   url.hash = '';
   url.searchParams.set('cashToken', inviteToken);
-  url.searchParams.set('build', 'routes43');
+  url.searchParams.set('build', 'routes44');
   return url.toString();
 }
 
@@ -5790,7 +5790,6 @@ function phase1RenderCashSession() {
   const preset = session.preset || phase1CashPreset();
   return `
     <div class="phase1-page phase1-page-cash-session">
-      ${phase1Header('Движок записей', 'Универсальное поведение для Yacht, Home, Family, Road и базового инструмента.', '')}
       ${phase1CashNav('cash-session')}
       <section class="phase1-workspace-home phase1-cash-hero">
         <div>
@@ -5801,7 +5800,7 @@ function phase1RenderCashSession() {
         <div class="phase1-action-row">
           <button class="phase1-primary-action" type="button" data-phase-screen="cash-journal">Открыть ЖЗ</button>
           <button class="phase1-secondary-action" type="button" data-phase-screen="cash-records">Записи</button>
-          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчеты</button>
           <button class="phase1-secondary-action" type="button" data-phase-action="cash-session-close">Закрыть в архив</button>
         </div>
       </section>
@@ -6041,12 +6040,11 @@ function phase1RenderCashJournal() {
     : 'Автосохранение включится после первой строки';
   return `
     <div class="phase1-page phase1-page-cash-journal">
-      ${phase1Header('ЖЗ', 'Рабочая карточка записи. Здесь нет списка записей и управления отчетами.', '')}
       ${phase1CashNav('cash-journal')}
       <section class="phase1-journal-workspace phase1-cash-journal">
         <div class="phase1-journal-strip">
           <span>${phase1Escape(phase1CashPresetLabel(phase1CashSession.preset))}</span>
-          <b>${phase1Escape(phase1CashSessionTitle())}</b>
+          <b>Активная запись</b>
           <select data-cash-participant-select aria-label="Участник ЖЗ">${phase1CashParticipantOptions(participantId)}</select>
           <button type="button" data-phase-screen="cash-records">Записи</button>
         </div>
@@ -6060,7 +6058,7 @@ function phase1RenderCashJournal() {
           <button class="phase1-secondary-action" type="button" data-phase-action="cash-attachment-modal">Скрепка</button>
           <button class="phase1-secondary-action" type="button" data-phase-action="cash-notebook-save">Сохранить черновик</button>
           <button class="phase1-primary-action" type="button" data-phase-action="cash-journal-primary">${phase1Escape(primaryLabel)}</button>
-          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
+          <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчеты</button>
         </div>
         <p id="phase1CashLineWarning" class="phase1-status-line phase1-cash-line-warning">${phase1CashLineWarningHtml('')}</p>
         <p class="phase1-status-line" data-cash-autosave-status>${phase1Escape(autosaveLabel)}</p>
@@ -6479,7 +6477,6 @@ function phase1RenderCashRecords() {
   });
   return `
     <div class="phase1-page phase1-page-cash-records">
-      ${phase1Header('Записи', 'Карточки записей по выбранному учету. ЖЗ открывает одну активную карточку.', '')}
       ${phase1CashNav('cash-records')}
       ${phase1CashRecordContextTabs(contexts, selectedContext.id)}
       <section class="phase1-cash-metrics phase1-cash-record-metrics">
@@ -6537,7 +6534,6 @@ function phase1RenderCashReport() {
   const archivedReports = reports.filter(function(report) { return String(report.status || 'active') === 'archived'; });
   return `
     <div class="phase1-page phase1-page-cash-report">
-      ${phase1Header('Отчеты', 'Учетные контейнеры для карточек записей. Preview ниже не является финальным аудитом.', '')}
       ${phase1CashNav('cash-report')}
       <section class="phase1-list-panel phase1-cash-report-create">
         <div>
@@ -6746,7 +6742,6 @@ function phase1RenderCashParticipantView() {
     }, 0);
     return `
       <div class="phase1-page phase1-page-cash-participant">
-        ${phase1Header('ЖЗ участника', 'Ограниченный вид: участник видит только свой ЖЗ, свои записи и свой расчет-превью.', '')}
         <section class="phase1-quiet-panel">
           <span class="phase1-kicker">Participant self-view</span>
           <h1>${phase1CashParticipantToken ? 'Открываю участника' : 'Token не задан'}</h1>
@@ -6766,7 +6761,6 @@ function phase1RenderCashParticipantView() {
     : [];
   return `
     <div class="phase1-page phase1-page-cash-participant">
-      ${phase1Header('ЖЗ участника', 'Ограниченный вид участника без доступа к чужим ЖЗ.', '')}
       <section class="phase1-workspace-home phase1-cash-hero">
         <div>
           <span class="phase1-kicker">${phase1Escape(session.title || 'Сессия')}</span>
@@ -8184,7 +8178,7 @@ function phase1RenderYachtHome() {
       </section>
       <section class="phase1-action-row">
         <button class="phase1-secondary-action" type="button" data-phase-screen="cash-records">Записи</button>
-        <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчет-превью</button>
+        <button class="phase1-secondary-action" type="button" data-phase-screen="cash-report">Отчеты</button>
         <button class="phase1-secondary-action" type="button" data-phase-screen="team">Экипаж</button>
         <button class="phase1-secondary-action" type="button" data-phase-screen="admin">Касса</button>
         <button class="phase1-secondary-action" type="button" data-phase-screen="reports">Отчёты</button>

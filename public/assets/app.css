@@ -59,6 +59,63 @@
   font-size: 1.35rem;
 }
 
+.phase1-page-cash-session,
+.phase1-page-cash-journal,
+.phase1-page-cash-records,
+.phase1-page-cash-report {
+  gap: 12px;
+}
+
+.phase1-page-cash-journal .phase1-journal-workspace {
+  min-height: 0;
+  max-height: none;
+  grid-template-rows: none;
+  grid-auto-rows: auto;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.phase1-page-cash-journal .phase1-journal-strip {
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) auto auto;
+  min-height: 40px;
+  padding-bottom: 8px;
+}
+
+.phase1-page-cash-journal .phase1-journal-strip b {
+  font-size: 18px;
+}
+
+.phase1-page-cash-journal .phase1-cash-journal-ledger {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.phase1-page-cash-journal .phase1-cash-journal-ledger div {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 9px 12px;
+  border-radius: 14px;
+}
+
+.phase1-page-cash-journal .phase1-cash-journal-ledger span {
+  font-size: .68rem;
+}
+
+.phase1-page-cash-journal .phase1-cash-journal-ledger b {
+  margin-top: 2px;
+  font-size: .98rem;
+}
+
+.phase1-page-cash-journal .phase1-cash-notebook {
+  min-height: min(36vh, 420px);
+}
+
+.phase1-page-cash-journal .phase1-status-line {
+  margin: 0;
+}
+
 .phase1-cash-notebook {
   width: 100%;
   min-height: min(46vh, 520px);
@@ -404,9 +461,21 @@
 
   .phase1-page-cash-journal .phase1-cash-metrics,
   .phase1-page-cash-records .phase1-cash-metrics,
-  .phase1-page-cash-report .phase1-cash-metrics,
-  .phase1-cash-journal-ledger {
+  .phase1-page-cash-report .phase1-cash-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .phase1-page-cash-journal .phase1-cash-journal-ledger {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .phase1-page-cash-journal .phase1-journal-strip {
+    grid-template-columns: 1fr auto;
+  }
+
+  .phase1-page-cash-journal .phase1-journal-strip span {
+    grid-column: 1 / -1;
   }
 
   .phase1-cash-records-head,

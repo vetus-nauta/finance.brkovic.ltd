@@ -2068,3 +2068,40 @@ Control:
 - no production deploy;
 - no official settlement formula change;
 - block is ready for user-facing QA on local routes43.
+
+## Director Sprint 2026-06-09 - Cash Layout Discipline Cleanup
+
+Status: implemented locally; QA passed; GitHub commit pending.
+
+Reason:
+
+- user QA screenshot showed duplicated headers on `ЖЗ` and oversized cash journal cards;
+- root cause was structural: cash pages still rendered large `phase1Header` under the shell title, and cash ЖЗ inherited the old `.phase1-journal-workspace` min-height/grid layout.
+
+Implemented:
+
+- removed duplicated large `phase1Header` from `cash-session`, `cash-journal`, `cash-records`, `cash-report` and participant self-view;
+- changed cash shell label from `Отчет-превью` to `Отчеты`;
+- changed ЖЗ inner title from session title / `Личный журнал · ЖЗ` style to compact `Активная запись`;
+- replaced inherited oversized ЖЗ ledger behavior with compact cash-specific layout;
+- reduced cash ЖЗ metric card padding/height and notebook height;
+- added mobile cash-specific layout so ledger and strip collapse cleanly;
+- updated build to `routes44` / `20260609-cash-layout-discipline-routes44`;
+- updated desktop shortcut to `http://127.0.0.1:18902/app.php?build=routes44`.
+
+QA:
+
+- grep check: no `phase1Header('ЖЗ')`, no `phase1Header('Записи')`, no `Личный журнал · ЖЗ`, no `Отчет-превью` in current cash flow;
+- `node --check public/assets/app.js` passed;
+- `node --check public/service-worker.js` passed;
+- `node --check server/findesk-atlas-server.js` passed;
+- `git diff --check` passed;
+- `npm run audit:cash` passed;
+- `npm run check:atlas` passed;
+- local server restarted and serves `routes44` assets.
+
+Control:
+
+- no production deploy;
+- no financial formula change;
+- layout cleanup only.
