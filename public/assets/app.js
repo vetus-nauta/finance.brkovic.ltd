@@ -3807,6 +3807,7 @@ let phase1CashParticipantDraftTouched = false;
 let phase1CashArchives = [];
 let phase1CashRecordsContext = 'unassigned';
 let phase1CashAutosaveTimer = null;
+let phase1CashAttachmentMode = 'current';
 
 function phase1ReadWorkspace() {
   try {
@@ -5441,7 +5442,7 @@ function phase1CashParticipantLink(token) {
   url.search = '';
   url.hash = '';
   url.searchParams.set('cashToken', inviteToken);
-  url.searchParams.set('build', 'routes42');
+  url.searchParams.set('build', 'routes43');
   return url.toString();
 }
 
@@ -5907,6 +5908,66 @@ function phase1UpdateCashNotebookDiscipline() {
   if (ignored) ignored.textContent = String(stats.ignored);
 }
 
+function phase1CashActiveRecordId() {
+  const participantId = phase1CashSelectedParticipantId();
+  const notebooks = phase1CashSession && phase1CashSession.notebooks && typeof phase1CashSession.notebooks === 'object'
+    ? phase1CashSession.notebooks
+    : {};
+  const notebook = notebooks[participantId] || {};
+  return String(notebook.active_record_id || '').trim();
+}
+
+function phase1CashCurrentRecordCard() {
+  const activeId = phase1CashActiveRecordId();
+  const cards = phase1CashRecordCards();
+  if (activeId) {
+    const found = cards.find(function(card) {
+      return String(card.id || '') === activeId || String(card.source_batch_id || '') === activeId;
+    });
+    if (found) return found;
+  }
+  return cards.find(function(card) {
+    return String(card.status || '') === 'draft' && String(card.participant_id || 'owner') === phase1CashSelectedParticipantId();
+  }) || null;
+}
+
+function phase1CashAttachmentListHtml() {
+  const card = phase1CashCurrentRecordCard();
+  const attachments = card && Array.isArray(card.attachments) ? card.attachments : [];
+  if (!attachments.length) return '<p class="phase1-empty">Сохраненных вложений у активной записи пока нет.</p>';
+  return attachments.map(function(item) {
+    const isImage = String(item.mime || '').indexOf('image/') === 0;
+    const preview = isImage ? '<img src="' + phase1Escape(item.data_url || '') + '" alt="">' : '<span class="phase1-cash-attachment-file">FILE</span>';
+    return `
+      <a class="phase1-cash-attachment-item" href="${phase1Escape(item.data_url || '#')}" target="_blank" rel="noopener">
+        ${preview}
+        <span><b>${phase1Escape(item.name || 'attachment')}</b><small>${phase1Escape(item.mime || '')} · ${phase1Escape(String(Math.round(Number(item.size || 0) / 1024)))} KB</small></span>
+      </a>
+    `;
+  }).join('');
+}
+
+function phase1RenderCashAttachmentModalContent() {
+  return `
+    <div class="modal-card phase1-cash-attachment-modal">
+      <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
+      <span class="phase1-kicker">Вложения</span>
+      <h3>Скрепка к активной записи</h3>
+      <p class="soft-note">Файл сохраняется в Atlas внутри текущей карточки ЖЗ. Ограничение текущего локального режима: до 1.3 MB на файл.</p>
+      <div class="phase1-cash-attachment-actions">
+        <button class="phase1-secondary-action" type="button" data-phase-cash-attachment-pick="camera">Сфотографировать</button>
+        <button class="phase1-secondary-action" type="button" data-phase-cash-attachment-pick="gallery">Из галереи / файлов</button>
+      </div>
+      <input id="phase1CashAttachmentInput" class="hidden" type="file" accept="image/*,application/pdf,text/plain">
+      <div class="phase1-cash-attachment-list">
+        <h4>Сохраненные</h4>
+        ${phase1CashAttachmentListHtml()}
+      </div>
+      <p class="phase1-status-line" data-cash-attachment-status>${phase1Escape(phase1Notice || '')}</p>
+    </div>
+  `;
+}
+
 function phase1OpenCashAttachmentModal() {
   let modal = document.getElementById('phase1CashAttachmentModal');
   if (!modal) {
@@ -5914,23 +5975,49 @@ function phase1OpenCashAttachmentModal() {
     modal.id = 'phase1CashAttachmentModal';
     modal.className = 'modal hidden';
     modal.setAttribute('aria-hidden', 'true');
-    modal.innerHTML = `
-      <div class="modal-card phase1-cash-attachment-modal">
-        <button class="modal-close" type="button" data-close-modal aria-label="Close">×</button>
-        <span class="phase1-kicker">Вложения</span>
-        <h3>Скрепка к активной записи</h3>
-        <p class="soft-note">Вложения будут привязаны к текущей карточке ЖЗ. Хранилище файлов подключается следующим техническим срезом.</p>
-        <div class="phase1-cash-attachment-actions">
-          <button class="phase1-secondary-action" type="button" disabled>Сфотографировать</button>
-          <button class="phase1-secondary-action" type="button" disabled>Из галереи</button>
-          <button class="phase1-secondary-action" type="button" disabled>Просмотр сохраненных</button>
-        </div>
-      </div>
-    `;
     document.body.appendChild(modal);
   }
+  modal.innerHTML = phase1RenderCashAttachmentModalContent();
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
+}
+
+function phase1ReadFileAsDataUrl(file) {
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function() { resolve(String(reader.result || '')); };
+    reader.onerror = function() { reject(reader.error || new Error('file_read_failed')); };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function phase1UploadCashAttachment(file) {
+  if (!file || !phase1CashSession) return;
+  if (file.size > 1300000) {
+    phase1Notice = 'Файл больше 1.3 MB. Для текущего Atlas-вложения выберите меньший файл.';
+    phase1OpenCashAttachmentModal();
+    return;
+  }
+  if (phase1CashNotebookValue().trim() && phase1CashDraftTouched) {
+    await phase1SaveCashNotebook({submit: false, silent: true});
+  }
+  const dataUrl = await phase1ReadFileAsDataUrl(file);
+  const payload = await qlApi('cash_record_attachment_add', {
+    session_id: phase1CashSession.id,
+    participant_id: phase1CashSelectedParticipantId(),
+    record_id: phase1CashActiveRecordId(),
+    name: file.name || 'attachment',
+    mime: file.type || 'application/octet-stream',
+    size: file.size || 0,
+    data_url: dataUrl
+  });
+  if (!payload.ok) {
+    phase1Notice = 'Вложение не сохранено: ' + (payload.message || payload.error || 'ошибка');
+  } else {
+    phase1CashSession = payload.session || phase1CashSession;
+    phase1Notice = 'Вложение сохранено в активной карточке.';
+  }
+  phase1OpenCashAttachmentModal();
 }
 
 function phase1ScheduleCashAutosave() {
@@ -6138,6 +6225,18 @@ function phase1CashRecordEntryRows(card) {
   `;
 }
 
+function phase1CashRecordAttachmentRows(card) {
+  const attachments = card && Array.isArray(card.attachments) ? card.attachments : [];
+  if (!attachments.length) return '';
+  return `
+    <div class="phase1-cash-record-attachments">
+      ${attachments.map(function(item) {
+        return '<a href="' + phase1Escape(item.data_url || '#') + '" target="_blank" rel="noopener">' + phase1Escape(item.name || 'attachment') + '</a>';
+      }).join('')}
+    </div>
+  `;
+}
+
 function phase1CashReportOptions(selectedId) {
   const selected = String(selectedId || '');
   const reports = phase1CashSessionReports().filter(function(report) {
@@ -6171,14 +6270,16 @@ function phase1CashReportActions(report) {
   const id = String(report && report.id || '');
   const status = String(report && report.status || 'active');
   const open = '<button class="phase1-secondary-action" type="button" data-cash-report-open="' + phase1Escape(id) + '">Записи</button>';
+  const print = '<button class="phase1-secondary-action" type="button" data-cash-report-print-one="' + phase1Escape(id) + '">Печать / PDF</button>';
+  const save = '<button class="phase1-secondary-action" type="button" data-cash-report-save-one="' + phase1Escape(id) + '">Сохранить JSON</button>';
   if (status === 'archived') {
-    return open + '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-restore" data-cash-report-id="' + phase1Escape(id) + '">Вернуть</button>';
+    return open + print + save + '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-restore" data-cash-report-id="' + phase1Escape(id) + '">Вернуть</button>';
   }
   const fix = status === 'fixed'
     ? ''
     : '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-fix" data-cash-report-id="' + phase1Escape(id) + '">Закрепить</button>';
   const archive = '<button class="phase1-secondary-action" type="button" data-phase-action="cash-report-archive" data-cash-report-id="' + phase1Escape(id) + '">В архив</button>';
-  return open + fix + archive;
+  return open + print + save + fix + archive;
 }
 
 function phase1CashReportRow(report, cards) {
@@ -6200,6 +6301,167 @@ function phase1CashReportRow(report, cards) {
       </div>
     </article>
   `;
+}
+
+function phase1CashReportPackage(reportId) {
+  const report = phase1CashReportById(reportId);
+  if (!report) return null;
+  const cards = phase1CashRecordCards().filter(function(card) {
+    return phase1CashRecordContextId(card) === String(reportId || '');
+  });
+  const context = {
+    id: String(report.id || ''),
+    title: String(report.title || 'Отчет'),
+    opening: phase1Number(report.opening_amount || 0),
+    status: String(report.status || 'active')
+  };
+  const totals = phase1CashRecordContextTotals(cards, context);
+  return {
+    report: report,
+    cards: cards,
+    totals: totals,
+    exported_at: new Date().toISOString(),
+    audit_status: 'preview_not_final'
+  };
+}
+
+function phase1CashSingleReportRows(cards) {
+  if (!cards.length) return '<tr><td colspan="6" class="phase1-cash-print-empty">Карточек в отчете пока нет.</td></tr>';
+  const rows = [];
+  cards.forEach(function(card, cardIndex) {
+    const entries = phase1CashRecordEntries(card);
+    if (!entries.length) {
+      rows.push(`
+        <tr>
+          <td class="phase1-cash-print-index">${cardIndex + 1}</td>
+          <td>${phase1Escape(card.title || 'Запись')}</td>
+          <td>${phase1Escape(phase1CashReportDate(card.updated_at || card.fixed_at || card.created_at))}</td>
+          <td>—</td>
+          <td class="phase1-cash-print-number">—</td>
+          <td>${phase1Escape(String((card.attachments || []).length || 0))}</td>
+        </tr>
+      `);
+      return;
+    }
+    entries.forEach(function(entry, entryIndex) {
+      const kind = String(entry.entry_kind || 'note');
+      rows.push(`
+        <tr>
+          <td class="phase1-cash-print-index">${cardIndex + 1}.${entryIndex + 1}</td>
+          <td>${phase1Escape(card.title || 'Запись')}</td>
+          <td>${phase1Escape(phase1CashReportDate(card.updated_at || card.fixed_at || card.created_at))}</td>
+          <td>${phase1Escape(entry.raw_text || entry.note || '')}</td>
+          <td class="phase1-cash-print-number">${kind === 'note' ? '—' : phase1Money(Number(entry.amount || 0))}</td>
+          <td>${phase1Escape(String((card.attachments || []).length || 0))}</td>
+        </tr>
+      `);
+    });
+  });
+  return rows.join('');
+}
+
+function phase1CashSingleReportPrintHtml(reportId) {
+  const pack = phase1CashReportPackage(reportId);
+  if (!pack) return '';
+  const contractor = phase1CompanyProfileForPrint();
+  const selectedGroup = phase1SelectedGroup();
+  const customerName = selectedGroup && selectedGroup.name ? String(selectedGroup.name).replace(/^Yacht:\s*/i, '') : phase1WorkspaceTitle();
+  const printedAt = new Date().toISOString();
+  const documentNo = 'FD-CR-' + phase1CashReportShortDate(printedAt).replace(/-/g, '') + '-' + String(pack.report.id || 'LOCAL').slice(-8).toUpperCase();
+  return `
+    <article class="phase1-cash-print-document">
+      <header class="phase1-cash-print-header">
+        <div class="phase1-cash-print-brand">
+          <img src="/assets/brand-mark.png?v=20260522-106" alt="FinDesk">
+          <div><b>FinDesk</b><span>Cash Report</span></div>
+        </div>
+        <div class="phase1-cash-print-title">
+          <span>${phase1Escape(phase1CashAuditLabel('preview_not_final'))}</span>
+          <h1>${phase1Escape(pack.report.title || 'Отчет')}</h1>
+          <p>№ ${phase1Escape(documentNo)} · ${phase1Escape(phase1CashReportStatusLabel(pack.report.status))}</p>
+        </div>
+      </header>
+      <section class="phase1-cash-print-parties">
+        <div class="phase1-cash-print-party">
+          <span>Подрядчик / система учета</span>
+          <h2>${phase1Escape(contractor.name)}</h2>
+          ${contractor.address ? '<p>' + phase1Escape(contractor.address) + '</p>' : ''}
+          ${contractor.email || contractor.phone ? '<p>' + phase1Escape([contractor.email, contractor.phone].filter(Boolean).join(' · ')) + '</p>' : ''}
+        </div>
+        <div class="phase1-cash-print-party">
+          <span>Заказчик / рабочее пространство</span>
+          <h2>${phase1Escape(customerName || 'Рабочее пространство')}</h2>
+          <p>${phase1Escape(phase1CashSessionTitle())}</p>
+          <p>${phase1Escape(phase1CashPresetLabel(phase1CashSession && phase1CashSession.preset))}</p>
+        </div>
+      </section>
+      <section class="phase1-cash-print-summary">
+        <div><span>Входящая сумма</span><b>${phase1Money(pack.totals.incoming)}</b></div>
+        <div><span>Поступило</span><b>${phase1Money(pack.totals.received)}</b></div>
+        <div><span>Расход</span><b>${phase1Money(pack.totals.expense)}</b></div>
+        <div><span>Остаток</span><b>${phase1Money(pack.totals.remaining)}</b></div>
+      </section>
+      <h2 class="phase1-cash-print-section-title">Карточки и строки отчета</h2>
+      <table class="phase1-cash-print-table">
+        <thead><tr><th>№</th><th>Карточка</th><th>Дата</th><th>Строка</th><th>Сумма</th><th>Файлы</th></tr></thead>
+        <tbody>${phase1CashSingleReportRows(pack.cards)}</tbody>
+      </table>
+      <footer class="phase1-cash-print-footer">
+        <p>Документ подготовлен FinDesk как рабочий отчет по выбранному учету. Он не является финальным аудированным финансовым отчетом, инвойсом, фискальным счетом или актом оказанных услуг.</p>
+        <div class="phase1-cash-print-signatures">
+          <div><span>Ответственный</span><b>Подпись</b></div>
+          <div><span>Проверил</span><b>Подпись</b></div>
+          <div><span>Клиент / представитель</span><b>Подпись</b></div>
+        </div>
+        <div class="phase1-cash-print-stamp">
+          <span>finance.brkovic.ltd - Vetus Nauta Brkovic</span>
+          <span>Время печати: ${phase1Escape(phase1CashReportDate(printedAt))}</span>
+        </div>
+      </footer>
+    </article>
+  `;
+}
+
+function phase1PrintSingleCashReport(reportId) {
+  const html = phase1CashSingleReportPrintHtml(reportId);
+  if (!html) {
+    phase1Notice = 'Отчет для печати не найден.';
+    phase1Render('cash-report');
+    return;
+  }
+  const existing = document.querySelector('.phase1-cash-report-print-host');
+  if (existing) existing.remove();
+  const host = document.createElement('div');
+  host.className = 'phase1-cash-report-print-host';
+  host.innerHTML = html;
+  document.body.appendChild(host);
+  function cleanup() {
+    document.body.classList.remove('phase1-print-cash-report');
+    window.removeEventListener('afterprint', cleanup);
+    if (host.parentNode) host.parentNode.removeChild(host);
+  }
+  document.body.classList.add('phase1-print-cash-report');
+  window.addEventListener('afterprint', cleanup);
+  window.setTimeout(cleanup, 3000);
+  window.print();
+}
+
+function phase1SaveSingleCashReport(reportId) {
+  const pack = phase1CashReportPackage(reportId);
+  if (!pack) {
+    phase1Notice = 'Отчет для сохранения не найден.';
+    phase1Render('cash-report');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(pack, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'findesk-cash-report-' + String(reportId || 'report').replace(/[^a-zA-Z0-9_-]/g, '') + '.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(function() { URL.revokeObjectURL(url); }, 1200);
 }
 
 function phase1RenderCashRecords() {
@@ -6245,7 +6507,7 @@ function phase1RenderCashRecords() {
               <div class="phase1-row-card">
                 <div>
                   <b>${phase1Escape(card.title || (card.status === 'draft' ? 'Активная запись' : 'Запись'))}</b>
-                  <span>${phase1Escape(card.status === 'draft' ? 'активная карточка' : 'зафиксировано')} · ${phase1Escape(card.participant_display_name || phase1CashParticipantName(card.participant_id))} · ${phase1Escape(phase1CashReportDate(date))}</span>
+                  <span>${phase1Escape(card.status === 'draft' ? 'активная карточка' : 'зафиксировано')} · ${phase1Escape(card.participant_display_name || phase1CashParticipantName(card.participant_id))} · ${phase1Escape(phase1CashReportDate(date))}${Array.isArray(card.attachments) && card.attachments.length ? ' · вложений: ' + phase1Escape(String(card.attachments.length)) : ''}</span>
                 </div>
                 <div>
                   <strong>${phase1Money(contribution - expense)}</strong>
@@ -6253,6 +6515,7 @@ function phase1RenderCashRecords() {
                 </div>
               </div>
               ${phase1CashRecordEntryRows(card)}
+              ${phase1CashRecordAttachmentRows(card)}
             </article>
           `;
         }).join('') : '<p class="phase1-empty">Записей пока нет. Нажмите «Новая запись», начните ЖЗ, и активная карточка появится здесь после автосохранения.</p>'}
@@ -10145,6 +10408,34 @@ document.addEventListener('click', async function(event) {
     return;
   }
 
+  const cashReportPrintOneButton = event.target.closest('[data-cash-report-print-one]');
+  if (cashReportPrintOneButton) {
+    event.preventDefault();
+    phase1PrintSingleCashReport(cashReportPrintOneButton.getAttribute('data-cash-report-print-one'));
+    return;
+  }
+
+  const cashReportSaveOneButton = event.target.closest('[data-cash-report-save-one]');
+  if (cashReportSaveOneButton) {
+    event.preventDefault();
+    phase1SaveSingleCashReport(cashReportSaveOneButton.getAttribute('data-cash-report-save-one'));
+    return;
+  }
+
+  const cashAttachmentPick = event.target.closest('[data-phase-cash-attachment-pick]');
+  if (cashAttachmentPick) {
+    event.preventDefault();
+    phase1CashAttachmentMode = String(cashAttachmentPick.getAttribute('data-phase-cash-attachment-pick') || 'gallery');
+    const input = document.getElementById('phase1CashAttachmentInput');
+    if (input) {
+      if (phase1CashAttachmentMode === 'camera') input.setAttribute('capture', 'environment');
+      else input.removeAttribute('capture');
+      input.value = '';
+      input.click();
+    }
+    return;
+  }
+
   const workspaceTrashConfirm = event.target.closest('[data-workspace-trash-confirm-action]');
   if (workspaceTrashConfirm) {
     event.preventDefault();
@@ -10511,6 +10802,11 @@ document.addEventListener('change', function(event) {
       cashRecordAssignSelect.getAttribute('data-cash-record-report-assign'),
       cashRecordAssignSelect.value
     );
+    return;
+  }
+  if (event.target && event.target.id === 'phase1CashAttachmentInput') {
+    const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+    if (file) phase1UploadCashAttachment(file);
     return;
   }
   const crewRole = event.target.closest('[data-yacht-crew-role]');

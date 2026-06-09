@@ -236,6 +236,86 @@
   margin-top: 14px;
 }
 
+.phase1-cash-attachment-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  max-height: min(46vh, 360px);
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.phase1-cash-attachment-list::-webkit-scrollbar {
+  display: none;
+}
+
+.phase1-cash-attachment-list h4 {
+  margin: 0;
+  color: #18323e;
+}
+
+.phase1-cash-attachment-item {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(18, 48, 64, .10);
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+  color: #17323e;
+  text-decoration: none;
+}
+
+.phase1-cash-attachment-item img,
+.phase1-cash-attachment-file {
+  width: 58px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: rgba(10,132,255,.10);
+}
+
+.phase1-cash-attachment-file {
+  display: grid;
+  place-items: center;
+  color: #0a5caa;
+  font-size: .72rem;
+  font-weight: 950;
+}
+
+.phase1-cash-attachment-item b,
+.phase1-cash-attachment-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phase1-cash-attachment-item small {
+  margin-top: 3px;
+  color: rgba(30, 55, 68, .58);
+  font-weight: 750;
+}
+
+.phase1-cash-record-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.phase1-cash-record-attachments a {
+  padding: 7px 10px;
+  border: 1px solid rgba(10,132,255,.18);
+  border-radius: 999px;
+  background: rgba(10,132,255,.08);
+  color: #0a5caa;
+  font-size: .78rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
 .phase1-cash-record-assign {
   display: grid;
   gap: 4px;
@@ -297,6 +377,74 @@
 
   .phase1-cash-record-assign {
     min-width: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .phase1-page-cash-records .phase1-cash-metrics,
+  .phase1-page-cash-report .phase1-cash-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .phase1-cash-report-form {
+    grid-template-columns: minmax(180px, 1fr) minmax(130px, .6fr);
+  }
+
+  .phase1-cash-report-form .phase1-primary-action {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .phase1-page-cash-journal,
+  .phase1-page-cash-records,
+  .phase1-page-cash-report {
+    gap: 10px;
+  }
+
+  .phase1-page-cash-journal .phase1-cash-metrics,
+  .phase1-page-cash-records .phase1-cash-metrics,
+  .phase1-page-cash-report .phase1-cash-metrics,
+  .phase1-cash-journal-ledger {
+    grid-template-columns: 1fr;
+  }
+
+  .phase1-cash-records-head,
+  .phase1-cash-report-row,
+  .phase1-cash-record-card .phase1-row-card {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .phase1-cash-record-card .phase1-row-card > div:last-child {
+    display: grid;
+    gap: 6px;
+  }
+
+  .phase1-cash-context-strip button {
+    min-width: min(72vw, 230px);
+  }
+}
+
+@media (max-width: 430px) {
+  .phase1-cash-notebook {
+    min-height: 38vh;
+    padding: 14px;
+    font-size: .95rem;
+  }
+
+  .phase1-cash-attachment-modal {
+    width: calc(100vw - 24px);
+  }
+
+  .phase1-cash-attachment-item {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .phase1-cash-attachment-item img,
+  .phase1-cash-attachment-file {
+    width: 48px;
+    height: 42px;
   }
 }
 

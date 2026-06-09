@@ -1994,3 +1994,46 @@ Next implementation slice:
 - real attachment storage from the ЖЗ paperclip;
 - responsive QA pass for Records/Reports on desktop, iPad portrait/landscape and iPhone portrait/landscape;
 - apply this records/report discipline selectively to Yacht/Home/Family/Road surfaces.
+
+## Director Sprint 2026-06-09 - Cash Records Reports Block Closure
+
+Status: implemented locally; static QA passed; Atlas integration smoke blocked by current network access.
+
+Implemented:
+
+- individual report print/PDF package for a selected cash report/accounting container;
+- individual report JSON save/export from the browser;
+- real ЖЗ paperclip workflow with file/photo selection, Atlas-backed attachment storage inside the active record card, and saved attachment preview/opening;
+- record cards now expose attachment count and saved attachment links in `Записи`;
+- responsive rules added for Records/Reports/ЖЗ on desktop, iPad-size widths and iPhone-size widths;
+- cash report lifecycle and record discipline remain universal, so Yacht/Home/Family/Road can reuse the same core where applicable.
+
+QA passed:
+
+- `node --check public/assets/app.js`;
+- `node --check public/service-worker.js`;
+- `node --check server/findesk-atlas-server.js`;
+- `git diff --check`;
+- `npm run audit:cash`.
+
+Blocked QA:
+
+- `npm run check:atlas` failed before app-level smoke because direct TLS to Atlas shards failed with `ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR`;
+- current external IP detected from this machine: `79.143.107.26`;
+- previous known allowlisted IP was different, so Atlas Network Access must be updated before running final HTTP/Atlas smoke for attachments and report package persistence.
+
+Control:
+
+- no production deploy;
+- no official settlement formula change;
+- print/export remains `preview_not_final` until finance audit policy is approved.
+
+Final smoke to run after Atlas access is restored:
+
+- create temporary workspace/session/report;
+- save ЖЗ draft and fix record card;
+- attach a small file to active record card;
+- assign card to report;
+- print/export report package;
+- archive/restore report;
+- delete all smoke workspace/session/audit documents.

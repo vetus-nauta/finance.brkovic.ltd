@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260607-cash-report-lifecycle-routes42';
+const CACHE_NAME = 'findesk-20260609-cash-block-close-routes43';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

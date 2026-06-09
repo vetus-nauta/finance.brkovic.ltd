@@ -836,6 +836,7 @@ function publicCashReport(report) {
 function publicCashRecordCard(card) {
   if (!card || typeof card !== 'object') return null;
   const entries = Array.isArray(card.entries) ? card.entries : parseCashNotebook(card.raw_text || card.draft_text || '');
+  const attachments = Array.isArray(card.attachments) ? card.attachments : [];
   const contribution = entries.reduce((sum, entry) => (
     cashEntryKind(entry.entry_kind) === 'contribution' ? sum + Math.abs(Number(entry.amount || 0)) : sum
   ), 0);
@@ -851,6 +852,14 @@ function publicCashRecordCard(card) {
     status: String(card.status || 'draft'),
     raw_text: String(card.raw_text || card.draft_text || '').replace(/\r/g, ''),
     entries,
+    attachments: attachments.map((item) => ({
+      id: String(item.id || '').trim(),
+      name: String(item.name || item.filename || 'attachment').slice(0, 180),
+      mime: String(item.mime || item.type || 'application/octet-stream').slice(0, 120),
+      size: Number(item.size || 0),
+      data_url: String(item.data_url || '').slice(0, 1800000),
+      created_at: item.created_at || null,
+    })).filter((item) => item.id && item.data_url),
     totals: {
       contributions: signedMoney(contribution),
       expenses: signedMoney(expense),
@@ -917,11 +926,29 @@ function cashRecordCardFromBatch(batch, reportId = null, updatedAt = now()) {
     status: 'fixed',
     raw_text: String(batch && batch.raw_text || ''),
     entries: Array.isArray(batch && batch.entries) ? batch.entries : parseCashNotebook(batch && batch.raw_text || ''),
+    attachments: [],
     source: String(batch && batch.source || 'legacy_batch'),
     source_batch_id: batch && batch.id || null,
     created_at: batch && batch.created_at || updatedAt,
     updated_at: updatedAt,
     fixed_at: batch && batch.created_at || updatedAt,
+  };
+}
+
+function cashAttachmentPayload(input, createdAt = now()) {
+  const name = String(input.name || input.filename || '').trim().replace(/\s+/g, ' ').slice(0, 180);
+  const mime = String(input.mime || input.type || 'application/octet-stream').trim().slice(0, 120);
+  const dataUrl = String(input.data_url || '').trim();
+  if (!name) return null;
+  if (!/^data:[^;,]+;base64,[a-zA-Z0-9+/=]+$/.test(dataUrl)) return null;
+  if (dataUrl.length > 1800000) return null;
+  return {
+    id: `att_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    name,
+    mime,
+    size: Number(input.size || 0),
+    data_url: dataUrl,
+    created_at: createdAt,
   };
 }
 
@@ -1441,6 +1468,71 @@ async function cashRecordAssign(database, input) {
   return { ok: true, record: publicCashRecordCard(found), session: publicCashSession(updated) };
 }
 
+async function cashRecordAttachmentAdd(database, input) {
+  const user = await currentUser(database);
+  const sessionId = Number(input.session_id || input.id || 0);
+  const participantId = cashParticipantId(input.participant_id || 'owner') || 'owner';
+  if (!sessionId) return { ok: false, error: 'invalid_session_id' };
+  const session = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id, status: 'active' });
+  if (!session) return { ok: false, error: 'cash_session_not_found' };
+  const participant = cashParticipantById(session, participantId);
+  if (!participant) return { ok: false, error: 'cash_participant_not_found' };
+  const attachment = cashAttachmentPayload(input, now());
+  if (!attachment) return { ok: false, error: 'invalid_attachment' };
+  const requestedRecordId = String(input.record_id || input.card_id || '').trim();
+  const activeRecordId = requestedRecordId || cashNotebookDraftRecordId(session, participantId);
+  const updatedAt = now();
+  let cards = cashRecordCards(session);
+  let found = null;
+  cards = cards.map((card) => {
+    if (String(card.id || '') !== activeRecordId && String(card.source_batch_id || '') !== activeRecordId) return card;
+    const next = Object.assign({}, card, {
+      attachments: (Array.isArray(card.attachments) ? card.attachments : []).concat([attachment]),
+      updated_at: updatedAt,
+    });
+    found = next;
+    return next;
+  });
+  if (!found && activeRecordId) {
+    const batch = (Array.isArray(session.batches) ? session.batches : []).find((item) => String(item.id || '') === activeRecordId);
+    if (batch) {
+      found = cashRecordCardFromBatch(batch, null, updatedAt);
+      found.attachments = [attachment];
+      cards = cashUpsertRecordCard(cards, found);
+    }
+  }
+  if (!found) {
+    found = {
+      id: activeRecordId || `record_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      report_id: null,
+      participant_id: participantId,
+      participant_display_name: participant.display_name,
+      title: `Активная запись ${updatedAt.toLocaleString('ru-RU')}`,
+      status: 'draft',
+      raw_text: '',
+      entries: [],
+      attachments: [attachment],
+      source: 'attachment',
+      created_at: updatedAt,
+      updated_at: updatedAt,
+    };
+    cards = cashUpsertRecordCard(cards, found);
+  }
+  await database.collection('cash_sessions').updateOne(
+    { id: sessionId, owner_user_id: user.id, status: 'active' },
+    {
+      $set: {
+        record_cards: cards,
+        [`notebooks.${participantId}.active_record_id`]: found.id,
+        [`notebooks.${participantId}.updated_at`]: updatedAt,
+        updated_at: updatedAt,
+      },
+    }
+  );
+  const updated = await database.collection('cash_sessions').findOne({ id: sessionId, owner_user_id: user.id });
+  return { ok: true, attachment, record: publicCashRecordCard(found), session: publicCashSession(updated) };
+}
+
 async function cashParticipantUpsert(database, input) {
   const user = await currentUser(database);
   const sessionId = Number(input.session_id || input.id || 0);
@@ -1881,6 +1973,7 @@ async function api(action, input) {
   if (action === 'cash_report_create') return cashReportCreate(database, input);
   if (action === 'cash_report_set_status') return cashReportSetStatus(database, input);
   if (action === 'cash_record_assign') return cashRecordAssign(database, input);
+  if (action === 'cash_record_attachment_add') return cashRecordAttachmentAdd(database, input);
   if (action === 'cash_participant_upsert') return cashParticipantUpsert(database, input);
   if (action === 'cash_participant_remove') return cashParticipantRemove(database, input);
   if (action === 'cash_participant_view') return cashParticipantView(database, input);
@@ -1945,7 +2038,7 @@ process.on('SIGINT', async () => {
 
 function startServer() {
   server.listen(PORT, HOST, async () => {
-    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes42`);
+    console.log(`FinDesk Atlas server http://${HOST}:${PORT}/app.php?build=routes43`);
     try {
       await db();
       console.log(`MongoDB Atlas connected: ${MONGO_DB}`);
