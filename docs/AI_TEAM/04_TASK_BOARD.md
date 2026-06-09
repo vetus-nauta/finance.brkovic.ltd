@@ -2037,3 +2037,34 @@ Final smoke to run after Atlas access is restored:
 - print/export report package;
 - archive/restore report;
 - delete all smoke workspace/session/audit documents.
+
+## Director QA 2026-06-09 - Cash Block Closure Final Atlas Smoke
+
+Status: closed after Atlas Network Access was restored.
+
+Atlas access:
+
+- current external IP: `79.143.107.26`;
+- `npm run check:atlas` passed after IP allowlist update;
+- TLS to all Atlas shard hosts passed with TLSv1.3;
+- Mongo ping passed.
+
+Final HTTP/Atlas smoke passed on `routes43`:
+
+- local server: `http://127.0.0.1:18902/app.php?build=routes43`;
+- created temporary workspace `Smoke Cash Block Closure`;
+- created active cash session and cash report with opening amount;
+- saved ЖЗ draft with `+100`, `-40`, unsigned number and `=` invalid line;
+- saved `smoke-proof.txt` attachment into active record card;
+- submitted/fixed record card and confirmed attachment survived fixation;
+- assigned record card to report;
+- fixed, archived and restored the report;
+- confirmed entries: contribution 100, expense -40, two notes outside calculation;
+- removed smoke workspace, session and audit documents from Atlas;
+- post-smoke cleanup check returned zero remaining documents.
+
+Control:
+
+- no production deploy;
+- no official settlement formula change;
+- block is ready for user-facing QA on local routes43.
