@@ -62,7 +62,7 @@ It contains the tech deputy cabinet plus specialist role cabinets (including Web
 Latest Project Director start handoff:
 
 ```text
-docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-03.md
+docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-09.md
 ```
 
 Yacht section handoff:
@@ -74,7 +74,7 @@ docs/AI_TEAM/88_YACHT_TEMPLATE_SECTION_HANDOFF_2026-06-03.md
 Local FinDesk start page:
 
 ```text
-http://127.0.0.1:18889/app.php
+http://127.0.0.1:18902/app.php?build=routes44
 ```
 
 Desktop shortcut:
@@ -107,13 +107,13 @@ Run before work:
 git status --short
 git rev-parse --short HEAD
 git rev-parse --short origin/main
-curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18889/app.php
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18902/app.php?build=routes44
 ```
 
 Important baseline:
 
 ```text
-Last known synced base before the 2026-06-03 handoff was 50b1b3b.
+Current synced base at the 2026-06-09 handoff is e233594 before this handoff commit.
 Newer commits may exist after the GitHub sync; check HEAD and origin/main before work.
 The working tree can contain important local changes.
 Never reset, checkout, clean, or discard local changes unless the CEO explicitly orders it.
@@ -124,7 +124,7 @@ Never reset, checkout, clean, or discard local changes unless the CEO explicitly
 Read in this order:
 
 1. `docs/AI_TEAM/63_PRODUCT_BIBLE_V1_INTAKE_2026-06-02.md`
-2. `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-03.md`
+2. `docs/AI_TEAM/PROJECT_DIRECTOR_HANDOFF_2026-06-09.md`
 3. `docs/AI_TEAM/59_PHASE2_LOGIC_NAV_ENGINE_AUDIT_2026-06-02.md`
 4. `docs/AI_TEAM/61_PHASE3_PRODUCT_IDENTITY_UX_VALIDATION_2026-06-02.md`
 5. `docs/AI_TEAM/51_PHASE1_FUNCTIONAL_BLUEPRINT_MANDATE_2026-06-02.md`

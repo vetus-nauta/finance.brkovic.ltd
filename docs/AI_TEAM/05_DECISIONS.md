@@ -1981,3 +1981,21 @@ Control:
 - no settlement formula was changed;
 - excluded participant and contribution surplus behavior require architect/auditor decision;
 - professional print report remains a preview document until review is complete.
+
+## 2026-06-09: Cash Layout Discipline Uses Shell Title Only
+
+Decision: cash flow pages must not render duplicate large page headers under the Product Shell title.
+
+Implemented locally:
+
+- `cash-session`, `cash-journal`, `cash-records`, `cash-report`, and participant self-view no longer render duplicate large `phase1Header` blocks;
+- ЖЗ inner context is `Активная запись`, not another `Личный журнал · ЖЗ` heading;
+- `cash-report` is labeled `Отчеты`, not `Отчет-превью`;
+- cash ЖЗ has its own compact layout and no longer inherits the old oversized `.phase1-journal-workspace` min-height/grid behavior;
+- build advanced to `routes44`.
+
+Control:
+
+- no production deploy;
+- no financial formula change;
+- this is layout/wording discipline only.
