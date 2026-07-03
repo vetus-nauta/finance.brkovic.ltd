@@ -8,26 +8,44 @@ This is the authoritative FinDesk v2.0 package location.
 
 The earlier package in `vetus-nauta/Revoyacht` was created by mistake and is not authoritative.
 
-## What exists here
+## Transfer status
+
+The package has now been transferred step by step into this repository.
+
+It includes:
 
 ```text
-FinDesk v2.0/
-├── README.md
-├── FULL_SPEC.md
-├── 21-sprint-plan.md
-├── 22-sprint-handoff-protocol.md
-├── 23-legacy-isolation-rule.md
-├── 24-secrets-hosting-access-inventory.md
-├── 25-final-repository-audit.md
-├── agents/
-│   ├── README.md
-│   └── 00-DIRECTOR-READ-FIRST.md
-├── schemas/
-│   └── categories.seed.json
-├── sql/
-│   └── clean-core-schema.sql
-└── sprints/
-    └── SPRINT-01-legacy-cleanup.md
+README.md
+FULL_SPEC.md
+01-product-logic.md
+02-data-model.md
+03-parsing-and-rules-engine.md
+04-responsive-layout-contract.md
+05-import-and-legacy-data.md
+06-dictionaries-and-localization.md
+07-mvp-scope-and-acceptance.md
+08-codex-implementation-brief.md
+09-operational-and-summary-table-contract.md
+10-director-and-subagents.md
+11-build-phases.md
+12-agent-work-protocol.md
+13-state-machine.md
+14-calculation-contract.md
+15-test-fixtures.md
+16-api-contract.md
+17-screen-registry.md
+18-error-and-edge-cases.md
+19-legacy-import-acceptance.md
+20-definition-of-done.md
+21-sprint-plan.md
+22-sprint-handoff-protocol.md
+23-legacy-isolation-rule.md
+24-secrets-hosting-access-inventory.md
+25-final-repository-audit.md
+agents/
+schemas/
+sql/
+sprints/
 ```
 
 ## Confirmed
@@ -40,10 +58,8 @@ FinDesk v2.0/
 - Real secrets must not be committed.
 - Clean core schema and category seed are present.
 - Director READ FIRST exists.
-
-## Important note
-
-The detailed package was originally drafted in Revoyacht. This finance.brkovic.ltd copy is the correct operational version. If more detail is needed later, the Director may use the Revoyacht draft only as a reference draft, not as authoritative project location.
+- Subagent READ FIRST files are present.
+- Sprint files 01–08 are present.
 
 ## Next action
 
