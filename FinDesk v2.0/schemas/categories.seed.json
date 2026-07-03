@@ -1,0 +1,18 @@
+[
+  {"code":"crew","name":{"ru":"Экипаж","en":"Crew"},"sort_order":10,"direction":"expense","keywords":["зп","зарплата","аванс","экипаж","crew","salary","captain","hostess","stewardess"]},
+  {"code":"commercial_income","name":{"ru":"Коммерческий приход","en":"Commercial income"},"sort_order":15,"direction":"income","keywords":["аренда","чартер","комиссия","комиссионные","агентские","брокерские","charter","rental","commission","agency fee","brokerage","booking"]},
+  {"code":"dry_dock","name":{"ru":"Сухой док","en":"Dry dock"},"sort_order":20,"direction":"expense","keywords":["сухой док","док","подъем","спуск","антифоулинг","antifouling","haul out","launch"]},
+  {"code":"berth","name":{"ru":"Стоянка","en":"Berth"},"sort_order":30,"direction":"expense","keywords":["стоянка","berth","зимовка","гараж","mooring fee","vez"]},
+  {"code":"marina_ports","name":{"ru":"Марины и портовые","en":"Marinas and port fees"},"sort_order":40,"direction":"expense","keywords":["марина","marina","port","harbour","luka","вода","электричество","water","electricity"]},
+  {"code":"service_water","name":{"ru":"Сервис на воде","en":"Service on water"},"sort_order":50,"direction":"expense","keywords":["водолаз","diver","underwater","диагностика","repair on water","hull cleaning"]},
+  {"code":"tech_parts","name":{"ru":"Техчасть и запчасти","en":"Technical parts"},"sort_order":60,"direction":"expense","keywords":["запчасти","кабель","фильтр","насос","инструмент","anode","part","cable","filter","pump","tool"]},
+  {"code":"tender","name":{"ru":"Тендер / тузик","en":"Tender"},"sort_order":70,"direction":"expense","keywords":["тендер","тузик","Williams","dinghy","tender","outboard"]},
+  {"code":"fuel","name":{"ru":"Топливо","en":"Fuel"},"sort_order":80,"direction":"expense","keywords":["топливо","дизель","бензин","заправка","fuel","diesel","petrol","gasoline","gorivo","nafta"]},
+  {"code":"provisions","name":{"ru":"Продукты и гости","en":"Provisions and guests"},"sort_order":90,"direction":"expense","keywords":["продукты","рыба","мясо","стейки","напитки","ресторан","гости","groceries","food","fish","meat","drinks"]},
+  {"code":"interior","name":{"ru":"Интерьер и быт","en":"Interior and household"},"sort_order":100,"direction":"expense","keywords":["интерьер","текстиль","полотенца","посуда","обувь на лодку","матрас","linen","towels","interior"]},
+  {"code":"cleaning","name":{"ru":"Клининг и химия","en":"Cleaning and chemicals"},"sort_order":110,"direction":"expense","keywords":["химия","химчистка","уборка","тряпки","мойка","cleaning","laundry","detergent"]},
+  {"code":"media_comms","name":{"ru":"Мультимедиа и связь","en":"Media and communications"},"sort_order":120,"direction":"expense","keywords":["starlink","sim","internet","wifi","telekom","netflix","apple","ivi","subscription"]},
+  {"code":"admin_legal","name":{"ru":"Админка / документы","en":"Admin and legal"},"sort_order":130,"direction":"expense","keywords":["юрист","адвокат","документы","страховка","регистрация","таможня","license","insurance","lawyer","customs"]},
+  {"code":"cash_topup_from_card","name":{"ru":"Пополнение cash с карты","en":"Cash top-up from card"},"sort_order":140,"direction":"movement","keywords":["снял с карты","снятие с карты","банкомат","atm","cash withdrawal","card to cash"]},
+  {"code":"other","name":{"ru":"Другие расходы","en":"Other expenses"},"sort_order":999,"direction":"expense","keywords":[]}
+]
