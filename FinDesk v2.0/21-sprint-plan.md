@@ -186,3 +186,25 @@ Goal: close staging, deployment, and secrets readiness.
 ## Sprint 15
 
 Goal: accept the recovered v2 sprint chain and hand off to Sprint 16.
+
+## Director Sprint 16-18 Extension
+
+This extension closes three director governance sprints after the recovered Sprint 09-15 chain.
+
+```text
+Sprint 16 - Implementation Evidence Audit and Gap Closure
+Sprint 17 - API and Schema Gap Ledger
+Sprint 18 - Director Continuation Gate
+```
+
+## Sprint 16
+
+Goal: audit real repository implementation evidence and separate code proof from documentation-only claims.
+
+## Sprint 17
+
+Goal: lock the API/schema gap ledger and prevent unimplemented routes from being treated as complete.
+
+## Sprint 18
+
+Goal: close the director continuation gate and hand off to Sprint 19.
