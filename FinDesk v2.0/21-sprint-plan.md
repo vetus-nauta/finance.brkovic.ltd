@@ -144,3 +144,45 @@ Goal: release candidate.
 - responsive tests;
 - Definition of Done;
 - release candidate report.
+
+## Recovered Sprint 09-15 Extension
+
+This extension restores the numbered v2 sprint chain expected by project state. It does not replace Sprints 01-08 and does not claim visible UI implementation.
+
+```text
+Sprint 09 - Fixture and Engine Closure
+Sprint 10 - Data Integrity, Audit Log, and Closed Month Control
+Sprint 11 - Import Traceability and Legacy Source Review
+Sprint 12 - Attachment Evidence Contract
+Sprint 13 - Dictionary, Categories, and Localization QA
+Sprint 14 - Staging, Deployment, and Secrets Readiness
+Sprint 15 - Director Acceptance and Continuation Gate
+```
+
+## Sprint 09
+
+Goal: close deterministic fixture and financial engine expectations as a non-visual gate.
+
+## Sprint 10
+
+Goal: close data integrity, audit log, and closed-month control expectations.
+
+## Sprint 11
+
+Goal: close legacy import traceability without making old logic authoritative.
+
+## Sprint 12
+
+Goal: close attachment evidence rules without changing the money source of truth.
+
+## Sprint 13
+
+Goal: close dictionary, category, and localization QA semantics.
+
+## Sprint 14
+
+Goal: close staging, deployment, and secrets readiness.
+
+## Sprint 15
+
+Goal: accept the recovered v2 sprint chain and hand off to Sprint 16.
