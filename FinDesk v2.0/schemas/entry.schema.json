@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FinDesk v2.0 Entry",
+  "type": "object",
+  "required": ["workspace_id", "flow", "date", "raw_text", "status"],
+  "properties": {
+    "id": {"type": "string"},
+    "workspace_id": {"type": "string"},
+    "flow": {"type": "string", "enum": ["cash", "card", "assistant_journal"]},
+    "date": {"type": "string", "format": "date"},
+    "raw_text": {"type": "string"},
+    "sign": {"type": ["string", "null"], "enum": ["+", "-", null]},
+    "amount": {"type": ["number", "null"]},
+    "direction": {"type": "string", "enum": ["in", "out", "none"]},
+    "entry_type": {
+      "type": "string",
+      "enum": ["cash_income", "cash_expense", "card_expense", "card_income", "opening_balance", "correction", "info", "unrecognized", "assistant_pending"]
+    },
+    "description": {"type": ["string", "null"]},
+    "category_code": {"type": ["string", "null"]},
+    "actor": {"type": ["string", "null"]},
+    "status": {
+      "type": "string",
+      "enum": ["recognized", "unrecognized", "other_review", "excluded", "imported", "assistant_pending", "accepted", "rejected", "corrected", "duplicate_suspect"]
+    },
+    "balance_after": {"type": ["number", "null"]},
+    "source_type": {"type": "string", "enum": ["manual", "import", "assistant", "correction"]},
+    "source_id": {"type": ["string", "null"]},
+    "source_row_id": {"type": ["string", "null"]},
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "matched_rules": {"type": "array", "items": {"type": "string"}},
+    "created_at": {"type": ["string", "null"], "format": "date-time"},
+    "updated_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}
