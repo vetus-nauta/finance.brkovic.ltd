@@ -115,6 +115,17 @@ function countEntriesForFlow(FinDeskV2Repository $repo, string $workspaceId, int
     return $count;
 }
 
+function matchedRuleHas(array $entry, string $key, string $value): bool
+{
+    foreach ($entry['matched_rules'] ?? [] as $rule) {
+        if (is_array($rule) && ($rule[$key] ?? null) === $value) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function runFixture(FixtureReport $report, string $fixture, callable $callback): void
 {
     try {
@@ -207,13 +218,14 @@ runFixture($report, 'Fixture 3 - Card expense', function () use ($repo, $workspa
     assertSameValue($entry['flow']['type'], 'card', 'card flow');
     assertSameValue($entry['direction'], 'out', 'card direction');
     assertSameValue($entry['entry_type'], 'card_expense', 'card entry type');
+    assertSameValue($entry['category_code'], 'media_comms', 'card category');
     assertSameValue($entry['status'], 'recognized', 'card status');
     assertAmount($entry['amount'], 60.0, 'card amount');
     assertSameValue($cashEntriesAfter, $cashEntriesBefore, 'card entry should not create/touch cash entries');
 
-    return 'card -60 normalizes as card_expense and does not create cash repository rows';
+    return 'card -60 normalizes as media_comms card_expense and does not create cash repository rows';
 });
-$report->blocked('Fixture 3 - Card expense', 'automatic media_comms categorization and card expense rollups are not implemented yet');
+$report->blocked('Fixture 3 - Card expense', 'card expense rollups are not implemented yet');
 
 runFixture($report, 'Fixture 4 - Card to cash', function () use ($repo, $workspace, $cashFlow, $cardFlow, $userId): string {
     $cardSide = $repo->createEntry($workspace['id'], [
@@ -272,9 +284,65 @@ runFixture($report, 'Fixture 5 - Commercial income', function () use ($repo, $wo
 });
 $report->blocked('Fixture 5 - Commercial income', 'opening balance behavior is not implemented in the SPRINT-01R foundation');
 
-$report->blocked('Fixture 6 - Other expenses', 'fallback category parser and Other expenses review queue are not implemented yet');
-$report->blocked('Fixture 7 - Tender fuel ambiguity', 'weighted category parser and secondary tender metadata marker are not implemented yet');
-$report->blocked('Fixture 8 - Person is actor, not category', 'actor extraction and actor/category separation are not implemented yet');
+runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $workspace, $cashFlow, $userId): string {
+    $entry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-180 какая-то штука',
+    ], $userId);
+
+    assertSameValue($entry['category_code'], 'other', 'other expense category');
+    assertSameValue($entry['status'], 'other_review', 'other expense status');
+    assertSameValue($entry['entry_type'], 'cash_expense', 'other expense type');
+    assertAmount($entry['amount'], 180.0, 'other expense amount');
+    fixtureAssert(entryIsVisible($repo, $workspace['id'], $userId, $entry['id']), 'other expense row is not visible in feed');
+
+    return 'unknown cash expense maps to other/other_review while staying counted as cash_expense';
+});
+$report->blocked('Fixture 6 - Other expenses', 'dedicated Other expenses queue view/API is not implemented yet');
+
+runFixture($report, 'Fixture 7 - Tender fuel ambiguity', function () use ($repo, $workspace, $cashFlow, $userId): string {
+    $entry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-42 заправка тузика',
+    ], $userId);
+
+    assertSameValue($entry['category_code'], 'fuel', 'tender fuel primary category');
+    assertSameValue($entry['status'], 'recognized', 'tender fuel status');
+    fixtureAssert(matchedRuleHas($entry, 'marker', 'tender_related'), 'tender fuel secondary marker missing');
+
+    return 'tender fuel keeps primary category fuel and records tender_related secondary marker';
+});
+
+runFixture($report, 'Fixture 8 - Person is actor, not category', function () use ($repo, $workspace, $cashFlow, $userId): string {
+    $advance = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-500 Вова аванс',
+    ], $userId);
+    $cable = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-87 Вова купил кабель',
+    ], $userId);
+    $return = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+120 Вова вернул остаток',
+    ], $userId);
+
+    foreach ([$advance, $cable, $return] as $entry) {
+        assertSameValue($entry['actor']['name'] ?? null, 'Вова', 'actor name');
+    }
+
+    assertSameValue($advance['category_code'], 'crew', 'advance category');
+    assertSameValue($cable['category_code'], 'tech_parts', 'cable category');
+    assertSameValue($return['entry_type'], 'cash_income', 'return type');
+    fixtureAssert($return['category_code'] !== 'crew', 'return was categorized as crew by actor name alone');
+
+    return 'Вова is extracted as actor; category follows transaction context, not person name alone';
+});
 $report->blocked('Fixture 9 - Month insertion recalculation', 'balance_after chain recalculation for inserted rows is not implemented yet');
 $report->blocked('Fixture 10 - Closed month protection', 'closed-month edit prompt/correction workflow is not implemented yet');
 

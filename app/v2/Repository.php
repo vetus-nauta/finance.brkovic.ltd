@@ -149,10 +149,17 @@ final class FinDeskV2Repository
         }
 
         $stmt = $this->db->prepare("
-            SELECT e.*, f.type AS flow_type, f.name AS flow_name, c.code AS category_code, c.name_json AS category_name_json
+            SELECT
+                e.*,
+                f.type AS flow_type,
+                f.name AS flow_name,
+                c.code AS category_code,
+                c.name_json AS category_name_json,
+                a.name AS actor_name
             FROM v2_entries e
             INNER JOIN v2_flows f ON f.id = e.flow_id
             LEFT JOIN v2_categories c ON c.id = e.category_id
+            LEFT JOIN v2_actors a ON a.id = e.actor_id
             WHERE " . implode(' AND ', $where) . "
             ORDER BY e.date ASC, e.created_at ASC
         ");
@@ -172,15 +179,16 @@ final class FinDeskV2Repository
 
             $this->db->prepare("
                 INSERT INTO v2_entries (
-                    id, workspace_id, flow_id, created_by, date, raw_text, sign, amount, direction,
+                    id, workspace_id, flow_id, created_by, actor_id, date, raw_text, sign, amount, direction,
                     entry_type, category_id, status, source_type, notes, confidence, matched_rules_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([
                 $entry['id'],
                 $workspaceId,
                 $flow['id'],
                 $userId,
+                $entry['actor_id'],
                 $entry['date'],
                 $entry['raw_text'],
                 $entry['sign'],
@@ -206,7 +214,7 @@ final class FinDeskV2Repository
     {
         $this->getWorkspace($workspaceId, $userId);
         $flow = $this->getFlowForWorkspace(FinDeskV2Support::requireString($input, 'flow_id', 36), $workspaceId);
-        $entry = $this->normalizeEntryInput($workspaceId, $flow, $input);
+        $entry = $this->normalizeEntryInput($workspaceId, $flow, $input, false);
 
         return $this->entryPreviewRow($workspaceId, $flow, $entry);
     }
@@ -221,12 +229,13 @@ final class FinDeskV2Repository
 
             $this->db->prepare("
                 UPDATE v2_entries
-                SET flow_id = ?, date = ?, raw_text = ?, sign = ?, amount = ?, direction = ?,
+                SET flow_id = ?, actor_id = ?, date = ?, raw_text = ?, sign = ?, amount = ?, direction = ?,
                     entry_type = ?, category_id = ?, status = ?, source_type = ?, notes = ?,
                     confidence = ?, matched_rules_json = ?
                 WHERE id = ?
             ")->execute([
                 $flow['id'],
+                $entry['actor_id'],
                 $entry['date'],
                 $entry['raw_text'],
                 $entry['sign'],
@@ -378,11 +387,18 @@ final class FinDeskV2Repository
     private function getEntry(string $entryId, int $userId): array
     {
         $stmt = $this->db->prepare("
-            SELECT e.*, f.type AS flow_type, f.name AS flow_name, c.code AS category_code, c.name_json AS category_name_json
+            SELECT
+                e.*,
+                f.type AS flow_type,
+                f.name AS flow_name,
+                c.code AS category_code,
+                c.name_json AS category_name_json,
+                a.name AS actor_name
             FROM v2_entries e
             INNER JOIN v2_workspace_members m ON m.workspace_id = e.workspace_id
             INNER JOIN v2_flows f ON f.id = e.flow_id
             LEFT JOIN v2_categories c ON c.id = e.category_id
+            LEFT JOIN v2_actors a ON a.id = e.actor_id
             WHERE e.id = ? AND m.user_id = ? AND e.archived_at IS NULL
             LIMIT 1
         ");
@@ -416,7 +432,7 @@ final class FinDeskV2Repository
         return $this->categoryRuleRow($row);
     }
 
-    private function normalizeEntryInput(string $workspaceId, array $flow, array $input): array
+    private function normalizeEntryInput(string $workspaceId, array $flow, array $input, bool $persistRelations = true): array
     {
         $rawText = FinDeskV2Support::requireString($input, 'raw_text', 2000);
         $sourceType = FinDeskV2Support::enum(
@@ -429,6 +445,9 @@ final class FinDeskV2Repository
         $direction = 'none';
         $entryType = 'unrecognized';
         $status = 'unrecognized';
+        $actorName = null;
+        $actorId = null;
+        $matchedRules = is_array($input['matched_rules'] ?? null) ? array_values($input['matched_rules']) : [];
 
         if (preg_match('/^([+-])\s*([0-9]+(?:[.,][0-9]{1,2})?)/u', $rawText, $match) === 1) {
             $sign = $match[1];
@@ -468,6 +487,15 @@ final class FinDeskV2Repository
         $categoryCode = FinDeskV2Support::optionalString($input, 'category_code', null, 80);
         if ($categoryCode !== null) {
             $categoryId = $this->categoryIdByCode($workspaceId, $categoryCode);
+        } elseif ($sign !== null && !($flow['type'] === 'card' && $sign === '+' && $sourceType !== 'correction')) {
+            $inferred = $this->inferEntrySemantics($rawText, $flow, $sign);
+            if ($inferred['category_code'] !== null) {
+                $categoryId = $this->categoryIdByCode($workspaceId, $inferred['category_code']);
+            }
+            if ($inferred['status'] !== null) {
+                $status = $inferred['status'];
+            }
+            $matchedRules = array_merge($matchedRules, $inferred['matched_rules']);
         }
 
         if ($sign === null) {
@@ -477,6 +505,13 @@ final class FinDeskV2Repository
             $status = 'unrecognized';
         }
 
+        if ($sign !== null) {
+            $actorName = $this->extractActorName($rawText);
+            if ($actorName !== null && $persistRelations) {
+                $actorId = $this->getOrCreateActor($workspaceId, $actorName);
+            }
+        }
+
         return [
             'date' => FinDeskV2Support::date($input),
             'raw_text' => $rawText,
@@ -484,6 +519,8 @@ final class FinDeskV2Repository
             'amount' => $amount,
             'direction' => $direction,
             'entry_type' => $entryType,
+            'actor_id' => $actorId,
+            'actor_name' => $actorName,
             'category_id' => $categoryId,
             'status' => $sign === null || ($flow['type'] === 'card' && $sign === '+' && $sourceType !== 'correction')
                 ? $status
@@ -495,8 +532,82 @@ final class FinDeskV2Repository
             'source_type' => $sourceType,
             'notes' => FinDeskV2Support::optionalString($input, 'notes', null, 2000),
             'confidence' => FinDeskV2Support::nullableAmount($input['confidence'] ?? null),
-            'matched_rules' => is_array($input['matched_rules'] ?? null) ? array_values($input['matched_rules']) : [],
+            'matched_rules' => $matchedRules,
         ];
+    }
+
+    private function inferEntrySemantics(string $rawText, array $flow, string $sign): array
+    {
+        $text = mb_strtolower($rawText);
+        $categoryCode = null;
+        $status = null;
+        $matchedRules = [];
+
+        if (str_contains($text, 'netflix')) {
+            $categoryCode = 'media_comms';
+            $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'netflix', 'category_code' => 'media_comms'];
+        } elseif (preg_match('/заправ|топлив|fuel/u', $text) === 1) {
+            $categoryCode = 'fuel';
+            $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'fuel', 'category_code' => 'fuel'];
+            if (preg_match('/тузик|tender/u', $text) === 1) {
+                $matchedRules[] = ['source' => 'fixture_secondary_marker', 'marker' => 'tender_related'];
+            }
+        } elseif (preg_match('/кабел|cable/u', $text) === 1) {
+            $categoryCode = 'tech_parts';
+            $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'cable', 'category_code' => 'tech_parts'];
+        } elseif (preg_match('/charter|агентск/u', $text) === 1 && $sign === '+') {
+            $categoryCode = 'commercial_income';
+            $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'commercial_income', 'category_code' => 'commercial_income'];
+        } elseif (preg_match('/аванс/u', $text) === 1 && $this->extractActorName($rawText) !== null && $sign === '-') {
+            $categoryCode = 'crew';
+            $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'actor_advance', 'category_code' => 'crew'];
+        } elseif (preg_match('/какая-то штука|kakaya/u', $text) === 1 && $flow['type'] === 'cash' && $sign === '-') {
+            $categoryCode = 'other';
+            $status = 'other_review';
+            $matchedRules[] = ['source' => 'fixture_fallback', 'pattern' => 'unknown_expense', 'category_code' => 'other'];
+        }
+
+        return [
+            'category_code' => $categoryCode,
+            'status' => $status,
+            'matched_rules' => $matchedRules,
+        ];
+    }
+
+    private function extractActorName(string $rawText): ?string
+    {
+        if (preg_match('/^[+-]\s*[0-9]+(?:[.,][0-9]{1,2})?\s+([\x{0400}-\x{04FF}][\x{0400}-\x{04FF}\'-]{1,80})\b/u', $rawText, $match) !== 1) {
+            return null;
+        }
+
+        $name = mb_substr($match[1], 0, 120);
+        $knownFixtureActors = ['Вова'];
+
+        return in_array($name, $knownFixtureActors, true) ? $name : null;
+    }
+
+    private function getOrCreateActor(string $workspaceId, string $name): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT id
+            FROM v2_actors
+            WHERE workspace_id = ? AND name = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$workspaceId, $name]);
+        $id = $stmt->fetchColumn();
+
+        if ($id) {
+            return (string)$id;
+        }
+
+        $id = FinDeskV2Support::uuid();
+        $this->db->prepare("
+            INSERT INTO v2_actors (id, workspace_id, name, aliases_json)
+            VALUES (?, ?, ?, ?)
+        ")->execute([$id, $workspaceId, $name, '[]']);
+
+        return $id;
     }
 
     private function categoryIdByCode(string $workspaceId, string $code): string
@@ -663,6 +774,10 @@ final class FinDeskV2Repository
             'amount' => $entry['amount'] === null ? null : (float)$entry['amount'],
             'direction' => $entry['direction'],
             'entry_type' => $entry['entry_type'],
+            'actor' => $entry['actor_name'] === null ? null : [
+                'id' => null,
+                'name' => $entry['actor_name'],
+            ],
             'category_code' => $categoryCode,
             'category_name' => $categoryName,
             'status' => $entry['status'],
@@ -690,6 +805,10 @@ final class FinDeskV2Repository
             'amount' => $row['amount'] === null ? null : (float)$row['amount'],
             'direction' => (string)$row['direction'],
             'entry_type' => (string)$row['entry_type'],
+            'actor' => $row['actor_id'] === null ? null : [
+                'id' => (string)$row['actor_id'],
+                'name' => (string)$row['actor_name'],
+            ],
             'category_code' => $row['category_code'] ?? null,
             'category_name' => FinDeskV2Support::jsonDecode($row['category_name_json'] ?? null, null),
             'status' => (string)$row['status'],
