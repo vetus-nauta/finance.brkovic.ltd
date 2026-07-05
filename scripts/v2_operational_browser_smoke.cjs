@@ -410,6 +410,11 @@ async function run() {
     assert(!(await page.locator('[data-v2-submit]').isDisabled()), 'entry submit should be enabled after month reopen');
     console.log('Closed-month category decisions: OK');
 
+    for (let i = 1; i <= 8; i += 1) {
+      await saveEntry(page, `-1 scroll filler ${i}`);
+    }
+    await waitForText(page, '[data-v2-feed]', 'scroll filler 8');
+
     const desktopMetrics = await assertNoPageScroll(page);
     await page.screenshot({ path: path.join(resultsDir, 'desktop-operational-window.png'), fullPage: false });
     console.log(`Desktop scroll metrics: ${JSON.stringify(desktopMetrics)}`);
@@ -484,8 +489,8 @@ async function run() {
     assert(inputReachMetrics.bodyScrollWidth <= inputReachMetrics.windowWidth + 2, `phone body overhangs viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.htmlScrollWidth <= inputReachMetrics.windowWidth + 2, `phone document overhangs viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.inputBottom <= inputReachMetrics.windowHeight + 2, `phone input hidden in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
-    assert(inputReachMetrics.inputHeight <= 100, `phone input bar consumes too much viewport: ${JSON.stringify(inputReachMetrics)}`);
-    assert(inputReachMetrics.workspaceHeight >= 120, `phone workspace collapsed in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.inputHeight <= 64, `phone input bar consumes too much viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.workspaceHeight >= 240, `phone workspace collapsed in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.submitBottom <= inputReachMetrics.windowHeight + 2, `phone submit hidden in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.bodyOverflow === 'hidden', `phone keyboard check changed body overflow: ${JSON.stringify(inputReachMetrics)}`);
     await mobilePage.setViewportSize({ width: 390, height: 844 });

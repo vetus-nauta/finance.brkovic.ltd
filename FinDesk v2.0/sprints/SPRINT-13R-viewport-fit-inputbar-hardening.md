@@ -46,6 +46,8 @@ Root cause:
 Fix:
 - Keep `.v2-inputbar` as a compact four-column grid in the mobile media query.
 - Use constrained mobile columns: date, record, Check, Save.
+- Compact the mobile topbar, summary strip, Cash/Card rail, and Write/Details/Check tabs so the journal remains the dominant visible surface.
+- Hide inputbar labels on mobile and reduce input/button height to keep the bottom entry form compact.
 - Add browser-smoke assertions for reduced viewport:
   - shell stays within viewport
   - no document/body horizontal overhang
@@ -82,16 +84,17 @@ Accepted work:
 - Mobile inputbar no longer switches to one-column layout.
 - Reduced viewport browser smoke now guards against inputbar consuming the viewport and workspace collapse.
 - Manual visible-browser metrics after fix:
-- `390x520`: inputbar about `75px`, workspace about `166px`.
-- `360x480`: inputbar about `75px`, workspace about `126px`.
+  - first fit pass at `390x520`: inputbar about `75px`, workspace about `166px`.
+  - compact readability pass at `390x520`: inputbar about `50px`, workspace about `307px`.
+  - compact readability pass at `360x480`: workspace about `249px`.
 - Automated browser-smoke metrics at `390x520`:
   - `shellTop=0`
   - `shellBottom=520`
   - `bodyScrollWidth=390`
   - `htmlScrollWidth=390`
-  - `inputHeight=79`
-  - `workspaceHeight=158`
-  - `submitBottom=493`
+  - `inputHeight=50`
+  - `workspaceHeight=315`
+  - `submitBottom=501`
 
 Rejected work:
 - No dashboard/layout redesign.
@@ -109,6 +112,8 @@ Tests or checks:
 - `npm run smoke:v2:browser`
 - Reduced viewport screenshot:
   `test-results/v2-browser-smoke/mobile-reduced-viewport-fit.png`
+- Manual compact screenshot:
+  `test-results/v2-browser-smoke/mobile-compact-readable-390x520.png`
 
 Risks:
 - Extremely short browser windows can still leave limited workspace height, but the workspace no longer collapses to zero and the page remains fixed within the viewport.

@@ -622,41 +622,107 @@ select {
   .v2-shell {
     grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
     padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    gap: 5px;
   }
 
   .v2-topbar {
-    align-items: stretch;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(108px, .7fr) minmax(0, 1.3fr);
+    align-items: center;
+    min-height: 0;
+    gap: 6px;
+    padding: 5px 6px;
+  }
+
+  .v2-brand {
+    gap: 8px;
+  }
+
+  .v2-brand strong {
+    font-size: 15px;
+  }
+
+  .v2-brand span:not(.v2-mark) {
+    font-size: 12px;
+  }
+
+  .v2-mark {
+    width: 32px;
+    height: 32px;
   }
 
   .v2-workspace-controls {
-    align-items: end;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    align-items: center;
+    gap: 6px;
   }
 
   .v2-select-label {
     min-width: 0;
-    flex: 1;
+  }
+
+  .v2-select-label span {
+    display: none;
+  }
+
+  .v2-icon-button {
+    width: 40px;
+  }
+
+  .v2-status-line {
+    min-height: 15px;
+    line-height: 1.15;
+    font-size: 12px;
   }
 
   .v2-summary-strip {
-    grid-template-columns: repeat(5, minmax(118px, 1fr));
+    grid-template-columns: repeat(5, minmax(96px, 1fr));
     overflow-x: auto;
     box-shadow: none;
   }
 
+  .v2-summary-strip div {
+    padding: 4px 7px;
+  }
+
+  .v2-summary-strip span {
+    font-size: 11px;
+  }
+
+  .v2-summary-strip strong {
+    font-size: 15px;
+  }
+
   .v2-workspace {
     grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
   }
 
   .v2-rail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .v2-flow {
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 14px;
+    text-align: center;
   }
 
   .v2-mobile-tabs {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-    margin-bottom: 8px;
+    gap: 5px;
+    margin-bottom: 5px;
+  }
+
+  .v2-mobile-tabs button {
+    min-height: 30px;
+    border-radius: 7px;
+    font-size: 14px;
   }
 
   .v2-mobile-tabs button.is-active {
@@ -678,6 +744,23 @@ select {
     scroll-snap-align: start;
   }
 
+  .v2-panel-head {
+    padding: 7px 9px;
+  }
+
+  .v2-panel-head h1,
+  .v2-panel-head h2 {
+    font-size: 17px;
+  }
+
+  .v2-feed {
+    padding: 6px 8px;
+  }
+
+  .v2-entry {
+    padding: 8px;
+  }
+
   .v2-create-form,
   .v2-category-form,
   .v2-attachment-form {
@@ -686,10 +769,21 @@ select {
 
   .v2-inputbar {
     grid-template-columns: minmax(104px, 128px) minmax(0, 1fr) 48px 56px;
-    align-items: end;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px;
+  }
+
+  .v2-inputbar span {
+    display: none;
   }
 
   .v2-inputbar button {
+    min-height: 38px;
     padding-inline: 0;
+  }
+
+  .v2-inputbar input {
+    min-height: 38px;
   }
 }
