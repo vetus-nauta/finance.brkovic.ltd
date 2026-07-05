@@ -31,6 +31,7 @@ $requiredTables = [
 $requiredRoutes = [
     '/api/workspaces',
     '/api/workspaces/([a-f0-9-]{36})/flows',
+    '/api/workspaces/([a-f0-9-]{36})/summary',
     '/api/workspaces/([a-f0-9-]{36})/entries',
     '/api/workspaces/([a-f0-9-]{36})/parse-preview',
     '/api/parse-entry-preview',

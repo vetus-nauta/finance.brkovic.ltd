@@ -94,13 +94,20 @@ smokeAssert((string)$workspaces[0]['id'] === $workspaceId, 'workspace list id mi
 $flows = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/flows"), 'list flows')['flows'];
 smokeAssert(count($flows) === 2, 'default flow count should be 2');
 $cashFlow = null;
+$cardFlow = null;
 foreach ($flows as $flow) {
     if (($flow['type'] ?? '') === 'cash') {
         $cashFlow = $flow;
-        break;
+    }
+    if (($flow['type'] ?? '') === 'card') {
+        $cardFlow = $flow;
     }
 }
 smokeAssert(is_array($cashFlow), 'cash flow missing');
+smokeAssert(is_array($cardFlow), 'card flow missing');
+
+$summaryBefore = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/summary"), 'summary before entries')['summary'];
+smokeAssert((float)$summaryBefore['card_expense_total'] === 0.0, 'initial card expense total mismatch');
 
 $categories = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/categories"), 'list categories')['categories'];
 smokeAssert(count($categories) === 16, 'seeded category count should be 16');
@@ -113,6 +120,17 @@ $entry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries",
 smokeAssert($entry['entry_type'] === 'cash_expense', 'entry type mismatch');
 smokeAssert((float)$entry['amount'] === 60.0, 'entry amount mismatch');
 
+$cardEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cardFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-25 card smoke',
+]), 'create card entry')['entry'];
+smokeAssert($cardEntry['entry_type'] === 'card_expense', 'card entry type mismatch');
+smokeAssert($cardEntry['balance_after'] === null, 'card entry should not have balance_after');
+
+$summaryAfterCard = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/summary"), 'summary after card entry')['summary'];
+smokeAssert((float)$summaryAfterCard['card_expense_total'] === 25.0, 'card expense total after card entry mismatch');
+
 $preview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
     'flow_id' => $cashFlow['id'],
     'date' => '2026-07-05',
@@ -122,7 +140,7 @@ smokeAssert($preview['will_save'] === false, 'preview must not save');
 smokeAssert($preview['entry_type'] === 'cash_income', 'preview entry type mismatch');
 
 $entriesAfterPreview = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after preview')['entries'];
-smokeAssert(count($entriesAfterPreview) === 1, 'parse preview persisted an entry');
+smokeAssert(count($entriesAfterPreview) === 2, 'parse preview persisted an entry');
 
 $patched = expectOk(smokeRequest('PATCH', '/api/entries/' . $entry['id'] . '/category', [
     'category_code' => 'media_comms',
@@ -138,7 +156,9 @@ smokeAssert($rule['pattern'] === 'netflix', 'category rule pattern mismatch');
 
 expectOk(smokeRequest('DELETE', '/api/entries/' . $entry['id']), 'delete entry');
 $entriesAfterDelete = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after delete')['entries'];
-smokeAssert(count($entriesAfterDelete) === 0, 'deleted entry is still visible');
+$remainingIds = array_map(static fn (array $entry): string => (string)$entry['id'], $entriesAfterDelete);
+smokeAssert(!in_array((string)$entry['id'], $remainingIds, true), 'deleted cash entry is still visible');
+smokeAssert(in_array((string)$cardEntry['id'], $remainingIds, true), 'card entry disappeared unexpectedly');
 
 echo "FinDesk v2 HTTP API smoke: OK\n";
 echo "Workspace: {$workspaceId}\n";

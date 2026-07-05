@@ -136,6 +136,65 @@ final class FinDeskV2Repository
         });
     }
 
+    public function getWorkspaceSummary(string $workspaceId, int $userId): array
+    {
+        $this->getWorkspace($workspaceId, $userId);
+        $flows = $this->listFlows($workspaceId, $userId);
+        $cashFlow = null;
+        $cardFlowIds = [];
+
+        foreach ($flows as $flow) {
+            if ($flow['type'] === 'cash' && $flow['has_live_balance']) {
+                $cashFlow = $flow;
+            }
+            if ($flow['type'] === 'card') {
+                $cardFlowIds[] = $flow['id'];
+            }
+        }
+
+        $cashNow = $cashFlow === null ? null : $cashFlow['opening_balance'];
+        if ($cashFlow !== null) {
+            $stmt = $this->db->prepare("
+                SELECT balance_after
+                FROM v2_entries
+                WHERE flow_id = ?
+                  AND archived_at IS NULL
+                  AND balance_after IS NOT NULL
+                ORDER BY date DESC, created_seq DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$cashFlow['id']]);
+            $latest = $stmt->fetchColumn();
+            if ($latest !== false) {
+                $cashNow = (float)$latest;
+            }
+        }
+
+        $cardExpenseTotal = 0.0;
+        if ($cardFlowIds !== []) {
+            $placeholders = implode(', ', array_fill(0, count($cardFlowIds), '?'));
+            $stmt = $this->db->prepare("
+                SELECT COALESCE(SUM(amount), 0)
+                FROM v2_entries
+                WHERE flow_id IN ({$placeholders})
+                  AND archived_at IS NULL
+                  AND direction = 'out'
+                  AND entry_type = 'card_expense'
+                  AND status IN ('recognized', 'other_review', 'imported', 'accepted')
+                  AND amount IS NOT NULL
+            ");
+            $stmt->execute($cardFlowIds);
+            $cardExpenseTotal = (float)$stmt->fetchColumn();
+        }
+
+        return [
+            'workspace_id' => $workspaceId,
+            'opening_cash' => $cashFlow === null ? null : $cashFlow['opening_balance'],
+            'cash_now' => $cashNow,
+            'card_expense_total' => $cardExpenseTotal,
+        ];
+    }
+
     public function listEntries(string $workspaceId, array $query, int $userId): array
     {
         $this->getWorkspace($workspaceId, $userId);

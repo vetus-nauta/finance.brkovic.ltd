@@ -67,6 +67,8 @@ Create a GitHub-proven clean FinDesk v2.0 foundation before any UI work starts.
   - `PATCH /api/entries/:entryId/category`
 - Minimal category rule route exists:
   - `POST /api/workspaces/:workspaceId/category-rules`
+- Minimal read-only summary route exists:
+  - `GET /api/workspaces/:workspaceId/summary`
 - Minimal fixture-scoped parser/category semantics exist:
   - `Netflix` maps to `media_comms`;
   - `charter deposit` and `агентские` map to `commercial_income`;
@@ -102,7 +104,7 @@ npm run test:v2:fixtures
 FinDesk v2 clean core static smoke: OK
 Files: 6
 Tables: 12
-Route markers: 9
+Route markers: 10
 ```
 
 ```text
@@ -165,19 +167,20 @@ The disposable fixture runner:
   - parse preview does not persist rows;
   - fixture-scoped parser/category semantics for media, commercial income, Other review, tender fuel marker, and actor/category separation.
   - live Cash `balance_after` chain from an explicit `opening_cash` seed;
-  - insertion recalculation by `date ASC, created_seq ASC`.
+  - insertion recalculation by `date ASC, created_seq ASC`;
+  - read-only `card_expense_total` rollup from recognized Card out entries.
 
 Fixture runner result:
 
 ```text
 FinDesk v2 fixture runner: PASS
 PASS (11)
-BLOCKED / NOT_IMPLEMENTED (3)
+BLOCKED / NOT_IMPLEMENTED (2)
 ```
 
 ## Tests Not Yet Run
 
-- Full green fixture gate from `15-test-fixtures.md`; current runner is partial and reports 3 blocked/not implemented expectations.
+- Full green fixture gate from `15-test-fixtures.md`; current runner is partial and reports 2 blocked/not implemented expectations.
 - Closed-month correction/recalculate/cancel behavior.
 - Full parser engine beyond the fixture-scoped literal/keyword rules.
 
@@ -190,9 +193,10 @@ Accepted as local foundation candidate:
 - v2 schema applies to a disposable MariaDB 10.11 database.
 - Repository-level foundation behavior passes disposable DB smoke.
 - Authenticated HTTP path through `public/v2-api.php` passes disposable smoke.
-- Supported fixture-runner subset passes in disposable MariaDB with `PASS (11)` and `BLOCKED / NOT_IMPLEMENTED (3)`.
+- Supported fixture-runner subset passes in disposable MariaDB with `PASS (11)` and `BLOCKED / NOT_IMPLEMENTED (2)`.
 - Fixture-scoped parser/category semantics are accepted as progress, not as the final parser engine.
 - Live Cash `balance_after` chain is accepted as execution of the existing formula, not a formula change.
+- Read-only `card_expense_total` rollup is accepted as execution of the existing formula, not card bank-balance reconciliation.
 - No old FinDesk product logic was used as v2 truth in candidate code.
 
 ## Rejected Work
@@ -208,7 +212,7 @@ Rejected as completion evidence:
 ## Blockers
 
 - Branch evidence exists on `origin/findesk-v2-sprint-01r-foundation`.
-- Full fixture gate is not complete; the runner exists, but 3 expectations are explicitly blocked/not implemented.
+- Full fixture gate is not complete; the runner exists, but 2 expectations are explicitly blocked/not implemented.
 - Reports, imports, attachments, month closure, and UI are intentionally not implemented.
 
 ## Risks For Next Sprint
@@ -238,9 +242,9 @@ Continue inside `SPRINT-01R` until these gates pass:
 
 The old FinDesk screen remains rejected as product direction.
 
-The new v2 foundation candidate is now materially stronger: it has clean `v2_*` schema, clean PHP module, static smoke, disposable MariaDB repository smoke, disposable authenticated HTTP API smoke, fixture-scoped parser/category semantics, live Cash balance-chain proof, and a disposable partial fixture runner.
+The new v2 foundation candidate is now materially stronger: it has clean `v2_*` schema, clean PHP module, static smoke, disposable MariaDB repository smoke, disposable authenticated HTTP API smoke, fixture-scoped parser/category semantics, live Cash balance-chain proof, read-only card rollup proof, and a disposable partial fixture runner.
 
-SPRINT-01R is not complete yet. The fixture runner is accepted only as progress: `PASS (11)` and `BLOCKED / NOT_IMPLEMENTED (3)`. UI remains blocked.
+SPRINT-01R is not complete yet. The fixture runner is accepted only as progress: `PASS (11)` and `BLOCKED / NOT_IMPLEMENTED (2)`. UI remains blocked.
 
 ## Director Final Handoff
 
@@ -260,6 +264,7 @@ Agents assigned:
 - QA HTTP API smoke reviewer
 - Financial Logic parser semantics reviewer
 - Financial Logic balance-chain reviewer
+- Financial Logic card-rollup reviewer
 
 Agent reports received:
 
@@ -267,12 +272,13 @@ Agent reports received:
 - Financial Logic Engine: accepted candidate shape conditionally, rejected full completion without fixture runner, status override hardening, balance proof, and card-plus handling.
 - QA/Audit: accepted static and disposable DB smoke as progress, rejected sprint completion.
 - Implementation worker: added route hardening, category endpoints, disposable DB smoke, and fixture runner path.
-- QA fixture-runner reviewer: accepted `npm run test:v2:fixtures` as safe disposable progress, rejected full fixture completion; current result is 3 expectations blocked/not implemented.
+- QA fixture-runner reviewer: accepted `npm run test:v2:fixtures` as safe disposable progress, rejected full fixture completion; current result is 2 expectations blocked/not implemented.
 - Data/Backend branch-evidence reviewer: accepted committing branch evidence as foundation candidate, rejected sprint completion.
 - QA/Security branch-evidence reviewer: accepted branch evidence after confirming no candidate secrets and no production DB access in disposable scripts.
 - QA HTTP API smoke reviewer: accepted the HTTP smoke design after requiring stale SHA wording to be removed before commit/push.
 - Financial Logic parser semantics reviewer: accepted literal fixture parser/category work, warned not to generalize it into final parser truth or financial formulas.
 - Financial Logic balance-chain reviewer: accepted implementing live Cash `balance_after` as execution of the existing formula, not a formula change; rejected card bank-balance reconciliation and closed-month silent recalculation.
+- Financial Logic card-rollup reviewer: accepted minimal read-only `card_expense_total = sum(card out entries)` and rejected reports/dashboard/UI/card bank reconciliation.
 
 Accepted work:
 
@@ -282,7 +288,7 @@ Accepted work:
 - Static smoke: `npm run smoke:v2`.
 - Disposable DB smoke: `npm run smoke:v2:db`.
 - Disposable authenticated HTTP API smoke: `npm run smoke:v2:http`.
-- Partial disposable fixture runner: `npm run test:v2:fixtures` with `PASS (11)` and `BLOCKED / NOT_IMPLEMENTED (3)`.
+- Partial disposable fixture runner: `npm run test:v2:fixtures` with `PASS (11)` and `BLOCKED / NOT_IMPLEMENTED (2)`.
 
 Rejected work:
 
@@ -320,7 +326,7 @@ Tests or checks:
 Risks:
 
 - Branch evidence exists, but SPRINT-01R is still not complete.
-- Card rollups, closed-month behavior, and dedicated Other review queue are not implemented.
+- Closed-month behavior and dedicated Other review queue are not implemented.
 - Opening cash is a flow seed only; do not present it as a full opening-balance workflow.
 - Parser/category behavior is fixture-scoped and must be replaced or formalized in a dedicated parser sprint.
 - Fixture runner exits zero when implemented behavior passes, even if blocked expectations remain; handoff language must preserve that distinction.
@@ -345,11 +351,11 @@ Current state:
 - SPRINT-01R is blocked before completion but foundation candidate advanced.
 - Branch evidence exists on origin/findesk-v2-sprint-01r-foundation.
 - Static smoke, disposable DB smoke, disposable authenticated HTTP API smoke, and partial disposable fixture runner pass.
-- Fixture runner output is PASS (11) and BLOCKED / NOT_IMPLEMENTED (3); do not claim full fixture completion.
+- Fixture runner output is PASS (11) and BLOCKED / NOT_IMPLEMENTED (2); do not claim full fixture completion.
 - UI remains blocked.
 
 Next required gates:
-1. Implement or explicitly defer blocked fixture expectations: card rollups, dedicated Other queue, closed-month workflow.
+1. Implement or explicitly defer blocked fixture expectations: dedicated Other queue and closed-month workflow.
 2. Re-run npm run smoke:v2, npm run smoke:v2:db, npm run smoke:v2:http, npm run test:v2:fixtures.
 3. Do not start UI until the foundation/API/parser/fixture gate is accepted by QA.
 ```

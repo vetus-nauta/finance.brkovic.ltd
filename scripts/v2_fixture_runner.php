@@ -235,11 +235,13 @@ runFixture($report, 'Fixture 3 - Card expense', function () use ($repo, $workspa
     assertSameValue($entry['category_code'], 'media_comms', 'card category');
     assertSameValue($entry['status'], 'recognized', 'card status');
     assertAmount($entry['amount'], 60.0, 'card amount');
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['card_expense_total'], 60.0, 'card expense total');
     assertSameValue($cashEntriesAfter, $cashEntriesBefore, 'card entry should not create/touch cash entries');
+    $repo->deleteEntry($entry['id'], $userId);
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['card_expense_total'], 0.0, 'archived card expense total');
 
-    return 'card -60 normalizes as media_comms card_expense and does not create cash repository rows';
+    return 'card -60 normalizes as media_comms card_expense, rolls up to 60, excludes archived rows, and does not create cash rows';
 });
-$report->blocked('Fixture 3 - Card expense', 'card expense rollups are not implemented yet');
 
 runFixture($report, 'Fixture 4 - Card to cash', function () use ($repo, $workspace, $cashFlow, $cardFlow, $userId): string {
     $cashBalanceBefore = lastBalanceForFlow($repo, $workspace['id'], $userId, $cashFlow['id']);
@@ -269,6 +271,7 @@ runFixture($report, 'Fixture 4 - Card to cash', function () use ($repo, $workspa
     assertAmount($cashSide['amount'], 1000.0, 'cash side amount');
     assertAmount($cashSide['balance_after'], ($cashBalanceBefore ?? 1000.0) + 1000.0, 'cash side balance_after');
     fixtureAssert($cashSide['status'] !== 'duplicate_suspect', 'cash side was marked duplicate');
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['card_expense_total'], 1000.0, 'card-to-cash card expense total');
 
     return 'card -1000 and cash +1000 save with transfer category; only cash side increases cash balance';
 });
