@@ -230,6 +230,33 @@ final class FinDeskV2Repository
         return array_map([$this, 'entryRow'], $stmt->fetchAll());
     }
 
+    public function listOtherExpenseQueue(string $workspaceId, int $userId): array
+    {
+        $this->getWorkspace($workspaceId, $userId);
+        $stmt = $this->db->prepare("
+            SELECT
+                e.*,
+                f.type AS flow_type,
+                f.name AS flow_name,
+                c.code AS category_code,
+                c.name_json AS category_name_json,
+                a.name AS actor_name
+            FROM v2_entries e
+            INNER JOIN v2_flows f ON f.id = e.flow_id
+            INNER JOIN v2_categories c ON c.id = e.category_id
+            LEFT JOIN v2_actors a ON a.id = e.actor_id
+            WHERE e.workspace_id = ?
+              AND e.archived_at IS NULL
+              AND e.status = 'other_review'
+              AND e.entry_type = 'cash_expense'
+              AND c.code = 'other'
+            ORDER BY e.date ASC, e.created_seq ASC
+        ");
+        $stmt->execute([$workspaceId]);
+
+        return array_map([$this, 'entryRow'], $stmt->fetchAll());
+    }
+
     public function createEntry(string $workspaceId, array $input, int $userId): array
     {
         return FinDeskV2Database::transact(function () use ($workspaceId, $input, $userId): array {

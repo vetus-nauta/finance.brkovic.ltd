@@ -309,16 +309,38 @@ runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $works
         'date' => '2026-07-05',
         'raw_text' => '-180 какая-то штука',
     ], $userId);
+    $nonOtherCategory = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-42 заправка',
+    ], $userId);
+    $manualRecognizedOther = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-10 manually recognized other',
+        'category_code' => 'other',
+        'status' => 'recognized',
+    ], $userId);
+    $archivedOther = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-11 какая-то штука',
+    ], $userId);
+    $repo->deleteEntry($archivedOther['id'], $userId);
 
     assertSameValue($entry['category_code'], 'other', 'other expense category');
     assertSameValue($entry['status'], 'other_review', 'other expense status');
     assertSameValue($entry['entry_type'], 'cash_expense', 'other expense type');
     assertAmount($entry['amount'], 180.0, 'other expense amount');
     fixtureAssert(entryIsVisible($repo, $workspace['id'], $userId, $entry['id']), 'other expense row is not visible in feed');
+    $queue = $repo->listOtherExpenseQueue($workspace['id'], $userId);
+    fixtureAssert(count($queue) === 1, 'other expense queue count mismatch');
+    assertSameValue($queue[0]['id'], $entry['id'], 'other expense queue entry mismatch');
+    fixtureAssert($nonOtherCategory['category_code'] !== 'other', 'negative fixture should not be other category');
+    fixtureAssert($manualRecognizedOther['status'] === 'recognized', 'manual recognized other status mismatch');
 
-    return 'unknown cash expense maps to other/other_review while staying counted as cash_expense';
+    return 'unknown cash expense maps to other/other_review, stays counted, appears in queue, and queue excludes archived/non-review/non-other rows';
 });
-$report->blocked('Fixture 6 - Other expenses', 'dedicated Other expenses queue view/API is not implemented yet');
 
 runFixture($report, 'Fixture 7 - Tender fuel ambiguity', function () use ($repo, $workspace, $cashFlow, $userId): string {
     $entry = $repo->createEntry($workspace['id'], [

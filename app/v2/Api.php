@@ -50,6 +50,10 @@ final class FinDeskV2Api
             return ['ok' => true, 'summary' => $this->repo->getWorkspaceSummary($match[1], $userId)];
         }
 
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/other-expenses$#i', $route, $match) === 1 && $method === 'GET') {
+            return ['ok' => true, 'entries' => $this->repo->listOtherExpenseQueue($match[1], $userId)];
+        }
+
         if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/entries$#i', $route, $match) === 1) {
             if ($method === 'GET') {
                 return ['ok' => true, 'entries' => $this->repo->listEntries($match[1], $query, $userId)];

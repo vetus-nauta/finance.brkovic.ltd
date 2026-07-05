@@ -131,6 +131,18 @@ smokeAssert($cardEntry['balance_after'] === null, 'card entry should not have ba
 $summaryAfterCard = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/summary"), 'summary after card entry')['summary'];
 smokeAssert((float)$summaryAfterCard['card_expense_total'] === 25.0, 'card expense total after card entry mismatch');
 
+$otherEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-180 какая-то штука',
+]), 'create other expense')['entry'];
+smokeAssert($otherEntry['status'] === 'other_review', 'other expense status mismatch');
+smokeAssert($otherEntry['category_code'] === 'other', 'other expense category mismatch');
+
+$otherQueue = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/other-expenses"), 'other expenses queue')['entries'];
+smokeAssert(count($otherQueue) === 1, 'other expenses queue count mismatch');
+smokeAssert((string)$otherQueue[0]['id'] === (string)$otherEntry['id'], 'other expenses queue entry mismatch');
+
 $preview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
     'flow_id' => $cashFlow['id'],
     'date' => '2026-07-05',
@@ -140,7 +152,7 @@ smokeAssert($preview['will_save'] === false, 'preview must not save');
 smokeAssert($preview['entry_type'] === 'cash_income', 'preview entry type mismatch');
 
 $entriesAfterPreview = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after preview')['entries'];
-smokeAssert(count($entriesAfterPreview) === 2, 'parse preview persisted an entry');
+smokeAssert(count($entriesAfterPreview) === 3, 'parse preview persisted an entry');
 
 $patched = expectOk(smokeRequest('PATCH', '/api/entries/' . $entry['id'] . '/category', [
     'category_code' => 'media_comms',
