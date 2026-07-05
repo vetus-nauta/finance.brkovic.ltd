@@ -132,6 +132,14 @@ function smokeAuditCount(string $action, string $entryId): int
     return (int)$stmt->fetchColumn();
 }
 
+function smokeStoragePath(string $fileUrl): string
+{
+    $harness = rtrim((string)getenv('FINDESK_V2_HTTP_HARNESS'), '/');
+    smokeAssert($harness !== '', 'Missing FINDESK_V2_HTTP_HARNESS');
+
+    return $harness . '/' . ltrim($fileUrl, '/');
+}
+
 function smokeRequest(string $method, string $route, ?array $body = null, bool $authenticated = true): HttpSmokeResponse
 {
     $base = rtrim((string)getenv('FINDESK_V2_HTTP_BASE'), '/');
@@ -243,6 +251,46 @@ $entry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries",
 ]), 'create entry')['entry'];
 smokeAssert($entry['entry_type'] === 'cash_expense', 'entry type mismatch');
 smokeAssert((float)$entry['amount'] === 60.0, 'entry amount mismatch');
+
+expectError(smokeRequest('POST', '/api/entries/' . $entry['id'] . '/attachments', null, false), 401, 'not_authenticated', 'unauthenticated attachment upload');
+expectError(smokeRequest('POST', '/api/entries/' . $entry['id'] . '/attachments', [
+    'file_name' => '../receipt.png',
+    'content_base64' => base64_encode('not an image'),
+]), 422, 'invalid_file_name', 'attachment traversal filename');
+expectError(smokeRequest('POST', '/api/entries/' . $entry['id'] . '/attachments', [
+    'file_name' => 'receipt.png',
+    'content_base64' => 'not-base64!',
+]), 422, 'invalid_content_base64', 'attachment invalid base64');
+
+$summaryBeforeAttachment = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/summary"), 'summary before attachment')['summary'];
+$attachment = expectOk(smokeRequest('POST', '/api/entries/' . $entry['id'] . '/attachments', [
+    'file_name' => 'receipt.png',
+    'mime_type' => 'text/plain',
+    'image_mode' => 'original',
+    'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+]), 'create attachment')['attachment'];
+smokeAssert((string)$attachment['entry_id'] === (string)$entry['id'], 'attachment entry id mismatch');
+smokeAssert((string)$attachment['file_name'] === 'receipt.png', 'attachment file name mismatch');
+smokeAssert((string)$attachment['mime_type'] === 'image/png', 'attachment MIME should be detected');
+smokeAssert((int)$attachment['size_bytes'] > 0, 'attachment size missing');
+smokeAssert(str_starts_with((string)$attachment['file_url'], 'storage/v2/attachments/'), 'attachment storage path is not v2 private storage');
+$attachmentPath = smokeStoragePath((string)$attachment['file_url']);
+smokeAssert(is_file($attachmentPath), 'attachment file missing on disk');
+smokeAssert(smokeAuditCount('create', (string)$attachment['id']) === 1, 'attachment create audit missing');
+$attachments = expectOk(smokeRequest('GET', '/api/entries/' . $entry['id'] . '/attachments'), 'list attachments')['attachments'];
+smokeAssert(count($attachments) === 1, 'attachment list count mismatch');
+smokeAssert((string)$attachments[0]['id'] === (string)$attachment['id'], 'attachment list id mismatch');
+$deletedAttachment = expectOk(smokeRequest('DELETE', '/api/attachments/' . $attachment['id']), 'delete attachment')['attachment'];
+smokeAssert(($deletedAttachment['deleted'] ?? null) === true, 'attachment deleted flag mismatch');
+smokeAssert(($deletedAttachment['file_deleted'] ?? null) === true, 'attachment file deleted flag mismatch');
+clearstatcache(true, $attachmentPath);
+smokeAssert(!is_file($attachmentPath), 'attachment file remains after delete');
+smokeAssert(smokeAuditCount('delete', (string)$attachment['id']) === 1, 'attachment delete audit missing');
+$attachmentsAfterDelete = expectOk(smokeRequest('GET', '/api/entries/' . $entry['id'] . '/attachments'), 'list attachments after delete')['attachments'];
+smokeAssert(count($attachmentsAfterDelete) === 0, 'attachment list should be empty after delete');
+expectError(smokeRequest('DELETE', '/api/attachments/' . $attachment['id']), 404, 'attachment_not_found', 'delete missing attachment');
+$summaryAfterAttachment = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/summary"), 'summary after attachment')['summary'];
+smokeAssertAmount($summaryAfterAttachment['cash_now'], (float)$summaryBeforeAttachment['cash_now'], 'attachment should not change cash now');
 
 $cardEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
     'flow_id' => $cardFlow['id'],

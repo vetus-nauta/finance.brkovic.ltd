@@ -106,6 +106,19 @@ header('Pragma: no-cache');
               <div class="v2-detail-content" data-v2-detail-content hidden>
                 <div class="v2-detail-raw" data-v2-detail-raw></div>
                 <dl class="v2-detail-grid" data-v2-detail-fields></dl>
+                <section class="v2-attachments" data-v2-attachments>
+                  <div class="v2-attachments-head">
+                    <h3>Attachments</h3>
+                    <span data-v2-attachment-status></span>
+                  </div>
+                  <div class="v2-attachment-list" data-v2-attachment-list>
+                    <div class="v2-attachment-empty" data-v2-attachment-empty>No attachments</div>
+                  </div>
+                  <form class="v2-attachment-form" data-v2-attachment-form>
+                    <input type="file" data-v2-attachment-input accept="application/pdf,image/png,image/jpeg,image/webp">
+                    <button type="submit" data-v2-attachment-upload>Attach file</button>
+                  </form>
+                </section>
                 <form class="v2-category-form" data-v2-category-form>
                   <label>
                     <span>Category</span>

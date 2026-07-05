@@ -14,7 +14,11 @@ if ($route === '') {
     $route = $position === false ? '/api' : substr($path, $position + strlen($marker));
 }
 
-$input = ql_input();
+$contentType = (string)($_SERVER['CONTENT_TYPE'] ?? '');
+$input = str_contains(strtolower($contentType), 'multipart/form-data') ? $_POST : ql_input();
+if (isset($_FILES['file']) && is_array($_FILES['file'])) {
+    $input['file'] = $_FILES['file'];
+}
 
 try {
     $api = new FinDeskV2Api();

@@ -142,6 +142,8 @@ async function run() {
     const entryPostBodies = [];
     const categoryPatchBodies = [];
     const closedDecisionBodies = [];
+    const attachmentPosts = [];
+    const attachmentDeletes = [];
     await page.route('**/v2-api.php?**', async (route) => {
       const request = route.request();
       if (request.method() === 'POST' && routeFromRequest(request).endsWith('/entries')) {
@@ -155,6 +157,12 @@ async function run() {
       }
       if (request.method() === 'POST' && routeFromRequest(request).endsWith('/category/closed-month-decision')) {
         closedDecisionBodies.push(request.postData() || '');
+      }
+      if (request.method() === 'POST' && routeFromRequest(request).endsWith('/attachments')) {
+        attachmentPosts.push(routeFromRequest(request));
+      }
+      if (request.method() === 'DELETE' && routeFromRequest(request).startsWith('/api/attachments/')) {
+        attachmentDeletes.push(routeFromRequest(request));
       }
       await route.continue();
     });
@@ -197,6 +205,40 @@ async function run() {
       assert(fishDetail.includes(field), `entry detail missing field: ${field}`);
     }
     console.log('Entry detail selection: OK');
+
+    const attachmentPath = path.join(resultsDir, 'browser-smoke-attachment.png');
+    fs.writeFileSync(
+      attachmentPath,
+      Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+    );
+    await page.locator('[data-v2-attachment-input]').setInputFiles(attachmentPath);
+    const attachmentUploadResponse = page.waitForResponse((response) => (
+      response.request().method() === 'POST'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/attachments')
+    ));
+    await page.locator('[data-v2-attachment-upload]').click();
+    assert((await attachmentUploadResponse).status() === 200, 'attachment upload failed');
+    assert(attachmentPosts.length >= 1, 'attachment upload request was not observed');
+    await waitForText(page, '[data-v2-attachment-list]', 'browser-smoke-attachment.png');
+    await waitForText(page, '[data-v2-status]', 'Attachment saved');
+
+    await page.locator('[data-v2-refresh]').click();
+    await waitForText(page, '[data-v2-feed]', '-250 рыба');
+    await selectEntryByText(page, '-250 рыба');
+    await waitForText(page, '[data-v2-attachment-list]', 'browser-smoke-attachment.png');
+
+    const attachmentDeleteResponse = page.waitForResponse((response) => (
+      response.request().method() === 'DELETE'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).startsWith('/api/attachments/')
+    ));
+    await page.locator('[data-v2-attachment-delete]').first().click();
+    assert((await attachmentDeleteResponse).status() === 200, 'attachment delete failed');
+    assert(attachmentDeletes.length >= 1, 'attachment delete request was not observed');
+    await waitForText(page, '[data-v2-attachment-list]', 'No attachments');
+    await waitForText(page, '[data-v2-status]', 'Attachment deleted');
+    console.log('Entry attachments upload/list/delete: OK');
 
     await saveEntry(page, '-180 какая-то штука');
     await waitForText(page, '[data-v2-other-count]', '1');

@@ -105,6 +105,19 @@ final class FinDeskV2Api
             }
         }
 
+        if (preg_match('#^/api/entries/([a-f0-9-]{36})/attachments$#i', $route, $match) === 1) {
+            if ($method === 'GET') {
+                return ['ok' => true, 'attachments' => $this->repo->listEntryAttachments($match[1], $userId)];
+            }
+            if ($method === 'POST') {
+                return ['ok' => true, 'attachment' => $this->repo->createEntryAttachment($match[1], $input, $userId)];
+            }
+        }
+
+        if (preg_match('#^/api/attachments/([a-f0-9-]{36})$#i', $route, $match) === 1 && $method === 'DELETE') {
+            return ['ok' => true, 'attachment' => $this->repo->deleteAttachment($match[1], $userId)];
+        }
+
         if (preg_match('#^/api/entries/([a-f0-9-]{36})/category$#i', $route, $match) === 1 && $method === 'PATCH') {
             return ['ok' => true, 'entry' => $this->repo->updateEntryCategory($match[1], $input, $userId)];
         }

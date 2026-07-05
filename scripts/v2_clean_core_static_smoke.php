@@ -44,6 +44,8 @@ $requiredRoutes = [
     '/api/workspaces/([a-f0-9-]{36})/parse-preview',
     '/api/parse-entry-preview',
     '/api/entries/([a-f0-9-]{36})',
+    '/api/entries/([a-f0-9-]{36})/attachments',
+    '/api/attachments/([a-f0-9-]{36})',
     '/api/entries/([a-f0-9-]{36})/category',
     '/api/workspaces/([a-f0-9-]{36})/categories',
     '/api/workspaces/([a-f0-9-]{36})/category-rules',
@@ -78,7 +80,7 @@ foreach ($requiredRoutes as $route) {
 $repoPath = $root . '/app/v2/Repository.php';
 $repo = is_file($repoPath) ? file_get_contents($repoPath) : '';
 
-foreach (['v2_workspaces', 'v2_flows', 'v2_entries', 'v2_categories', 'v2_audit_log'] as $marker) {
+foreach (['v2_workspaces', 'v2_flows', 'v2_entries', 'v2_categories', 'v2_attachments', 'v2_audit_log', 'storage/v2/attachments'] as $marker) {
     if (!str_contains((string)$repo, $marker)) {
         $failures[] = "Repository does not reference clean table: {$marker}";
     }

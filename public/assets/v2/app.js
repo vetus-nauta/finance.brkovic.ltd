@@ -12,6 +12,9 @@
     activeFlowType: 'cash',
     selectedEntryId: '',
     categorySaving: false,
+    attachmentsByEntry: {},
+    attachmentStatus: '',
+    attachmentBusy: false,
     closedMonthDecision: null,
     saving: false,
     draftKey: 'findesk.v2.operational.draft'
@@ -48,6 +51,12 @@
     categorySelect: $('[data-v2-category-select]'),
     categorySave: $('[data-v2-category-save]'),
     categoryError: $('[data-v2-category-error]'),
+    attachments: $('[data-v2-attachments]'),
+    attachmentForm: $('[data-v2-attachment-form]'),
+    attachmentInput: $('[data-v2-attachment-input]'),
+    attachmentUpload: $('[data-v2-attachment-upload]'),
+    attachmentList: $('[data-v2-attachment-list]'),
+    attachmentStatus: $('[data-v2-attachment-status]'),
     closedDecision: $('[data-v2-closed-month-decision]'),
     closedDecisionFrom: $('[data-v2-closed-month-decision-from]'),
     closedDecisionTo: $('[data-v2-closed-month-decision-to]'),
@@ -77,6 +86,22 @@
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: body == null ? undefined : JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({ ok: false, error: 'invalid_json' }));
+    if (!response.ok || data.ok !== true) {
+      throw Object.assign({ status: response.status }, data);
+    }
+    return data;
+  }
+
+  async function v2ApiFormData(method, route, formData, query) {
+    const url = new URL('/v2-api.php', window.location.origin);
+    url.searchParams.set('route', route);
+    Object.entries(query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
+    const response = await fetch(url.toString(), {
+      method,
+      credentials: 'same-origin',
+      body: formData
     });
     const data = await response.json().catch(() => ({ ok: false, error: 'invalid_json' }));
     if (!response.ok || data.ok !== true) {
@@ -214,6 +239,45 @@
     els.categorySelect.value = current;
   }
 
+  function formatBytes(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 102.4) / 10 + ' KB';
+    return Math.round(bytes / 1024 / 102.4) / 10 + ' MB';
+  }
+
+  function renderAttachments(entry) {
+    if (!entry) {
+      els.attachmentList.innerHTML = '<div class="v2-attachment-empty" data-v2-attachment-empty>No attachments</div>';
+      els.attachmentStatus.textContent = '';
+      els.attachmentUpload.disabled = true;
+      return;
+    }
+
+    const attachments = state.attachmentsByEntry[entry.id];
+    els.attachmentStatus.textContent = state.attachmentStatus || '';
+    els.attachmentUpload.disabled = state.attachmentBusy;
+    els.attachmentInput.disabled = state.attachmentBusy;
+
+    if (!attachments) {
+      els.attachmentList.innerHTML = '<div class="v2-attachment-empty" data-v2-attachment-empty>Loading attachments</div>';
+      return;
+    }
+    if (!attachments.length) {
+      els.attachmentList.innerHTML = '<div class="v2-attachment-empty" data-v2-attachment-empty>No attachments</div>';
+      return;
+    }
+
+    els.attachmentList.innerHTML = attachments.map((attachment) => (
+      '<div class="v2-attachment-item" data-v2-attachment-item data-v2-attachment-id="' + escapeHtml(attachment.id) + '">'
+        + '<div><strong>' + escapeHtml(attachment.file_name) + '</strong>'
+        + '<small>' + escapeHtml([attachment.mime_type, formatBytes(attachment.size_bytes), attachment.created_at].filter(Boolean).join(' · ')) + '</small></div>'
+        + '<button type="button" data-v2-attachment-delete data-v2-attachment-id="' + escapeHtml(attachment.id) + '">Delete</button>'
+      + '</div>'
+    )).join('');
+  }
+
   function renderDetail() {
     const entry = selectedEntry();
     els.selectedEntryId.textContent = entry ? entry.id.slice(0, 8) : 'None selected';
@@ -223,6 +287,7 @@
       els.detailContent.hidden = true;
       const empty = els.detailBody.querySelector('.v2-detail-empty');
       if (empty) empty.hidden = false;
+      renderAttachments(null);
       return;
     }
 
@@ -253,6 +318,7 @@
     renderCategoryOptions(entry);
     els.categorySelect.disabled = state.categorySaving;
     els.categorySave.disabled = state.categorySaving;
+    renderAttachments(entry);
   }
 
   function renderClosedMonthDecision() {
@@ -293,6 +359,73 @@
     const summaryData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/summary');
     state.summary = summaryData.summary || null;
     renderAll();
+    if (state.selectedEntryId) {
+      loadSelectedEntryAttachments();
+    }
+  }
+
+  async function loadSelectedEntryAttachments() {
+    const entry = selectedEntry();
+    if (!entry) return;
+    state.attachmentStatus = 'Loading';
+    renderAttachments(entry);
+    try {
+      const data = await v2Api('GET', '/api/entries/' + entry.id + '/attachments');
+      state.attachmentsByEntry[entry.id] = data.attachments || [];
+      state.attachmentStatus = '';
+    } catch (error) {
+      state.attachmentStatus = error.error || 'Attachment load failed';
+      state.attachmentsByEntry[entry.id] = [];
+    }
+    renderAttachments(entry);
+  }
+
+  async function uploadAttachment(event) {
+    event.preventDefault();
+    const entry = selectedEntry();
+    const file = els.attachmentInput.files && els.attachmentInput.files[0];
+    if (!entry || !file || state.attachmentBusy) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('image_mode', 'original');
+    state.attachmentBusy = true;
+    state.attachmentStatus = 'Attaching';
+    renderAttachments(entry);
+    try {
+      const data = await v2ApiFormData('POST', '/api/entries/' + entry.id + '/attachments', formData);
+      const current = state.attachmentsByEntry[entry.id] || [];
+      state.attachmentsByEntry[entry.id] = current.concat([data.attachment]);
+      els.attachmentInput.value = '';
+      state.attachmentStatus = 'Attached';
+      setStatus('Attachment saved');
+    } catch (error) {
+      state.attachmentStatus = error.error || 'Attachment failed';
+      setStatus(state.attachmentStatus, true);
+    } finally {
+      state.attachmentBusy = false;
+      renderAttachments(entry);
+    }
+  }
+
+  async function deleteAttachment(attachmentId) {
+    const entry = selectedEntry();
+    if (!entry || !attachmentId || state.attachmentBusy) return;
+    state.attachmentBusy = true;
+    state.attachmentStatus = 'Deleting';
+    renderAttachments(entry);
+    try {
+      await v2Api('DELETE', '/api/attachments/' + attachmentId);
+      state.attachmentsByEntry[entry.id] = (state.attachmentsByEntry[entry.id] || []).filter((attachment) => attachment.id !== attachmentId);
+      state.attachmentStatus = 'Deleted';
+      setStatus('Attachment deleted');
+    } catch (error) {
+      state.attachmentStatus = error.error || 'Attachment delete failed';
+      setStatus(state.attachmentStatus, true);
+    } finally {
+      state.attachmentBusy = false;
+      renderAttachments(entry);
+    }
   }
 
   async function loadApp() {
@@ -424,9 +557,11 @@
   function selectEntry(entryId, view) {
     state.selectedEntryId = entryId || '';
     state.closedMonthDecision = null;
+    state.attachmentStatus = '';
     els.categoryError.textContent = '';
     renderFeed();
     renderDetail();
+    loadSelectedEntryAttachments();
     if (view) {
       const panel = view === 'detail' ? $('[data-v2-entry-detail]') : $('[data-v2-writing]');
       if (panel) panel.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
@@ -524,6 +659,11 @@
     els.createForm.addEventListener('submit', createWorkspace);
     els.form.addEventListener('submit', submitEntry);
     els.categoryForm.addEventListener('submit', saveCategory);
+    els.attachmentForm.addEventListener('submit', uploadAttachment);
+    els.attachmentList.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-v2-attachment-delete]');
+      if (button) deleteAttachment(button.getAttribute('data-v2-attachment-id'));
+    });
     els.closedDecision.addEventListener('click', (event) => {
       const button = event.target.closest('[data-v2-closed-month-decision-action]');
       if (button) applyClosedMonthDecision(button.getAttribute('data-v2-closed-month-decision-action'));

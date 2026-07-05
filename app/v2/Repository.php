@@ -8,6 +8,14 @@ require_once __DIR__ . '/Support.php';
 
 final class FinDeskV2Repository
 {
+    private const ATTACHMENT_MAX_BYTES = 8388608;
+    private const ATTACHMENT_ALLOWED_MIME_EXTENSIONS = [
+        'application/pdf' => 'pdf',
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
     public function __construct(private readonly PDO $db)
     {
     }
@@ -765,6 +773,92 @@ final class FinDeskV2Repository
             $this->audit($before['workspace_id'], 'entry', $entryId, 'delete', $before, ['archived' => true], $userId);
 
             return ['id' => $entryId, 'archived' => true];
+        });
+    }
+
+    public function listEntryAttachments(string $entryId, int $userId): array
+    {
+        $this->getEntry($entryId, $userId);
+        $stmt = $this->db->prepare("
+            SELECT *
+            FROM v2_attachments
+            WHERE entry_id = ?
+            ORDER BY created_at ASC, id ASC
+        ");
+        $stmt->execute([$entryId]);
+
+        return array_map([$this, 'attachmentRow'], $stmt->fetchAll());
+    }
+
+    public function createEntryAttachment(string $entryId, array $input, int $userId): array
+    {
+        $absolutePath = null;
+
+        try {
+            return FinDeskV2Database::transact(function () use ($entryId, $input, $userId, &$absolutePath): array {
+                $entry = $this->getEntry($entryId, $userId);
+                $this->requireWorkspaceWriter($entry['workspace_id'], $userId);
+                $payload = $this->normalizeAttachmentPayload($input);
+                $attachmentId = FinDeskV2Support::uuid();
+                $extension = self::ATTACHMENT_ALLOWED_MIME_EXTENSIONS[$payload['mime_type']];
+                $relativePath = 'storage/v2/attachments/'
+                    . $entry['workspace_id'] . '/'
+                    . $entryId . '/'
+                    . $attachmentId . '.' . $extension;
+                $absolutePath = $this->attachmentWritePath($relativePath);
+
+                if (@file_put_contents($absolutePath, $payload['content']) === false) {
+                    throw new FinDeskV2HttpError(500, 'attachment_store_failed');
+                }
+
+                $this->db->prepare("
+                    INSERT INTO v2_attachments (id, entry_id, file_name, file_url, mime_type, size_bytes, image_mode)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ")->execute([
+                    $attachmentId,
+                    $entryId,
+                    $payload['file_name'],
+                    $relativePath,
+                    $payload['mime_type'],
+                    $payload['size_bytes'],
+                    $payload['image_mode'],
+                ]);
+
+                $attachment = $this->getAttachmentForUser($attachmentId, $userId);
+                $this->audit($entry['workspace_id'], 'attachment', $attachmentId, 'create', null, [
+                    'attachment' => $attachment,
+                    'closed_month' => $this->isEntryMonthClosed($entry),
+                ], $userId);
+
+                return $attachment;
+            });
+        } catch (Throwable $e) {
+            if ($absolutePath !== null && is_file($absolutePath)) {
+                @unlink($absolutePath);
+            }
+            throw $e;
+        }
+    }
+
+    public function deleteAttachment(string $attachmentId, int $userId): array
+    {
+        return FinDeskV2Database::transact(function () use ($attachmentId, $userId): array {
+            $attachment = $this->getAttachmentForUser($attachmentId, $userId);
+            $entry = $this->getEntry($attachment['entry_id'], $userId);
+            $this->requireWorkspaceWriter($entry['workspace_id'], $userId);
+            $fileDeleted = $this->deleteAttachmentFile($attachment['file_url']);
+
+            $this->db->prepare("DELETE FROM v2_attachments WHERE id = ?")->execute([$attachmentId]);
+            $after = [
+                'id' => $attachmentId,
+                'entry_id' => $attachment['entry_id'],
+                'deleted' => true,
+                'file_deleted' => $fileDeleted,
+                'closed_month' => $this->isEntryMonthClosed($entry),
+            ];
+            $this->audit($entry['workspace_id'], 'attachment', $attachmentId, 'delete', $attachment, $after, $userId);
+
+            return $after;
         });
     }
 
@@ -1620,6 +1714,183 @@ final class FinDeskV2Repository
         return $this->entryRow($row);
     }
 
+    private function getAttachmentForUser(string $attachmentId, int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT att.*
+            FROM v2_attachments att
+            INNER JOIN v2_entries e ON e.id = att.entry_id
+            INNER JOIN v2_workspace_members m ON m.workspace_id = e.workspace_id
+            WHERE att.id = ? AND m.user_id = ? AND e.archived_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([$attachmentId, $userId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            throw new FinDeskV2HttpError(404, 'attachment_not_found');
+        }
+
+        return $this->attachmentRow($row);
+    }
+
+    private function requireWorkspaceWriter(string $workspaceId, int $userId): void
+    {
+        $stmt = $this->db->prepare("
+            SELECT role
+            FROM v2_workspace_members
+            WHERE workspace_id = ? AND user_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$workspaceId, $userId]);
+        $role = $stmt->fetchColumn();
+        if (!in_array($role, ['owner', 'admin', 'assistant'], true)) {
+            throw new FinDeskV2HttpError(403, 'workspace_read_only');
+        }
+    }
+
+    private function normalizeAttachmentPayload(array $input): array
+    {
+        if (isset($input['file']) && is_array($input['file'])) {
+            return $this->normalizeUploadedAttachment($input);
+        }
+
+        $fileName = $this->cleanAttachmentFileName(FinDeskV2Support::requireString($input, 'file_name', 255));
+        $rawEncoded = trim((string)($input['content_base64'] ?? ''));
+        if ($rawEncoded === '') {
+            throw new FinDeskV2HttpError(422, 'missing_content_base64');
+        }
+        $encoded = preg_replace('/\s+/', '', $rawEncoded);
+        if (!is_string($encoded) || $encoded === '' || str_contains($encoded, ',')) {
+            throw new FinDeskV2HttpError(422, 'invalid_content_base64');
+        }
+        if (strlen($encoded) > (int)ceil(self::ATTACHMENT_MAX_BYTES * 1.4) + 16) {
+            throw new FinDeskV2HttpError(413, 'attachment_too_large');
+        }
+
+        $content = base64_decode($encoded, true);
+        if ($content === false) {
+            throw new FinDeskV2HttpError(422, 'invalid_content_base64');
+        }
+
+        return $this->buildAttachmentPayload($fileName, $content, $input);
+    }
+
+    private function normalizeUploadedAttachment(array $input): array
+    {
+        $file = $input['file'];
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new FinDeskV2HttpError(422, 'invalid_attachment_upload');
+        }
+        if ((int)($file['size'] ?? 0) > self::ATTACHMENT_MAX_BYTES) {
+            throw new FinDeskV2HttpError(413, 'attachment_too_large');
+        }
+        $tmpName = (string)($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new FinDeskV2HttpError(422, 'invalid_attachment_upload');
+        }
+        $content = file_get_contents($tmpName);
+        if ($content === false) {
+            throw new FinDeskV2HttpError(422, 'invalid_attachment_upload');
+        }
+
+        return $this->buildAttachmentPayload(
+            $this->cleanAttachmentFileName((string)($file['name'] ?? 'attachment')),
+            $content,
+            $input
+        );
+    }
+
+    private function buildAttachmentPayload(string $fileName, string $content, array $input): array
+    {
+        $size = strlen($content);
+        if ($size <= 0) {
+            throw new FinDeskV2HttpError(422, 'empty_attachment');
+        }
+        if ($size > self::ATTACHMENT_MAX_BYTES) {
+            throw new FinDeskV2HttpError(413, 'attachment_too_large');
+        }
+
+        $mimeType = $this->detectAttachmentMime($content);
+        $imageMode = FinDeskV2Support::optionalString($input, 'image_mode', null, 40);
+        if ($imageMode !== null) {
+            $imageMode = FinDeskV2Support::enum($imageMode, ['original', 'compressed', 'grayscale_scan'], 'image_mode');
+        }
+
+        return [
+            'file_name' => $fileName,
+            'content' => $content,
+            'mime_type' => $mimeType,
+            'size_bytes' => $size,
+            'image_mode' => $imageMode,
+        ];
+    }
+
+    private function detectAttachmentMime(string $content): string
+    {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->buffer($content) ?: 'application/octet-stream';
+        if ($mimeType === 'image/pjpeg') {
+            $mimeType = 'image/jpeg';
+        }
+        if (!array_key_exists($mimeType, self::ATTACHMENT_ALLOWED_MIME_EXTENSIONS)) {
+            throw new FinDeskV2HttpError(422, 'unsupported_attachment_type');
+        }
+
+        return $mimeType;
+    }
+
+    private function cleanAttachmentFileName(string $fileName): string
+    {
+        $fileName = trim($fileName);
+        if ($fileName === '' || preg_match('/[\/\\\\\x00-\x1F\x7F]/u', $fileName) === 1) {
+            throw new FinDeskV2HttpError(422, 'invalid_file_name');
+        }
+
+        return mb_substr($fileName, 0, 255);
+    }
+
+    private function attachmentWritePath(string $relativePath): string
+    {
+        $root = dirname(__DIR__, 2);
+        if (!str_starts_with($relativePath, 'storage/v2/attachments/')) {
+            throw new FinDeskV2HttpError(500, 'invalid_attachment_path');
+        }
+        $absolutePath = $root . '/' . $relativePath;
+        $directory = dirname($absolutePath);
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            throw new FinDeskV2HttpError(500, 'attachment_store_failed');
+        }
+
+        return $absolutePath;
+    }
+
+    private function deleteAttachmentFile(string $relativePath): bool
+    {
+        if (!str_starts_with($relativePath, 'storage/v2/attachments/')) {
+            throw new FinDeskV2HttpError(500, 'invalid_attachment_path');
+        }
+
+        $root = dirname(__DIR__, 2);
+        $storageRoot = $root . '/storage/v2/attachments';
+        $storageReal = realpath($storageRoot);
+        $fileReal = realpath($root . '/' . $relativePath);
+        if ($fileReal === false) {
+            return false;
+        }
+        if ($storageReal === false || !str_starts_with($fileReal, $storageReal . DIRECTORY_SEPARATOR)) {
+            throw new FinDeskV2HttpError(500, 'invalid_attachment_path');
+        }
+        if (!is_file($fileReal)) {
+            return false;
+        }
+        if (!unlink($fileReal)) {
+            throw new FinDeskV2HttpError(500, 'attachment_delete_failed');
+        }
+
+        return true;
+    }
+
     private function getCategoryRule(string $ruleId, string $workspaceId, int $userId): array
     {
         $this->getWorkspace($workspaceId, $userId);
@@ -1957,6 +2228,20 @@ final class FinDeskV2Repository
             'excludes_any' => FinDeskV2Support::jsonDecode($row['excludes_any_json'] ?? '[]', []),
             'created_by_user' => (bool)$row['created_by_user'],
             'is_active' => (bool)$row['is_active'],
+            'created_at' => $row['created_at'] ?? null,
+        ];
+    }
+
+    private function attachmentRow(array $row): array
+    {
+        return [
+            'id' => (string)$row['id'],
+            'entry_id' => (string)$row['entry_id'],
+            'file_name' => (string)$row['file_name'],
+            'file_url' => (string)$row['file_url'],
+            'mime_type' => $row['mime_type'] ?? null,
+            'size_bytes' => $row['size_bytes'] === null ? null : (int)$row['size_bytes'],
+            'image_mode' => $row['image_mode'] ?? null,
             'created_at' => $row['created_at'] ?? null,
         ];
     }

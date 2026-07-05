@@ -201,6 +201,18 @@ function matchedRuleHas(array $entry, string $key, string $value): bool
     return false;
 }
 
+function fixtureAuditCount(PDO $pdo, string $entityType, string $entityId, string $action): int
+{
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM v2_audit_log
+        WHERE entity_type = ? AND entity_id = ? AND action = ?
+    ");
+    $stmt->execute([$entityType, $entityId, $action]);
+
+    return (int)$stmt->fetchColumn();
+}
+
 function runFixture(FixtureReport $report, string $fixture, callable $callback): void
 {
     try {
@@ -225,6 +237,19 @@ function expectClosedMonthDecision(callable $callback): array
     }
 
     throw new RuntimeException('closed month mutation was allowed');
+}
+
+function expectFixtureHttpError(callable $callback, int $status, string $error): void
+{
+    try {
+        $callback();
+    } catch (FinDeskV2HttpError $e) {
+        fixtureAssert($e->status === $status, "expected HTTP {$status}, got {$e->status}");
+        assertSameValue($e->getMessage(), $error, 'unexpected error code');
+        return;
+    }
+
+    throw new RuntimeException("expected error {$error}");
 }
 
 $pdo = ql_db();
@@ -535,6 +560,69 @@ runFixture($report, 'Fixture 10 - Closed month protection', function () use ($re
     assertAmount($entries[0]['balance_after'], 900.0, 'closed month balance should not silently recalculate');
 
     return 'closed month edit/category/delete are blocked with create_correction/recalculate_chain/cancel choices and no silent mutation';
+});
+
+runFixture($report, 'Attachments base', function () use ($repo, $pdo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Attachment Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $cashFlow = byFlowType($repo->listFlows($workspace['id'], $userId), 'cash');
+    $entry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 fuel',
+    ], $userId);
+    $summaryBefore = $repo->getWorkspaceSummary($workspace['id'], $userId);
+    $repo->closeMonthForFixture($workspace['id'], 2026, 7, $userId);
+
+    expectFixtureHttpError(static fn () => $repo->createEntryAttachment($entry['id'], [
+        'file_name' => '../receipt.png',
+        'content_base64' => base64_encode('not an image'),
+    ], $userId), 422, 'invalid_file_name');
+    expectFixtureHttpError(static fn () => $repo->createEntryAttachment($entry['id'], [
+        'file_name' => 'receipt.png',
+        'content_base64' => 'not-base64!',
+    ], $userId), 422, 'invalid_content_base64');
+
+    $attachment = $repo->createEntryAttachment($entry['id'], [
+        'file_name' => 'receipt.png',
+        'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'mime_type' => 'text/plain',
+        'image_mode' => 'original',
+    ], $userId);
+    assertSameValue($attachment['entry_id'], $entry['id'], 'attachment entry id');
+    assertSameValue($attachment['mime_type'], 'image/png', 'attachment MIME should be detected from bytes');
+    fixtureAssert(str_starts_with($attachment['file_url'], 'storage/v2/attachments/'), 'attachment path should be v2 private storage');
+    $harnessRoot = rtrim((string)getenv('FINDESK_V2_FIXTURE_HARNESS'), '/');
+    fixtureAssert($harnessRoot !== '', 'fixture harness root missing');
+    fixtureAssert(is_file($harnessRoot . '/' . $attachment['file_url']), 'attachment stored file missing');
+    fixtureAssert(fixtureAuditCount($pdo, 'attachment', $attachment['id'], 'create') === 1, 'attachment create audit missing');
+
+    $listed = $repo->listEntryAttachments($entry['id'], $userId);
+    fixtureAssert(count($listed) === 1, 'attachment list count');
+    assertSameValue($listed[0]['id'], $attachment['id'], 'listed attachment id');
+
+    $entriesAfterAttach = $repo->listEntries($workspace['id'], [], $userId);
+    assertSameValue($entriesAfterAttach[0]['raw_text'], '-100 fuel', 'attachment should not mutate raw text');
+    assertSameValue($entriesAfterAttach[0]['category_code'], 'fuel', 'attachment should not mutate category');
+    assertAmount($entriesAfterAttach[0]['balance_after'], 900.0, 'attachment should not recalculate balance');
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['cash_now'], (float)$summaryBefore['cash_now'], 'attachment should not alter cash now');
+
+    $storedPath = $harnessRoot . '/' . $attachment['file_url'];
+    $deleted = $repo->deleteAttachment($attachment['id'], $userId);
+    fixtureAssert($deleted['deleted'] === true, 'attachment delete flag');
+    fixtureAssert($deleted['file_deleted'] === true, 'attachment file delete flag');
+    clearstatcache(true, $storedPath);
+    fixtureAssert(!is_file($storedPath), 'attachment file still exists after delete');
+    fixtureAssert(count($repo->listEntryAttachments($entry['id'], $userId)) === 0, 'attachment list should be empty after delete');
+    fixtureAssert(fixtureAuditCount($pdo, 'attachment', $attachment['id'], 'delete') === 1, 'attachment delete audit missing');
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['cash_now'], (float)$summaryBefore['cash_now'], 'attachment delete should not alter cash now');
+
+    return 'attachments create/list/delete use v2 private storage, audit closed-month metadata changes, and do not alter money';
 });
 
 runFixture($report, 'Card plus semantics', function () use ($repo, $workspace, $cardFlow, $userId): string {

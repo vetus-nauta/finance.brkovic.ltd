@@ -258,6 +258,25 @@ check($rule['category_code'] === 'fuel', 'category rule category mismatch');
 check($rule['pattern'] === 'diesel', 'category rule pattern mismatch');
 check($rule['weight'] === 20, 'category rule weight mismatch');
 
+$attachment = $repo->createEntryAttachment($cashEntry['id'], [
+    'file_name' => 'db-smoke.png',
+    'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'image_mode' => 'original',
+], $userId);
+check($attachment['entry_id'] === $cashEntry['id'], 'attachment entry mismatch');
+check($attachment['mime_type'] === 'image/png', 'attachment MIME mismatch');
+check(str_starts_with($attachment['file_url'], 'storage/v2/attachments/'), 'attachment path must be v2 storage');
+check(is_file(getenv('FINDESK_V2_SMOKE_HARNESS') . '/' . $attachment['file_url']), 'attachment stored file missing');
+$listedAttachments = $repo->listEntryAttachments($cashEntry['id'], $userId);
+check(count($listedAttachments) === 1, 'attachment list count mismatch');
+check($listedAttachments[0]['id'] === $attachment['id'], 'attachment list id mismatch');
+$attachmentPath = getenv('FINDESK_V2_SMOKE_HARNESS') . '/' . $attachment['file_url'];
+$deletedAttachment = $repo->deleteAttachment($attachment['id'], $userId);
+check($deletedAttachment['deleted'] === true, 'attachment delete flag mismatch');
+check($deletedAttachment['file_deleted'] === true, 'attachment file delete flag mismatch');
+clearstatcache(true, $attachmentPath);
+check(!is_file($attachmentPath), 'attachment file remained after delete');
+
 $repo->deleteEntry($cardExpense['id'], $userId);
 $remainingIds = array_column($repo->listEntries($workspace['id'], [], $userId), 'id');
 check(!in_array($cardExpense['id'], $remainingIds, true), 'deleted entry still listed');

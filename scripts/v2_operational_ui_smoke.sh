@@ -41,6 +41,12 @@ for marker in \
     'data-v2-category-select' \
     'data-v2-category-save' \
     'data-v2-category-error' \
+    'data-v2-attachments' \
+    'data-v2-attachment-form' \
+    'data-v2-attachment-input' \
+    'data-v2-attachment-upload' \
+    'data-v2-attachment-list' \
+    'data-v2-attachment-status' \
     'data-v2-other-review-jump' \
     'data-v2-selected-entry-id' \
     'data-v2-closed-month-decision' \
@@ -53,12 +59,21 @@ do
     grep -q "${marker}" "${PAGE}" || fail "Missing UI marker: ${marker}"
 done
 
+for marker in \
+    'data-v2-attachment-item' \
+    'data-v2-attachment-delete'
+do
+    grep -q "${marker}" "${JS}" || fail "Missing dynamic UI marker: ${marker}"
+done
+
 for route in \
     '/api/workspaces' \
     '/api/workspaces/' \
     '/flows' \
     '/entries' \
     '/category/closed-month-decision' \
+    '/attachments' \
+    '/api/attachments/' \
     '/summary' \
     '/categories' \
     '/parse-preview' \
