@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/LegacyExcelImporter.php';
 require_once __DIR__ . '/Support.php';
 
 final class FinDeskV2Repository
@@ -476,44 +477,7 @@ final class FinDeskV2Repository
     public function createEntry(string $workspaceId, array $input, int $userId): array
     {
         return FinDeskV2Database::transact(function () use ($workspaceId, $input, $userId): array {
-            $this->getWorkspace($workspaceId, $userId);
-            $flow = $this->getFlowForWorkspace(FinDeskV2Support::requireString($input, 'flow_id', 36), $workspaceId);
-            $entry = $this->normalizeEntryInput($workspaceId, $flow, $input);
-            $entry['id'] = FinDeskV2Support::uuid();
-            $entry['created_by'] = $userId;
-
-            $this->db->prepare("
-                INSERT INTO v2_entries (
-                    id, workspace_id, flow_id, created_by, actor_id, date, raw_text, sign, amount, direction,
-                    entry_type, category_id, status, source_type, notes, confidence, matched_rules_json
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ")->execute([
-                $entry['id'],
-                $workspaceId,
-                $flow['id'],
-                $userId,
-                $entry['actor_id'],
-                $entry['date'],
-                $entry['raw_text'],
-                $entry['sign'],
-                $entry['amount'],
-                $entry['direction'],
-                $entry['entry_type'],
-                $entry['category_id'],
-                $entry['status'],
-                $entry['source_type'],
-                $entry['notes'],
-                $entry['confidence'],
-                FinDeskV2Support::jsonEncode($entry['matched_rules']),
-            ]);
-
-            $created = $this->getEntry($entry['id'], $userId);
-            $this->recalculateFlowBalance($flow['id']);
-            $created = $this->getEntry($entry['id'], $userId);
-            $this->audit($workspaceId, 'entry', $entry['id'], 'create', null, $created, $userId);
-
-            return $created;
+            return $this->createEntryInCurrentTransaction($workspaceId, $input, $userId);
         });
     }
 
@@ -524,6 +488,154 @@ final class FinDeskV2Repository
         $entry = $this->normalizeEntryInput($workspaceId, $flow, $input, false);
 
         return $this->entryPreviewRow($workspaceId, $flow, $entry);
+    }
+
+    public function createLegacyExcelImport(string $workspaceId, array $input, int $userId): array
+    {
+        return FinDeskV2Database::transact(function () use ($workspaceId, $input, $userId): array {
+            $this->getWorkspace($workspaceId, $userId);
+            $fileName = FinDeskV2Support::requireString($input, 'file_name', 255);
+            $fileId = FinDeskV2Support::optionalString($input, 'file_id', null, 190);
+            $fileUrl = FinDeskV2Support::optionalString($input, 'file_url', null, 2000);
+            $fileUpdatedDate = FinDeskV2Support::optionalString($input, 'file_updated_date', null, 20);
+            $content = FinDeskV2Support::requireString($input, 'content_base64', 20_000_000);
+
+            if (!str_ends_with(mb_strtolower($fileName), '.xlsx')) {
+                throw new FinDeskV2HttpError(422, 'xlsx_required');
+            }
+
+            $excludeReason = $this->legacyExcludeReason($fileName);
+            $sourceId = FinDeskV2Support::uuid();
+            $includeDecision = $excludeReason === null ? 'included' : 'excluded_by_title_marker';
+            $decoded = base64_decode($content, true);
+            if ($decoded === false) {
+                throw new FinDeskV2HttpError(422, 'invalid_base64');
+            }
+
+            $this->db->prepare("
+                INSERT INTO v2_import_sources (
+                    id, workspace_id, source_type, file_name, file_url, file_id, status,
+                    include_decision, reason
+                )
+                VALUES (?, ?, 'excel', ?, ?, ?, ?, ?, ?)
+            ")->execute([
+                $sourceId,
+                $workspaceId,
+                $fileName,
+                $fileUrl,
+                $fileId,
+                $excludeReason === null ? 'review_ready' : 'excluded',
+                $includeDecision,
+                $excludeReason,
+            ]);
+
+            if ($excludeReason === null) {
+                $sheets = (new FinDeskV2LegacyExcelImporter())->read($decoded);
+                $this->storeLegacyImportRows($workspaceId, $sourceId, $sheets, $fileName, $fileUpdatedDate);
+            }
+
+            $review = $this->getLegacyImportReview($workspaceId, $sourceId, $userId);
+            $this->audit($workspaceId, 'import_source', $sourceId, 'create_import', null, $review, $userId);
+
+            return $review;
+        });
+    }
+
+    public function getLegacyImportReview(string $workspaceId, string $importId, int $userId): array
+    {
+        $this->getWorkspace($workspaceId, $userId);
+        $source = $this->legacyImportSource($workspaceId, $importId);
+        $rows = $this->legacyImportRows($importId);
+        $review = $this->emptyLegacyImportReview($source);
+        $seen = [];
+
+        foreach ($rows as $row) {
+            $raw = FinDeskV2Support::jsonDecode($row['raw_json'], []);
+            $parsed = $this->parseLegacyImportRow($raw, $row, $seen);
+            $this->accumulateLegacyImportReview($review, $parsed, $row);
+        }
+
+        $review['sheets_scanned'] = count($review['_sheet_names'] ?? []);
+        $review['months_covered'] = array_values(array_keys($review['_months_covered'] ?? []));
+        sort($review['months_covered']);
+        unset($review['_sheet_names'], $review['_months_covered']);
+
+        $comparisonSource = array_sum($review['source_summary_totals']) > 0
+            ? $review['source_summary_totals']
+            : $review['source_totals'];
+        $review['source_total_comparison'] = [
+            'cash_income' => $comparisonSource['cash_income'] - $review['normalized_totals']['cash_income'],
+            'cash_expense' => $comparisonSource['cash_expense'] - $review['normalized_totals']['cash_expense'],
+            'card_income' => $comparisonSource['card_income'] - $review['normalized_totals']['card_income'],
+            'card_expense' => $comparisonSource['card_expense'] - $review['normalized_totals']['card_expense'],
+        ];
+
+        return $review;
+    }
+
+    public function acceptLegacyImport(string $workspaceId, string $importId, array $input, int $userId): array
+    {
+        return FinDeskV2Database::transact(function () use ($workspaceId, $importId, $input, $userId): array {
+            FinDeskV2Support::enum(
+                FinDeskV2Support::optionalString($input, 'decision', 'accept', 40) ?? 'accept',
+                ['accept'],
+                'decision'
+            );
+            $this->getWorkspace($workspaceId, $userId);
+            $source = $this->legacyImportSource($workspaceId, $importId);
+            if ((string)$source['include_decision'] !== 'included') {
+                throw new FinDeskV2HttpError(422, 'import_excluded');
+            }
+
+            $flows = $this->flowsByType($workspaceId, $userId);
+            $rows = $this->legacyImportRows($importId);
+            $seen = [];
+
+            foreach ($rows as $row) {
+                if ($row['entry_id'] !== null) {
+                    continue;
+                }
+
+                $raw = FinDeskV2Support::jsonDecode($row['raw_json'], []);
+                $parsed = $this->parseLegacyImportRow($raw, $row, $seen);
+                if ($parsed['entry'] === null) {
+                    $this->updateLegacyImportRowStatus($row['id'], $parsed['parse_status'], null, $parsed['parse_notes']);
+                    continue;
+                }
+
+                $flow = $flows[$parsed['entry']['flow_type']] ?? null;
+                if ($flow === null) {
+                    $this->updateLegacyImportRowStatus($row['id'], 'unrecognized', null, 'missing flow');
+                    continue;
+                }
+
+                $status = $parsed['duplicate_suspect'] ? 'duplicate_suspect' : 'imported';
+                $entry = $this->createEntryInCurrentTransaction($workspaceId, [
+                    'flow_id' => $flow['id'],
+                    'date' => $parsed['entry']['date'],
+                    'raw_text' => $parsed['entry']['raw_text'],
+                    'amount' => number_format($parsed['entry']['amount'], 2, '.', ''),
+                    'category_code' => $parsed['entry']['category_code'],
+                    'status' => $status,
+                    'source_type' => 'import',
+                    'source_id' => $importId,
+                    'source_row_id' => $row['id'],
+                    'matched_rules' => [[
+                        'source' => 'legacy_excel_import',
+                        'sheet_name' => $row['sheet_name'],
+                        'row_number' => (int)$row['row_number'],
+                    ]],
+                ], $userId);
+
+                $this->updateLegacyImportRowStatus($row['id'], $status, $entry['id'], $parsed['parse_notes']);
+            }
+
+            $this->db->prepare("UPDATE v2_import_sources SET status = 'accepted' WHERE id = ?")->execute([$importId]);
+            $review = $this->getLegacyImportReview($workspaceId, $importId, $userId);
+            $this->audit($workspaceId, 'import_source', $importId, 'accept_import', $source, $review, $userId);
+
+            return $review;
+        });
     }
 
     public function updateEntry(string $entryId, array $input, int $userId): array
@@ -738,6 +850,490 @@ final class FinDeskV2Repository
 
             return $rule;
         });
+    }
+
+    private function storeLegacyImportRows(string $workspaceId, string $sourceId, array $sheets, string $fileName, ?string $fileUpdatedDate): void
+    {
+        $insert = $this->db->prepare("
+            INSERT INTO v2_import_rows (id, import_source_id, sheet_name, `row_number`, raw_json, parse_status, parse_notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $seen = [];
+        $filenameDate = $this->legacyFilenameDate($fileName);
+
+        foreach ($sheets as $sheet) {
+            $headers = [];
+            $lastDate = null;
+            foreach ($sheet['rows'] as $rowNumber => $cells) {
+                if ($headers === []) {
+                    $headers = $this->legacyHeaderMap($cells);
+                    continue;
+                }
+
+                $raw = $this->legacyRawRow($headers, $cells);
+                if ($raw === []) {
+                    continue;
+                }
+
+                $raw['_date_context'] = [
+                    'inherited_previous_row_date' => $lastDate,
+                    'filename_date' => $filenameDate,
+                    'file_updated_date' => $fileUpdatedDate,
+                ];
+                $date = $this->legacyRowDate($raw, null);
+                if ($date !== null && ($raw['дата'] ?? '') !== '') {
+                    $lastDate = $date;
+                }
+                $raw['_date_context']['inherited_previous_row_date'] = $lastDate;
+
+                $parsed = $this->parseLegacyImportRow($raw, [
+                    'id' => null,
+                    'sheet_name' => $sheet['name'],
+                    'row_number' => $rowNumber,
+                ], $seen);
+
+                $insert->execute([
+                    FinDeskV2Support::uuid(),
+                    $sourceId,
+                    $sheet['name'],
+                    $rowNumber,
+                    FinDeskV2Support::jsonEncode($raw),
+                    $parsed['parse_status'],
+                    $parsed['parse_notes'],
+                ]);
+            }
+        }
+    }
+
+    private function createEntryInCurrentTransaction(string $workspaceId, array $input, int $userId): array
+    {
+        $this->getWorkspace($workspaceId, $userId);
+        $flow = $this->getFlowForWorkspace(FinDeskV2Support::requireString($input, 'flow_id', 36), $workspaceId);
+        $entry = $this->normalizeEntryInput($workspaceId, $flow, $input);
+        $entry['id'] = FinDeskV2Support::uuid();
+        $entry['created_by'] = $userId;
+
+        $this->db->prepare("
+            INSERT INTO v2_entries (
+                id, workspace_id, flow_id, created_by, actor_id, date, raw_text, sign, amount, direction,
+                entry_type, category_id, status, source_type, source_id, source_row_id, notes, confidence, matched_rules_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ")->execute([
+            $entry['id'],
+            $workspaceId,
+            $flow['id'],
+            $userId,
+            $entry['actor_id'],
+            $entry['date'],
+            $entry['raw_text'],
+            $entry['sign'],
+            $entry['amount'],
+            $entry['direction'],
+            $entry['entry_type'],
+            $entry['category_id'],
+            $entry['status'],
+            $entry['source_type'],
+            $entry['source_id'],
+            $entry['source_row_id'],
+            $entry['notes'],
+            $entry['confidence'],
+            FinDeskV2Support::jsonEncode($entry['matched_rules']),
+        ]);
+
+        $created = $this->getEntry($entry['id'], $userId);
+        $this->recalculateFlowBalance($flow['id']);
+        $created = $this->getEntry($entry['id'], $userId);
+        $this->audit($workspaceId, 'entry', $entry['id'], 'create', null, $created, $userId);
+
+        return $created;
+    }
+
+    private function legacyHeaderMap(array $cells): array
+    {
+        $headers = [];
+        foreach ($cells as $index => $cell) {
+            $normalized = mb_strtolower(trim((string)$cell));
+            if ($normalized !== '') {
+                $headers[$index] = $normalized;
+            }
+        }
+
+        return $headers;
+    }
+
+    private function legacyRawRow(array $headers, array $cells): array
+    {
+        $raw = [];
+        foreach ($headers as $index => $header) {
+            $value = trim((string)($cells[$index] ?? ''));
+            if ($value !== '') {
+                $raw[$header] = $value;
+            }
+        }
+
+        return $raw;
+    }
+
+    private function parseLegacyImportRow(array $raw, array $row, array &$seen): array
+    {
+        $description = trim((string)($raw['описание платежа'] ?? $raw['description'] ?? $raw['описание'] ?? ''));
+        $text = mb_strtolower($description);
+        $date = $this->legacyRowDate($raw, null);
+        $dateSource = $this->legacyDateSource($raw);
+        $amounts = [
+            'cash_income' => $this->legacyAmount($raw['приход кеш'] ?? $raw['приход кэш'] ?? $raw['cash income'] ?? null),
+            'cash_expense' => $this->legacyAmount($raw['расход кеш'] ?? $raw['расход кэш'] ?? $raw['cash expense'] ?? null),
+            'card_income' => $this->legacyAmount($raw['приход карта'] ?? $raw['приход карты'] ?? $raw['card income'] ?? null),
+            'card_expense' => $this->legacyAmount($raw['расход карта'] ?? $raw['расход карты'] ?? $raw['card expense'] ?? null),
+        ];
+        $nonZero = array_filter($amounts, static fn (?float $amount): bool => $amount !== null && abs($amount) > 0.0001);
+        $isSummary = str_contains($text, 'свод') || str_contains($text, 'summary') || isset($raw['сводные данные']);
+        $isInfo = str_contains($text, 'информационная') || str_contains($text, 'не считается') || str_contains($text, 'comment') || str_contains($text, 'info');
+        $isOpening = str_contains($text, 'остаток') || str_contains($text, 'переход') || str_contains($text, 'opening balance') || str_contains($text, 'balance brought forward');
+
+        if ($isSummary) {
+            return $this->legacyParsedRow('summary_ignored', null, $amounts, false, 'summary row ignored');
+        }
+        if ($isInfo || $isOpening) {
+            return $this->legacyParsedRow('ignored', null, $amounts, false, $isOpening ? 'opening balance row ignored' : 'info row ignored');
+        }
+        if ($date === null || $nonZero === []) {
+            return $this->legacyParsedRow('unrecognized', null, $amounts, false, 'missing date or amount');
+        }
+        if (count($nonZero) > 1) {
+            return $this->legacyParsedRow('unrecognized', null, $amounts, false, 'multiple money columns in one row');
+        }
+
+        $kind = array_key_first($nonZero);
+        $amount = (float)$nonZero[$kind];
+        $flowType = str_starts_with((string)$kind, 'card_') ? 'card' : 'cash';
+        $sign = str_ends_with((string)$kind, '_expense') ? '-' : '+';
+        $categoryCode = $this->legacyCategoryCode($description, $flowType, $sign);
+        $rawText = $sign . number_format($amount, 2, '.', '') . ($description === '' ? ' imported row' : ' ' . $description);
+        $duplicateKey = implode('|', [$date, $flowType, $sign, number_format($amount, 2, '.', ''), mb_strtolower($description)]);
+        $duplicate = isset($seen[$duplicateKey]);
+        $seen[$duplicateKey] = true;
+
+        return $this->legacyParsedRow('parsed', [
+            'date' => $date,
+            'date_source' => $dateSource,
+            'flow_type' => $flowType,
+            'raw_text' => $rawText,
+            'amount' => $amount,
+            'category_code' => $categoryCode,
+        ], $amounts, $duplicate, $duplicate ? 'duplicate suspect' : null);
+    }
+
+    private function legacyParsedRow(string $status, ?array $entry, array $amounts, bool $duplicate, ?string $notes): array
+    {
+        if ($duplicate) {
+            $status = 'duplicate_suspect';
+        }
+
+        return [
+            'parse_status' => $status,
+            'entry' => $entry,
+            'source_totals' => [
+                'cash_income' => $amounts['cash_income'] ?? 0.0,
+                'cash_expense' => $amounts['cash_expense'] ?? 0.0,
+                'card_income' => $amounts['card_income'] ?? 0.0,
+                'card_expense' => $amounts['card_expense'] ?? 0.0,
+            ],
+            'date_source' => $entry['date_source'] ?? null,
+            'duplicate_suspect' => $duplicate,
+            'parse_notes' => $notes,
+        ];
+    }
+
+    private function legacyRowDate(array $raw, ?string $fallback): ?string
+    {
+        foreach ([
+            $raw['дата'] ?? $raw['date'] ?? null,
+            $raw['_date_context']['inherited_previous_row_date'] ?? null,
+            $raw['_date_context']['filename_date'] ?? null,
+            $raw['_date_context']['file_updated_date'] ?? null,
+            $fallback,
+        ] as $value) {
+            $date = $this->legacyNormalizeDate($value);
+            if ($date !== null) {
+                return $date;
+            }
+        }
+
+        return null;
+    }
+
+    private function legacyDateSource(array $raw): ?string
+    {
+        $sources = [
+            'row_date' => $raw['дата'] ?? $raw['date'] ?? null,
+            'inherited_previous_row_date' => $raw['_date_context']['inherited_previous_row_date'] ?? null,
+            'filename_date' => $raw['_date_context']['filename_date'] ?? null,
+            'file_updated_date' => $raw['_date_context']['file_updated_date'] ?? null,
+        ];
+        foreach ($sources as $source => $value) {
+            if ($this->legacyNormalizeDate($value) !== null) {
+                return $source;
+            }
+        }
+
+        return null;
+    }
+
+    private function legacyNormalizeDate($value): ?string
+    {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return null;
+        }
+        if (is_numeric($value)) {
+            return DateTimeImmutable::createFromFormat('!Y-m-d', '1899-12-30')
+                ->modify('+' . (int)$value . ' days')
+                ->format('Y-m-d');
+        }
+
+        foreach (['!Y-m-d', '!d.m.Y', '!d/m/Y'] as $format) {
+            $date = DateTimeImmutable::createFromFormat($format, $value);
+            if ($date) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        return null;
+    }
+
+    private function legacyFilenameDate(string $fileName): ?string
+    {
+        if (preg_match('/(20[0-9]{2})[-_. ]?([01]?[0-9])[-_. ]?([0-3]?[0-9])/', $fileName, $match) !== 1) {
+            return null;
+        }
+
+        $date = DateTimeImmutable::createFromFormat('!Y-n-j', "{$match[1]}-{$match[2]}-{$match[3]}");
+
+        return $date ? $date->format('Y-m-d') : null;
+    }
+
+    private function legacyAmount($value): ?float
+    {
+        $text = trim((string)$value);
+        if ($text === '') {
+            return null;
+        }
+
+        $normalized = str_replace([' ', "\xc2\xa0"], '', $text);
+        $normalized = str_replace(',', '.', $normalized);
+
+        return is_numeric($normalized) ? abs((float)$normalized) : null;
+    }
+
+    private function legacyCategoryCode(string $description, string $flowType, string $sign): ?string
+    {
+        $text = mb_strtolower($description);
+        if (str_contains($text, 'снял с карты') || str_contains($text, 'cash topup') || str_contains($text, 'topup from card')) {
+            return 'cash_topup_from_card';
+        }
+        if ($sign === '+' && (str_contains($text, 'charter') || str_contains($text, 'агентск'))) {
+            return 'commercial_income';
+        }
+        if (str_contains($text, 'netflix')) {
+            return 'media_comms';
+        }
+        if (preg_match('/заправ|топлив|fuel/u', $text) === 1) {
+            return 'fuel';
+        }
+        if ($flowType === 'cash' && $sign === '-' && (str_contains($text, 'какая-то штука') || str_contains($text, 'unknown'))) {
+            return 'other';
+        }
+
+        return null;
+    }
+
+    private function flowsByType(string $workspaceId, int $userId): array
+    {
+        $flows = [];
+        foreach ($this->listFlows($workspaceId, $userId) as $flow) {
+            $flows[$flow['type']] = $flow;
+        }
+
+        return $flows;
+    }
+
+    private function legacyExcludeReason(string $fileName): ?string
+    {
+        $text = mb_strtolower($fileName);
+        foreach (['не отправлял', 'не отправлено', 'не готово', 'не закончен', 'не закончено', 'не полный', 'неполный', 'черновик', 'draft', 'test'] as $marker) {
+            if (str_contains($text, $marker)) {
+                return "title marker: {$marker}";
+            }
+        }
+
+        return null;
+    }
+
+    private function legacyImportSource(string $workspaceId, string $importId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT *
+            FROM v2_import_sources
+            WHERE id = ? AND workspace_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$importId, $workspaceId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            throw new FinDeskV2HttpError(404, 'import_not_found');
+        }
+
+        return $row;
+    }
+
+    private function legacyImportRows(string $importId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT *
+            FROM v2_import_rows
+            WHERE import_source_id = ?
+            ORDER BY sheet_name ASC, `row_number` ASC
+        ");
+        $stmt->execute([$importId]);
+
+        return $stmt->fetchAll();
+    }
+
+    private function emptyLegacyImportReview(array $source): array
+    {
+        return [
+            'import_id' => (string)$source['id'],
+            'source_file_name' => $source['file_name'] === null ? null : (string)$source['file_name'],
+            'source_file_id' => $source['file_id'] === null ? null : (string)$source['file_id'],
+            'source_file_url' => $source['file_url'] === null ? null : (string)$source['file_url'],
+            'status' => (string)$source['status'],
+            'include_decision' => (string)$source['include_decision'],
+            'reason' => $source['reason'] === null ? null : (string)$source['reason'],
+            'files_detected' => 1,
+            'files_included' => (string)$source['include_decision'] === 'included' ? 1 : 0,
+            'files_excluded' => (string)$source['include_decision'] === 'included' ? 0 : 1,
+            'final_version_decisions' => [],
+            'sheets_scanned' => 0,
+            'rows_scanned' => 0,
+            'rows_parsed' => 0,
+            'entries_created' => 0,
+            'rows_ignored' => 0,
+            'rows_unrecognized' => 0,
+            'summary_rows_ignored' => 0,
+            'cash_income_total' => 0.0,
+            'cash_expense_total' => 0.0,
+            'card_income_total' => 0.0,
+            'card_expense_total' => 0.0,
+            'source_totals' => [
+                'cash_income' => 0.0,
+                'cash_expense' => 0.0,
+                'card_income' => 0.0,
+                'card_expense' => 0.0,
+            ],
+            'source_summary_totals' => [
+                'cash_income' => 0.0,
+                'cash_expense' => 0.0,
+                'card_income' => 0.0,
+                'card_expense' => 0.0,
+            ],
+            'normalized_totals' => [
+                'cash_income' => 0.0,
+                'cash_expense' => 0.0,
+                'card_income' => 0.0,
+                'card_expense' => 0.0,
+            ],
+            'source_total_comparison' => [
+                'cash_income' => 0.0,
+                'cash_expense' => 0.0,
+                'card_income' => 0.0,
+                'card_expense' => 0.0,
+            ],
+            'months_covered' => [],
+            '_months_covered' => [],
+            '_sheet_names' => [],
+            'duplicate_suspects' => [],
+            'row_traces' => [],
+        ];
+    }
+
+    private function accumulateLegacyImportReview(array &$review, array $parsed, array $row): void
+    {
+        $review['rows_scanned']++;
+        $sheetName = (string)$row['sheet_name'];
+        $review['_sheet_names'][$sheetName] = true;
+        $status = (string)$row['parse_status'];
+        if ($status === 'pending') {
+            $status = $parsed['parse_status'];
+        }
+
+        if ($status === 'parsed' || $status === 'imported' || $status === 'duplicate_suspect') {
+            $review['rows_parsed']++;
+        } elseif ($status === 'summary_ignored') {
+            $review['summary_rows_ignored']++;
+        } elseif ($status === 'unrecognized') {
+            $review['rows_unrecognized']++;
+        } else {
+            $review['rows_ignored']++;
+        }
+
+        $entry = $parsed['entry'];
+        if ($row['entry_id'] !== null) {
+            $review['entries_created']++;
+        }
+
+        foreach ($parsed['source_totals'] as $key => $amount) {
+            if ($status === 'summary_ignored') {
+                $review['source_summary_totals'][$key] += (float)$amount;
+            } else {
+                $review['source_totals'][$key] += (float)$amount;
+            }
+        }
+
+        if ($entry !== null && !$parsed['duplicate_suspect']) {
+            $kind = $entry['flow_type'] . '_' . ($entry['raw_text'][0] === '-' ? 'expense' : 'income');
+            if (isset($review['normalized_totals'][$kind])) {
+                $review['normalized_totals'][$kind] += (float)$entry['amount'];
+            }
+            $month = substr((string)$entry['date'], 0, 7);
+            if ($month !== '') {
+                $review['_months_covered'][$month] = true;
+            }
+        }
+
+        foreach (['cash_income', 'cash_expense', 'card_income', 'card_expense'] as $key) {
+            $review[$key . '_total'] = $review['normalized_totals'][$key];
+        }
+
+        if ($parsed['duplicate_suspect']) {
+            $review['duplicate_suspects'][] = [
+                'sheet_name' => $sheetName,
+                'row_number' => (int)$row['row_number'],
+                'reason' => 'same date, flow, sign, amount, and description',
+            ];
+        }
+
+        $review['row_traces'][] = [
+            'import_source_id' => (string)$row['import_source_id'],
+            'import_row_id' => (string)$row['id'],
+            'sheet_name' => $sheetName,
+            'row_number' => (int)$row['row_number'],
+            'raw_row_data' => FinDeskV2Support::jsonDecode($row['raw_json'], []),
+            'entry_id' => $row['entry_id'] === null ? null : (string)$row['entry_id'],
+            'parse_status' => $status,
+            'date_source' => $parsed['date_source'],
+            'parse_notes' => $row['parse_notes'] ?? $parsed['parse_notes'],
+        ];
+    }
+
+    private function updateLegacyImportRowStatus(string $rowId, string $status, ?string $entryId, ?string $notes): void
+    {
+        $this->db->prepare("
+            UPDATE v2_import_rows
+            SET parse_status = ?, entry_id = ?, parse_notes = ?
+            WHERE id = ?
+        ")->execute([$status, $entryId, $notes, $rowId]);
     }
 
     private function createDefaultFlow(
@@ -1078,6 +1674,9 @@ final class FinDeskV2Repository
                 if ($sourceType === 'correction') {
                     $entryType = 'correction';
                     $status = 'corrected';
+                } elseif ($sourceType === 'import') {
+                    $entryType = 'card_income';
+                    $status = 'imported';
                 } else {
                     $amount = null;
                     $direction = 'none';
@@ -1134,7 +1733,7 @@ final class FinDeskV2Repository
             'actor_id' => $actorId,
             'actor_name' => $actorName,
             'category_id' => $categoryId,
-            'status' => $sign === null || ($flow['type'] === 'card' && $sign === '+' && $sourceType !== 'correction')
+            'status' => $sign === null || ($flow['type'] === 'card' && $sign === '+' && !in_array($sourceType, ['correction', 'import'], true))
                 ? $status
                 : FinDeskV2Support::enum(
                     FinDeskV2Support::optionalString($input, 'status', $status, 40) ?? $status,
@@ -1142,6 +1741,8 @@ final class FinDeskV2Repository
                     'status'
                 ),
             'source_type' => $sourceType,
+            'source_id' => FinDeskV2Support::optionalString($input, 'source_id', null, 36),
+            'source_row_id' => FinDeskV2Support::optionalString($input, 'source_row_id', null, 36),
             'notes' => FinDeskV2Support::optionalString($input, 'notes', null, 2000),
             'confidence' => FinDeskV2Support::nullableAmount($input['confidence'] ?? null),
             'matched_rules' => $matchedRules,
@@ -1427,6 +2028,8 @@ final class FinDeskV2Repository
             'status' => (string)$row['status'],
             'balance_after' => $row['balance_after'] === null ? null : (float)$row['balance_after'],
             'source_type' => (string)$row['source_type'],
+            'source_id' => $row['source_id'] ?? null,
+            'source_row_id' => $row['source_row_id'] ?? null,
             'notes' => $row['notes'] ?? null,
             'confidence' => $row['confidence'] === null ? null : (float)$row['confidence'],
             'matched_rules' => FinDeskV2Support::jsonDecode($row['matched_rules_json'] ?? '[]', []),

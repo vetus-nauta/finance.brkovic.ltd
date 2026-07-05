@@ -6,6 +6,7 @@ $root = dirname(__DIR__);
 
 $requiredFiles = [
     'app/v2/Support.php',
+    'app/v2/LegacyExcelImporter.php',
     'app/v2/Database.php',
     'app/v2/Repository.php',
     'app/v2/Api.php',
@@ -35,6 +36,9 @@ $requiredRoutes = [
     '/api/workspaces/([a-f0-9-]{36})/reports/monthly',
     '/api/workspaces/([a-f0-9-]{36})/reports/category-matrix',
     '/api/workspaces/([a-f0-9-]{36})/reports/other-review',
+    '/api/workspaces/([a-f0-9-]{36})/imports/excel',
+    '/api/workspaces/([a-f0-9-]{36})/imports/([a-f0-9-]{36})/review',
+    '/api/workspaces/([a-f0-9-]{36})/imports/([a-f0-9-]{36})/accept',
     '/api/workspaces/([a-f0-9-]{36})/other-expenses',
     '/api/workspaces/([a-f0-9-]{36})/entries',
     '/api/workspaces/([a-f0-9-]{36})/parse-preview',

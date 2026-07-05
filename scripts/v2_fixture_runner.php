@@ -92,6 +92,69 @@ function assertCategoryExists(array $codes, string $code): void
     fixtureAssert(isset($codes[$code]), "Missing seeded category: {$code}");
 }
 
+function fixtureXml(string $value): string
+{
+    return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+}
+
+function fixtureColumnName(int $index): string
+{
+    $name = '';
+    $index++;
+    while ($index > 0) {
+        $mod = ($index - 1) % 26;
+        $name = chr(65 + $mod) . $name;
+        $index = intdiv($index - $mod, 26);
+    }
+
+    return $name;
+}
+
+function fixtureCreateXlsx(array $rows): string
+{
+    $path = tempnam(sys_get_temp_dir(), 'findesk-v2-fixture-import-') . '.xlsx';
+    $zip = new ZipArchive();
+    fixtureAssert($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 'could not create xlsx fixture');
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        . '</Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        . '</Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        . '<sheets><sheet name="July" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        . '</Relationships>');
+
+    $sheet = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+    foreach ($rows as $rowIndex => $row) {
+        $number = $rowIndex + 1;
+        $sheet .= '<row r="' . $number . '">';
+        foreach ($row as $columnIndex => $value) {
+            if ((string)$value === '') {
+                continue;
+            }
+            $ref = fixtureColumnName($columnIndex) . $number;
+            $sheet .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . fixtureXml((string)$value) . '</t></is></c>';
+        }
+        $sheet .= '</row>';
+    }
+    $sheet .= '</sheetData></worksheet>';
+    $zip->addFromString('xl/worksheets/sheet1.xml', $sheet);
+    $zip->close();
+
+    return $path;
+}
+
 function entryIsVisible(FinDeskV2Repository $repo, string $workspaceId, int $userId, string $entryId): bool
 {
     foreach ($repo->listEntries($workspaceId, [], $userId) as $entry) {
@@ -622,6 +685,93 @@ runFixture($report, 'Generated monthly reports', function () use ($repo, $userId
     assertSameValue($otherReport['entries'][0]['id'], $other['id'], 'other review report entry');
 
     return 'monthly report, category matrix, and other-review report are generated from operational entries';
+});
+
+runFixture($report, 'One-file legacy Excel import', function () use ($repo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Legacy Import Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $xlsx = fixtureCreateXlsx([
+        ['дата', 'Описание платежа', 'Приход КЕШ', 'Расход КЕШ', 'Исполнитель', 'Приход КАРТА', 'Расход КАРТА', 'Сводные данные'],
+        ['', 'private topup', '300', '', '', '', '', ''],
+        ['', 'fuel marina', '', '200', '', '', '', ''],
+        ['2026-07-02', 'charter deposit', '5000', '', '', '', '', ''],
+        ['2026-07-03', 'снял с карты', '', '', '', '', '1000', ''],
+        ['', 'снял с карты', '1000', '', '', '', '', ''],
+        ['2026-07-04', 'Netflix', '', '', '', '', '60', ''],
+        ['2026-07-05', 'какая-то штука', '', '50', '', '', '', ''],
+        ['2026-07-06', 'card refund', '', '', '', '25', '', ''],
+        ['2026-07-07', 'информационная строка', '', '', '', '', '', ''],
+        ['2026-07-01', 'fuel marina', '', '200', '', '', '', ''],
+        ['2026-07-31', 'Сводные данные', '6300', '250', '', '25', '1060', 'summary'],
+    ]);
+
+    $import = $repo->createLegacyExcelImport($workspace['id'], [
+        'file_name' => 'july-final-2026-07-01.xlsx',
+        'file_id' => 'fixture-file-001',
+        'content_base64' => base64_encode((string)file_get_contents($xlsx)),
+    ], $userId);
+    @unlink($xlsx);
+
+    assertSameValue($import['include_decision'], 'included', 'import include decision');
+    assertSameValue($import['rows_scanned'], 11, 'import rows scanned');
+    assertSameValue($import['rows_parsed'], 9, 'import rows parsed');
+    assertSameValue(count($import['duplicate_suspects']), 1, 'import duplicate suspect count');
+    assertAmount($import['source_summary_totals']['cash_income'], 6300.0, 'import source summary cash income');
+
+    $accepted = $repo->acceptLegacyImport($workspace['id'], $import['import_id'], ['decision' => 'accept'], $userId);
+    assertSameValue($accepted['entries_created'], 9, 'accepted import entries created');
+    assertAmount($accepted['normalized_totals']['cash_income'], 6300.0, 'accepted import cash income');
+    assertAmount($accepted['normalized_totals']['cash_expense'], 250.0, 'accepted import cash expense');
+    assertAmount($accepted['normalized_totals']['card_income'], 25.0, 'accepted import card income');
+    assertAmount($accepted['normalized_totals']['card_expense'], 1060.0, 'accepted import card expense');
+    assertAmount($accepted['source_total_comparison']['cash_income'], 0.0, 'accepted import cash income comparison');
+    $dateSources = array_fill_keys(array_map(static fn (array $trace): ?string => $trace['date_source'] ?? null, $accepted['row_traces']), true);
+    fixtureAssert(isset($dateSources['filename_date']), 'import fixture missing filename date provenance');
+    fixtureAssert(isset($dateSources['inherited_previous_row_date']), 'import fixture missing inherited date provenance');
+    fixtureAssert(isset($dateSources['row_date']), 'import fixture missing row date provenance');
+
+    $entries = $repo->listEntries($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
+    fixtureAssert(count($entries) === 9, 'accepted import entries are not visible');
+    $linked = 0;
+    $duplicates = 0;
+    $cardIncome = 0;
+    foreach ($entries as $entry) {
+        if ($entry['source_id'] === $import['import_id'] && $entry['source_row_id'] !== null) {
+            $linked++;
+        }
+        if ($entry['status'] === 'duplicate_suspect') {
+            $duplicates++;
+        }
+        if ($entry['entry_type'] === 'card_income') {
+            $cardIncome++;
+        }
+    }
+    assertSameValue($linked, 9, 'imported entries source links');
+    assertSameValue($duplicates, 1, 'duplicate suspect entries');
+    assertSameValue($cardIncome, 1, 'imported card income entry');
+
+    $monthly = $repo->getMonthlyReport($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
+    assertAmount($monthly['external_cash_income'], 300.0, 'import monthly external cash income');
+    assertAmount($monthly['commercial_income'], 5000.0, 'import monthly commercial income');
+    assertAmount($monthly['cash_topup_from_card_cash_side'], 1000.0, 'import monthly cash topup side');
+    assertAmount($monthly['cash_expense'], 250.0, 'import monthly cash expense');
+    assertAmount($monthly['card_expense'], 1060.0, 'import monthly card expense');
+    assertAmount($monthly['ending_cash'], 7050.0, 'import monthly ending cash');
+    fixtureAssert(count($monthly['source_files']) === 1, 'monthly report source file trace missing');
+
+    $excluded = $repo->createLegacyExcelImport($workspace['id'], [
+        'file_name' => 'draft legacy import.xlsx',
+        'content_base64' => base64_encode('not parsed because excluded'),
+    ], $userId);
+    assertSameValue($excluded['include_decision'], 'excluded_by_title_marker', 'excluded import marker');
+    assertSameValue($excluded['rows_scanned'], 0, 'excluded import should not scan rows');
+
+    return 'one xlsx import preserves traceability, review totals, duplicate suspects, exclusion markers, and generated reports';
 });
 
 $report->print();

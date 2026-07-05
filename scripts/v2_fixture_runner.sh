@@ -89,6 +89,7 @@ mariadb --no-defaults --socket="${SOCKET}" -uroot "${DB_NAME}" \
 HARNESS="${TMP_DIR}/harness"
 mkdir -p "${HARNESS}/app/v2"
 cp "${ROOT}/app/v2/Support.php" "${HARNESS}/app/v2/Support.php"
+cp "${ROOT}/app/v2/LegacyExcelImporter.php" "${HARNESS}/app/v2/LegacyExcelImporter.php"
 cp "${ROOT}/app/v2/Database.php" "${HARNESS}/app/v2/Database.php"
 cp "${ROOT}/app/v2/Repository.php" "${HARNESS}/app/v2/Repository.php"
 

@@ -25,6 +25,70 @@ function smokeAssertAmount($actual, float $expected, string $message): void
     smokeAssert(abs((float)$actual - $expected) < 0.001, "{$message}: expected {$expected}, got {$actual}");
 }
 
+function smokeXml(string $value): string
+{
+    return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+}
+
+function smokeColumnName(int $index): string
+{
+    $name = '';
+    $index++;
+    while ($index > 0) {
+        $mod = ($index - 1) % 26;
+        $name = chr(65 + $mod) . $name;
+        $index = intdiv($index - $mod, 26);
+    }
+
+    return $name;
+}
+
+function smokeCreateXlsx(array $rows): string
+{
+    $path = tempnam(sys_get_temp_dir(), 'findesk-v2-import-') . '.xlsx';
+    $zip = new ZipArchive();
+    smokeAssert($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 'could not create xlsx fixture');
+
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        . '</Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        . '</Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        . '<sheets><sheet name="July" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        . '</Relationships>');
+
+    $sheet = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+    foreach ($rows as $rowIndex => $row) {
+        $number = $rowIndex + 1;
+        $sheet .= '<row r="' . $number . '">';
+        foreach ($row as $columnIndex => $value) {
+            if ((string)$value === '') {
+                continue;
+            }
+            $ref = smokeColumnName($columnIndex) . $number;
+            $sheet .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . smokeXml((string)$value) . '</t></is></c>';
+        }
+        $sheet .= '</row>';
+    }
+    $sheet .= '</sheetData></worksheet>';
+    $zip->addFromString('xl/worksheets/sheet1.xml', $sheet);
+    $zip->close();
+
+    return $path;
+}
+
 function smokeDb(): PDO
 {
     $socket = (string)getenv('FINDESK_V2_HTTP_SOCKET');
@@ -352,6 +416,110 @@ $otherReviewReport = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorks
 smokeAssert($otherReviewReport['count'] === 1, 'other review report count mismatch');
 smokeAssertAmount($otherReviewReport['total'], 50.0, 'other review report total');
 smokeAssert((string)$otherReviewReport['entries'][0]['id'] === (string)$reportOther['id'], 'other review report entry mismatch');
+
+$importWorkspace = expectOk(smokeRequest('POST', '/api/workspaces', [
+    'name' => 'HTTP Smoke Import Workspace',
+    'type' => 'yacht',
+    'currency' => 'EUR',
+    'locale' => 'ru',
+    'opening_cash' => '1000.00',
+]), 'create import workspace')['workspace'];
+$importWorkspaceId = (string)$importWorkspace['id'];
+$xlsxPath = smokeCreateXlsx([
+    ['дата', 'Описание платежа', 'Приход КЕШ', 'Расход КЕШ', 'Исполнитель', 'Приход КАРТА', 'Расход КАРТА', 'Сводные данные'],
+    ['', 'private topup', '300', '', '', '', '', ''],
+    ['', 'fuel marina', '', '200', '', '', '', ''],
+    ['2026-07-02', 'charter deposit', '5000', '', '', '', '', ''],
+    ['2026-07-03', 'снял с карты', '', '', '', '', '1000', ''],
+    ['', 'снял с карты', '1000', '', '', '', '', ''],
+    ['2026-07-04', 'Netflix', '', '', '', '', '60', ''],
+    ['2026-07-05', 'какая-то штука', '', '50', '', '', '', ''],
+    ['2026-07-06', 'card refund', '', '', '', '25', '', ''],
+    ['2026-07-07', 'информационная строка', '', '', '', '', '', ''],
+    ['2026-07-01', 'fuel marina', '', '200', '', '', '', ''],
+    ['2026-07-31', 'Сводные данные', '6300', '250', '', '25', '1060', 'summary'],
+]);
+$importUpload = expectOk(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/excel", [
+    'file_name' => 'july-final-2026-07-01.xlsx',
+    'file_id' => 'legacy-file-001',
+    'file_url' => 'https://example.test/july-final.xlsx',
+    'content_base64' => base64_encode((string)file_get_contents($xlsxPath)),
+]), 'upload excel import')['import'];
+@unlink($xlsxPath);
+smokeAssert($importUpload['include_decision'] === 'included', 'import should be included');
+smokeAssert($importUpload['sheets_scanned'] === 1, 'import sheets scanned mismatch');
+smokeAssert($importUpload['rows_scanned'] === 11, 'import rows scanned mismatch');
+smokeAssert($importUpload['rows_parsed'] === 9, 'import rows parsed mismatch');
+smokeAssert($importUpload['entries_created'] === 0, 'entries should not be created before accept');
+smokeAssert($importUpload['summary_rows_ignored'] === 1, 'summary row ignored mismatch');
+smokeAssert($importUpload['rows_ignored'] === 1, 'info row ignored mismatch');
+smokeAssert(count($importUpload['duplicate_suspects']) === 1, 'duplicate suspect should be reported');
+smokeAssertAmount($importUpload['source_summary_totals']['cash_income'], 6300.0, 'source summary cash income');
+smokeAssertAmount($importUpload['source_summary_totals']['cash_expense'], 250.0, 'source summary cash expense');
+smokeAssertAmount($importUpload['source_summary_totals']['card_income'], 25.0, 'source summary card income');
+smokeAssertAmount($importUpload['source_summary_totals']['card_expense'], 1060.0, 'source summary card expense');
+
+$importId = (string)$importUpload['import_id'];
+$reviewBeforeAccept = expectOk(smokeRequest('GET', "/api/workspaces/{$importWorkspaceId}/imports/{$importId}/review"), 'import review before accept')['review'];
+smokeAssert($reviewBeforeAccept['entries_created'] === 0, 'review before accept should not have entries');
+smokeAssert(count($reviewBeforeAccept['row_traces']) === 11, 'row trace count before accept mismatch');
+
+$acceptedImport = expectOk(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/{$importId}/accept", [
+    'decision' => 'accept',
+]), 'accept excel import')['review'];
+smokeAssert($acceptedImport['entries_created'] === 9, 'accepted import entry count mismatch');
+smokeAssertAmount($acceptedImport['normalized_totals']['cash_income'], 6300.0, 'accepted normalized cash income');
+smokeAssertAmount($acceptedImport['normalized_totals']['cash_expense'], 250.0, 'accepted normalized cash expense');
+smokeAssertAmount($acceptedImport['normalized_totals']['card_income'], 25.0, 'accepted normalized card income');
+smokeAssertAmount($acceptedImport['normalized_totals']['card_expense'], 1060.0, 'accepted normalized card expense');
+smokeAssertAmount($acceptedImport['source_total_comparison']['cash_income'], 0.0, 'accepted source comparison cash income');
+smokeAssertAmount($acceptedImport['source_total_comparison']['cash_expense'], 0.0, 'accepted source comparison cash expense');
+smokeAssertAmount($acceptedImport['source_total_comparison']['card_income'], 0.0, 'accepted source comparison card income');
+smokeAssertAmount($acceptedImport['source_total_comparison']['card_expense'], 0.0, 'accepted source comparison card expense');
+smokeAssert(in_array('2026-07', $acceptedImport['months_covered'], true), 'accepted import missing month coverage');
+$dateSources = array_fill_keys(array_map(static fn (array $trace): ?string => $trace['date_source'] ?? null, $acceptedImport['row_traces']), true);
+smokeAssert(isset($dateSources['filename_date']), 'import review missing filename_date provenance');
+smokeAssert(isset($dateSources['inherited_previous_row_date']), 'import review missing inherited date provenance');
+smokeAssert(isset($dateSources['row_date']), 'import review missing row_date provenance');
+
+$importEntries = expectOk(smokeRequest('GET', "/api/workspaces/{$importWorkspaceId}/entries?year=2026&month=7"), 'import entries after accept')['entries'];
+smokeAssert(count($importEntries) === 9, 'import entries visible count mismatch');
+$sourceLinked = 0;
+$duplicateLinked = 0;
+$cardIncomeLinked = 0;
+foreach ($importEntries as $candidate) {
+    if (($candidate['source_id'] ?? null) === $importId && ($candidate['source_row_id'] ?? null) !== null) {
+        $sourceLinked++;
+    }
+    if (($candidate['status'] ?? '') === 'duplicate_suspect') {
+        $duplicateLinked++;
+    }
+    if (($candidate['entry_type'] ?? '') === 'card_income' && ($candidate['source_type'] ?? '') === 'import') {
+        $cardIncomeLinked++;
+    }
+}
+smokeAssert($sourceLinked === 9, 'import entries missing source traceability');
+smokeAssert($duplicateLinked === 1, 'duplicate suspect entry count mismatch');
+smokeAssert($cardIncomeLinked === 1, 'import card income entry missing');
+
+$importMonthly = expectOk(smokeRequest('GET', "/api/workspaces/{$importWorkspaceId}/reports/monthly?year=2026&month=7"), 'monthly report after import')['report'];
+smokeAssert(count($importMonthly['source_files']) === 1, 'monthly source file trace missing');
+smokeAssertAmount($importMonthly['opening_cash'], 1000.0, 'import monthly opening cash');
+smokeAssertAmount($importMonthly['external_cash_income'], 300.0, 'import monthly external cash income');
+smokeAssertAmount($importMonthly['commercial_income'], 5000.0, 'import monthly commercial income');
+smokeAssertAmount($importMonthly['cash_topup_from_card_cash_side'], 1000.0, 'import monthly cash topup side');
+smokeAssertAmount($importMonthly['cash_expense'], 250.0, 'import monthly cash expense');
+smokeAssertAmount($importMonthly['card_expense'], 1060.0, 'import monthly card expense');
+smokeAssertAmount($importMonthly['other_expenses'], 50.0, 'import monthly other expenses');
+smokeAssertAmount($importMonthly['ending_cash'], 7050.0, 'import monthly ending cash');
+
+$excludedImport = expectOk(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/excel", [
+    'file_name' => 'draft legacy import.xlsx',
+    'content_base64' => base64_encode('not parsed because excluded'),
+]), 'excluded title marker import')['import'];
+smokeAssert($excludedImport['include_decision'] === 'excluded_by_title_marker', 'excluded import decision mismatch');
+smokeAssert($excludedImport['files_excluded'] === 1, 'excluded import count mismatch');
+smokeAssert($excludedImport['rows_scanned'] === 0, 'excluded import should not parse rows');
 
 expectOk(smokeRequest('DELETE', '/api/entries/' . $entry['id']), 'delete entry');
 $entriesAfterDelete = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after delete')['entries'];

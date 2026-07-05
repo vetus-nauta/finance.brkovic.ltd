@@ -62,6 +62,18 @@ final class FinDeskV2Api
             return ['ok' => true, 'report' => $this->repo->getOtherReviewReport($match[1], $userId)];
         }
 
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/imports/excel$#i', $route, $match) === 1 && $method === 'POST') {
+            return ['ok' => true, 'import' => $this->repo->createLegacyExcelImport($match[1], $input, $userId)];
+        }
+
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/imports/([a-f0-9-]{36})/review$#i', $route, $match) === 1 && $method === 'GET') {
+            return ['ok' => true, 'review' => $this->repo->getLegacyImportReview($match[1], $match[2], $userId)];
+        }
+
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/imports/([a-f0-9-]{36})/accept$#i', $route, $match) === 1 && $method === 'POST') {
+            return ['ok' => true, 'review' => $this->repo->acceptLegacyImport($match[1], $match[2], $input, $userId)];
+        }
+
         if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/other-expenses$#i', $route, $match) === 1 && $method === 'GET') {
             return ['ok' => true, 'entries' => $this->repo->listOtherExpenseQueue($match[1], $userId)];
         }
