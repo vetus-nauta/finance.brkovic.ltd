@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TMP_DIR="$(mktemp -d /tmp/findesk-v2-db-smoke.XXXXXX)"
+DATA_DIR="${TMP_DIR}/data"
+SOCKET="${TMP_DIR}/mariadb.sock"
+PID_FILE="${TMP_DIR}/mariadb.pid"
+LOG_FILE="${TMP_DIR}/mariadb.log"
+DB_NAME="findesk_v2_test"
+
+cleanup() {
+    if [[ -S "${SOCKET}" ]]; then
+        mariadb-admin --no-defaults --socket="${SOCKET}" -uroot shutdown >/dev/null 2>&1 || true
+    elif [[ -f "${PID_FILE}" ]]; then
+        kill "$(cat "${PID_FILE}")" >/dev/null 2>&1 || true
+    fi
+
+    if [[ -f "${PID_FILE}" ]]; then
+        for _ in {1..50}; do
+            kill -0 "$(cat "${PID_FILE}")" >/dev/null 2>&1 || break
+            sleep 0.1
+        done
+    fi
+
+    rm -rf "${TMP_DIR}"
+}
+
+trap cleanup EXIT
+
+require_bin() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "Missing required command: $1" >&2
+        exit 1
+    fi
+}
+
+require_bin mariadb-install-db
+require_bin mariadbd
+require_bin mariadb
+require_bin mariadb-admin
+require_bin php
+
+echo "FinDesk v2 disposable DB smoke: setup ${TMP_DIR}"
+
+mariadb-install-db \
+    --no-defaults \
+    --datadir="${DATA_DIR}" \
+    --auth-root-authentication-method=normal \
+    --skip-test-db \
+    >/dev/null
+
+mariadbd \
+    --no-defaults \
+    --datadir="${DATA_DIR}" \
+    --socket="${SOCKET}" \
+    --pid-file="${PID_FILE}" \
+    --skip-networking \
+    --log-error="${LOG_FILE}" \
+    --character-set-server=utf8mb4 \
+    --collation-server=utf8mb4_unicode_ci \
+    >"${TMP_DIR}/mariadbd.out" 2>&1 &
+
+for _ in {1..100}; do
+    if mariadb --no-defaults --socket="${SOCKET}" -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        break
+    fi
+    if [[ -f "${PID_FILE}" ]] && ! kill -0 "$(cat "${PID_FILE}")" >/dev/null 2>&1; then
+        echo "mariadbd exited during startup" >&2
+        cat "${LOG_FILE}" >&2 || true
+        exit 1
+    fi
+    sleep 0.1
+done
+
+if ! mariadb --no-defaults --socket="${SOCKET}" -uroot -e "SELECT 1" >/dev/null 2>&1; then
+    echo "mariadbd did not become ready" >&2
+    cat "${LOG_FILE}" >&2 || true
+    exit 1
+fi
+
+mariadb --no-defaults --socket="${SOCKET}" -uroot \
+    -e "CREATE DATABASE ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+
+mariadb --no-defaults --socket="${SOCKET}" -uroot "${DB_NAME}" \
+    < "${ROOT}/FinDesk v2.0/sql/001-clean-core-mariadb.sql"
+
+HARNESS="${TMP_DIR}/harness"
+mkdir -p "${HARNESS}/app/v2"
+cp "${ROOT}/app/v2/Support.php" "${HARNESS}/app/v2/Support.php"
+cp "${ROOT}/app/v2/Database.php" "${HARNESS}/app/v2/Database.php"
+cp "${ROOT}/app/v2/Repository.php" "${HARNESS}/app/v2/Repository.php"
+
+cat > "${HARNESS}/app/db.php" <<'PHP'
+<?php
+
+function ql_config(): array
+{
+    return [
+        'db_socket' => getenv('FINDESK_V2_SMOKE_SOCKET') ?: '',
+        'db_name' => getenv('FINDESK_V2_SMOKE_DB') ?: '',
+    ];
+}
+
+function ql_db(): PDO
+{
+    static $pdo = null;
+
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+
+    $config = ql_config();
+    $dsn = 'mysql:unix_socket=' . $config['db_socket'] . ';dbname=' . $config['db_name'] . ';charset=utf8mb4';
+    $pdo = new PDO($dsn, 'root', '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+
+    return $pdo;
+}
+PHP
+
+cat > "${TMP_DIR}/repository_smoke.php" <<'PHP'
+<?php
+
+declare(strict_types=1);
+
+require getenv('FINDESK_V2_SMOKE_HARNESS') . '/app/v2/Repository.php';
+
+function check(bool $condition, string $message): void
+{
+    if (!$condition) {
+        throw new RuntimeException($message);
+    }
+}
+
+function byFlowType(array $flows, string $type): array
+{
+    foreach ($flows as $flow) {
+        if ($flow['type'] === $type) {
+            return $flow;
+        }
+    }
+
+    throw new RuntimeException("Missing flow type: {$type}");
+}
+
+$pdo = ql_db();
+$repo = new FinDeskV2Repository($pdo);
+$userId = 7001;
+
+$workspace = $repo->createWorkspace([
+    'name' => 'Disposable Smoke Workspace',
+    'type' => 'yacht',
+    'currency' => 'EUR',
+    'locale' => 'en',
+], $userId);
+
+check($workspace['id'] !== '', 'workspace create failed');
+
+$flows = $repo->listFlows($workspace['id'], $userId);
+$cashFlow = byFlowType($flows, 'cash');
+$cardFlow = byFlowType($flows, 'card');
+check(count($flows) === 2, 'workspace should create default Cash/Card flows only');
+check($cashFlow['name'] === 'Cash', 'default Cash flow missing');
+check($cardFlow['name'] === 'Card', 'default Card flow missing');
+
+$categories = $repo->listCategories($workspace['id'], $userId);
+check(count($categories) >= 10, 'category seed count too low');
+
+$cashEntry = $repo->createEntry($workspace['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '- 12.34 fuel',
+], $userId);
+check($cashEntry['sign'] === '-', 'cash entry sign mismatch');
+check(abs($cashEntry['amount'] - 12.34) < 0.001, 'cash entry amount mismatch');
+check($cashEntry['direction'] === 'out', 'cash entry direction mismatch');
+check($cashEntry['entry_type'] === 'cash_expense', 'cash entry type mismatch');
+check($cashEntry['status'] === 'recognized', 'cash entry status mismatch');
+
+$cardExpense = $repo->createEntry($workspace['id'], [
+    'flow_id' => $cardFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '- 22.00 marina',
+], $userId);
+check($cardExpense['entry_type'] === 'card_expense', 'card expense type mismatch');
+check(abs($cardExpense['amount'] - 22.00) < 0.001, 'card expense amount mismatch');
+check($cardExpense['status'] === 'recognized', 'card expense status mismatch');
+
+$noSign = $repo->createEntry($workspace['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => 'no sign supplied',
+    'amount' => '999.99',
+    'status' => 'recognized',
+], $userId);
+check($noSign['sign'] === null, 'no-sign sign should stay null');
+check($noSign['amount'] === null, 'no-sign amount should stay null');
+check($noSign['direction'] === 'none', 'no-sign direction mismatch');
+check($noSign['entry_type'] === 'unrecognized', 'no-sign type mismatch');
+check($noSign['status'] === 'unrecognized', 'no-sign status mismatch');
+
+$cardPlusManual = $repo->createEntry($workspace['id'], [
+    'flow_id' => $cardFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+ 100.00 manual card plus',
+    'amount' => '500.00',
+    'status' => 'recognized',
+    'source_type' => 'manual',
+], $userId);
+check($cardPlusManual['sign'] === '+', 'card plus manual sign mismatch');
+check($cardPlusManual['amount'] === null, 'card plus manual amount should stay null');
+check($cardPlusManual['direction'] === 'none', 'card plus manual direction mismatch');
+check($cardPlusManual['entry_type'] === 'unrecognized', 'card plus manual type mismatch');
+check($cardPlusManual['status'] === 'unrecognized', 'card plus manual status mismatch');
+
+$cardPlusCorrection = $repo->createEntry($workspace['id'], [
+    'flow_id' => $cardFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+ 10.00 card correction',
+    'source_type' => 'correction',
+], $userId);
+check($cardPlusCorrection['sign'] === '+', 'card plus correction sign mismatch');
+check(abs($cardPlusCorrection['amount'] - 10.00) < 0.001, 'card plus correction amount mismatch');
+check($cardPlusCorrection['direction'] === 'in', 'card plus correction direction mismatch');
+check($cardPlusCorrection['entry_type'] === 'correction', 'card plus correction type mismatch');
+check($cardPlusCorrection['status'] === 'corrected', 'card plus correction status mismatch');
+
+$countBeforePreview = count($repo->listEntries($workspace['id'], [], $userId));
+$preview = $repo->previewEntryParse($workspace['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '- 1.00 preview only',
+], $userId);
+$countAfterPreview = count($repo->listEntries($workspace['id'], [], $userId));
+check($preview['will_save'] === false, 'parse preview should declare will_save false');
+check($preview['entry_type'] === 'cash_expense', 'parse preview normalization mismatch');
+check($countBeforePreview === $countAfterPreview, 'parse preview saved an entry');
+
+$patched = $repo->updateEntryCategory($cashEntry['id'], ['category_code' => 'fuel'], $userId);
+check($patched['category_code'] === 'fuel', 'category patch did not apply fuel');
+
+$rule = $repo->createCategoryRule($workspace['id'], [
+    'category_code' => 'fuel',
+    'pattern' => 'diesel',
+    'pattern_type' => 'keyword',
+    'language' => 'en',
+    'weight' => 20,
+    'requires_any' => ['fuel'],
+    'excludes_any' => ['crew'],
+], $userId);
+check($rule['category_code'] === 'fuel', 'category rule category mismatch');
+check($rule['pattern'] === 'diesel', 'category rule pattern mismatch');
+check($rule['weight'] === 20, 'category rule weight mismatch');
+
+$repo->deleteEntry($cardExpense['id'], $userId);
+$remainingIds = array_column($repo->listEntries($workspace['id'], [], $userId), 'id');
+check(!in_array($cardExpense['id'], $remainingIds, true), 'deleted entry still listed');
+
+$auditCount = (int)$pdo->query('SELECT COUNT(*) FROM v2_audit_log')->fetchColumn();
+check($auditCount >= 8, "audit row count too low: {$auditCount}");
+
+echo "Repository smoke assertions: OK\n";
+echo "Workspace: {$workspace['id']}\n";
+echo "Categories: " . count($categories) . "\n";
+echo "Audit rows: {$auditCount}\n";
+PHP
+
+FINDESK_V2_SMOKE_SOCKET="${SOCKET}" \
+FINDESK_V2_SMOKE_DB="${DB_NAME}" \
+FINDESK_V2_SMOKE_HARNESS="${HARNESS}" \
+php "${TMP_DIR}/repository_smoke.php"
+
+echo "FinDesk v2 disposable DB smoke: OK"
