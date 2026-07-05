@@ -19,6 +19,30 @@ function smokeAssert(bool $condition, string $message): void
     }
 }
 
+function smokeDb(): PDO
+{
+    $socket = (string)getenv('FINDESK_V2_HTTP_SOCKET');
+    $dbName = (string)getenv('FINDESK_V2_HTTP_DB');
+    smokeAssert($socket !== '', 'Missing FINDESK_V2_HTTP_SOCKET');
+    smokeAssert($dbName !== '', 'Missing FINDESK_V2_HTTP_DB');
+
+    return new PDO('mysql:unix_socket=' . $socket . ';dbname=' . $dbName . ';charset=utf8mb4', 'root', '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+}
+
+function smokeCloseMonth(string $workspaceId, int $year, int $month): void
+{
+    $stmt = smokeDb()->prepare("
+        INSERT INTO v2_monthly_closures (id, workspace_id, year, month, is_closed, closed_by, closed_at)
+        VALUES ('00000000-0000-4000-8000-000000000409', ?, ?, ?, 1, 19001, NOW())
+        ON DUPLICATE KEY UPDATE is_closed = 1, closed_by = VALUES(closed_by), closed_at = VALUES(closed_at)
+    ");
+    $stmt->execute([$workspaceId, $year, $month]);
+}
+
 function smokeRequest(string $method, string $route, ?array $body = null, bool $authenticated = true): HttpSmokeResponse
 {
     $base = rtrim((string)getenv('FINDESK_V2_HTTP_BASE'), '/');
@@ -143,6 +167,14 @@ $otherQueue = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/other
 smokeAssert(count($otherQueue) === 1, 'other expenses queue count mismatch');
 smokeAssert((string)$otherQueue[0]['id'] === (string)$otherEntry['id'], 'other expenses queue entry mismatch');
 
+$resolvedOther = expectOk(smokeRequest('PATCH', '/api/entries/' . $otherEntry['id'] . '/category', [
+    'category_code' => 'tech_parts',
+]), 'resolve other expense category')['entry'];
+smokeAssert($resolvedOther['category_code'] === 'tech_parts', 'resolved other category mismatch');
+smokeAssert($resolvedOther['status'] === 'recognized', 'resolved other status mismatch');
+$otherQueueAfterResolve = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/other-expenses"), 'other expenses queue after resolve')['entries'];
+smokeAssert(count($otherQueueAfterResolve) === 0, 'other expenses queue should be empty after category correction');
+
 $preview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
     'flow_id' => $cashFlow['id'],
     'date' => '2026-07-05',
@@ -171,6 +203,28 @@ $entriesAfterDelete = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceI
 $remainingIds = array_map(static fn (array $entry): string => (string)$entry['id'], $entriesAfterDelete);
 smokeAssert(!in_array((string)$entry['id'], $remainingIds, true), 'deleted cash entry is still visible');
 smokeAssert(in_array((string)$cardEntry['id'], $remainingIds, true), 'card entry disappeared unexpectedly');
+
+$closedEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-33 Netflix closed month',
+]), 'create closed-month probe entry')['entry'];
+smokeAssert($closedEntry['category_code'] === 'media_comms', 'closed probe initial category mismatch');
+smokeCloseMonth($workspaceId, 2026, 7);
+expectError(smokeRequest('PATCH', '/api/entries/' . $closedEntry['id'] . '/category', [
+    'category_code' => 'fuel',
+]), 409, 'closed_month_requires_decision', 'closed month category patch');
+expectError(smokeRequest('DELETE', '/api/entries/' . $closedEntry['id']), 409, 'closed_month_requires_decision', 'closed month delete');
+$entriesAfterClosedRejection = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after closed-month rejection')['entries'];
+$closedAfterRejection = null;
+foreach ($entriesAfterClosedRejection as $candidate) {
+    if ((string)$candidate['id'] === (string)$closedEntry['id']) {
+        $closedAfterRejection = $candidate;
+        break;
+    }
+}
+smokeAssert(is_array($closedAfterRejection), 'closed probe disappeared after rejected mutation');
+smokeAssert($closedAfterRejection['category_code'] === 'media_comms', 'closed probe category changed after rejected mutation');
 
 echo "FinDesk v2 HTTP API smoke: OK\n";
 echo "Workspace: {$workspaceId}\n";

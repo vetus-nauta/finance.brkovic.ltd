@@ -1,4 +1,5 @@
 const { chromium } = require('playwright-core');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -6,6 +7,8 @@ const base = process.env.FINDESK_V2_BROWSER_BASE;
 const cookieName = process.env.FINDESK_V2_BROWSER_COOKIE;
 const token = process.env.FINDESK_V2_BROWSER_TOKEN;
 const chrome = process.env.FINDESK_V2_BROWSER_CHROME;
+const dbSocket = process.env.FINDESK_V2_BROWSER_SOCKET;
+const dbName = process.env.FINDESK_V2_BROWSER_DB;
 const resultsDir = process.env.FINDESK_V2_BROWSER_RESULTS || path.join(process.cwd(), 'test-results/v2-browser-smoke');
 
 function assert(condition, message) {
@@ -21,6 +24,33 @@ function routeFromRequest(request) {
 
 function countMatches(text, needle) {
   return (text.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+}
+
+function sqlQuote(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/'/g, "''");
+}
+
+function markClosedMonth(workspaceId, year, month) {
+  assert(dbSocket, 'Missing FINDESK_V2_BROWSER_SOCKET');
+  assert(dbName, 'Missing FINDESK_V2_BROWSER_DB');
+  const sql = `
+INSERT INTO v2_monthly_closures (id, workspace_id, year, month, is_closed, closed_by, closed_at)
+VALUES ('00000000-0000-4000-8000-000000000404', '${sqlQuote(workspaceId)}', ${year}, ${month}, 1, 19101, NOW())
+ON DUPLICATE KEY UPDATE is_closed = 1, closed_by = VALUES(closed_by), closed_at = VALUES(closed_at);
+`;
+  execFileSync('mariadb', ['--no-defaults', `--socket=${dbSocket}`, '-uroot', dbName], {
+    input: sql,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
+function monthPartsFromDate(value) {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(value);
+  assert(match, `invalid date input value: ${value}`);
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+  };
 }
 
 async function waitForText(page, selector, text) {
@@ -48,6 +78,20 @@ async function saveEntry(page, rawText) {
   await waitForText(page, '[data-v2-feed]', rawText);
   await waitForText(page, '[data-v2-check-table]', rawText);
   await waitForText(page, '[data-v2-status]', 'Saved');
+}
+
+async function selectEntryByText(page, rawText) {
+  const row = page.locator('[data-v2-entry-select]', { hasText: rawText }).first();
+  await row.click();
+  await waitForText(page, '[data-v2-detail-raw]', rawText);
+  await waitForText(page, '[data-v2-entry-detail-body]', rawText);
+  return row;
+}
+
+async function detailFieldValue(page, label) {
+  return page.locator('[data-v2-detail-fields] div', {
+    has: page.locator('dt', { hasText: label }),
+  }).locator('dd').first().innerText();
 }
 
 async function assertNoPageScroll(page) {
@@ -96,6 +140,7 @@ async function run() {
     const page = await context.newPage();
 
     const entryPostBodies = [];
+    const categoryPatchBodies = [];
     await page.route('**/v2-api.php?**', async (route) => {
       const request = route.request();
       if (request.method() === 'POST' && routeFromRequest(request).endsWith('/entries')) {
@@ -103,6 +148,9 @@ async function run() {
         if ((request.postData() || '').includes('duplicate guard')) {
           await new Promise((resolve) => setTimeout(resolve, 250));
         }
+      }
+      if (request.method() === 'PATCH' && routeFromRequest(request).endsWith('/category')) {
+        categoryPatchBodies.push(request.postData() || '');
       }
       await route.continue();
     });
@@ -119,6 +167,8 @@ async function run() {
     assert((await workspaceResponse).status() === 200, 'workspace create failed');
     await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
     await waitForText(page, '[data-v2-status]', 'Ready');
+    const workspaceId = await page.locator('[data-v2-workspace-select]').inputValue();
+    assert(workspaceId, 'workspace id missing from selector');
     console.log('Workspace create/select: OK');
 
     await saveEntry(page, '+1000 снял с карты');
@@ -135,6 +185,38 @@ async function run() {
     assert(checkText.includes('€1,000.00'), 'structured check missing formatted +1000 amount');
     assert(checkText.includes('€250.00'), 'structured check missing formatted -250 amount');
     console.log('Save records + structured check: OK');
+
+    const selectedFish = await selectEntryByText(page, '-250 рыба');
+    assert((await selectedFish.getAttribute('class')).includes('is-selected'), 'selected feed row missing active state');
+    const fishDetail = await page.locator('[data-v2-entry-detail-body]').innerText();
+    for (const field of ['raw_text', 'date', 'flow', 'sign', 'amount', 'direction', 'entry_type', 'category', 'actor', 'status', 'balance_after']) {
+      assert(fishDetail.includes(field), `entry detail missing field: ${field}`);
+    }
+    console.log('Entry detail selection: OK');
+
+    await saveEntry(page, '-180 какая-то штука');
+    await waitForText(page, '[data-v2-other-count]', '1');
+    await page.locator('[data-v2-other-review-jump]').click();
+    await waitForText(page, '[data-v2-detail-raw]', '-180 какая-то штука');
+    assert((await page.locator('[data-v2-entry-select].is-review').count()) >= 1, 'other_review row is not highlighted');
+    const beforeCategoryPatches = categoryPatchBodies.length;
+    await page.locator('[data-v2-category-select]').selectOption('tech_parts');
+    const categoryResponse = page.waitForResponse((response) => (
+      response.request().method() === 'PATCH'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/category')
+    ));
+    await page.locator('[data-v2-category-save]').click();
+    assert((await categoryResponse).status() === 200, 'category patch failed');
+    assert(categoryPatchBodies.length - beforeCategoryPatches === 1, 'category save did not send exactly one PATCH');
+    await waitForText(page, '[data-v2-status]', 'Category updated');
+    await waitForText(page, '[data-v2-other-count]', '0');
+    await selectEntryByText(page, '-180 какая-то штука');
+    const resolvedDetail = await page.locator('[data-v2-entry-detail-body]').innerText();
+    assert(resolvedDetail.includes('tech_parts'), 'category correction did not update detail panel');
+    assert(resolvedDetail.includes('recognized'), 'other_review correction did not mark entry recognized');
+    await waitForText(page, '[data-v2-check-table]', 'tech_parts');
+    console.log('Other review category correction: OK');
 
     await page.locator('[data-v2-refresh]').click();
     await waitForText(page, '[data-v2-feed]', '+1000 снял с карты');
@@ -154,6 +236,24 @@ async function run() {
     const feedAfterGuard = await page.locator('[data-v2-feed]').innerText();
     assert(countMatches(feedAfterGuard, '-10 duplicate guard') === 1, 'double submit rendered duplicate records');
     console.log('Double-submit protection: OK');
+
+    await saveEntry(page, '-33 Netflix closed month');
+    await selectEntryByText(page, '-33 Netflix closed month');
+    await waitForText(page, '[data-v2-entry-detail-body]', 'media_comms');
+    const entryMonth = monthPartsFromDate(await page.locator('[data-v2-date]').inputValue());
+    markClosedMonth(workspaceId, entryMonth.year, entryMonth.month);
+    await page.locator('[data-v2-category-select]').selectOption('fuel');
+    const closedResponse = page.waitForResponse((response) => (
+      response.request().method() === 'PATCH'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/category')
+    ));
+    await page.locator('[data-v2-category-save]').click();
+    assert((await closedResponse).status() === 409, 'closed month category patch should return 409');
+    await waitForText(page, '[data-v2-category-error]', 'Closed month');
+    await waitForText(page, '[data-v2-entry-detail-body]', 'media_comms');
+    assert((await detailFieldValue(page, 'category')).includes('media_comms'), 'closed month category mutation appeared optimistic');
+    console.log('Closed-month category guard: OK');
 
     const desktopMetrics = await assertNoPageScroll(page);
     await page.screenshot({ path: path.join(resultsDir, 'desktop-operational-window.png'), fullPage: false });
@@ -182,7 +282,11 @@ async function run() {
     const mobilePage = await mobile.newPage();
     await mobilePage.goto('/v2.php', { waitUntil: 'domcontentloaded' });
     await mobilePage.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
-    const beforeScrollLeft = await mobilePage.locator('.v2-horizontal').evaluate((node) => node.scrollLeft);
+    await mobilePage.locator('[data-v2-entry-select]', { hasText: '-250 рыба' }).first().click();
+    await mobilePage.waitForTimeout(650);
+    await waitForText(mobilePage, '[data-v2-detail-raw]', '-250 рыба');
+    const detailScrollLeft = await mobilePage.locator('.v2-horizontal').evaluate((node) => node.scrollLeft);
+    assert(detailScrollLeft > 20, `mobile details view did not move horizontally: ${detailScrollLeft}`);
     await mobilePage.locator('[data-v2-view="check"]').click();
     await mobilePage.waitForTimeout(650);
     const mobileMetrics = await mobilePage.evaluate(() => {
@@ -200,7 +304,7 @@ async function run() {
         horizontalOverflowX: getComputedStyle(horizontal).overflowX,
       };
     });
-    assert(mobileMetrics.horizontalScrollLeft > beforeScrollLeft + 20, `mobile check view did not move horizontally: ${JSON.stringify(mobileMetrics)}`);
+    assert(mobileMetrics.horizontalScrollLeft > detailScrollLeft + 20, `mobile check view did not move horizontally: ${JSON.stringify(mobileMetrics)}`);
     assert(mobileMetrics.checkLeft < mobileMetrics.windowWidth && mobileMetrics.checkRight > 0, `mobile check panel not visible: ${JSON.stringify(mobileMetrics)}`);
     assert(mobileMetrics.bodyOverflow === 'hidden', `mobile body overflow must stay hidden: ${JSON.stringify(mobileMetrics)}`);
     assert(mobileMetrics.feedOverflowY === 'auto', `mobile feed must own vertical scroll: ${JSON.stringify(mobileMetrics)}`);

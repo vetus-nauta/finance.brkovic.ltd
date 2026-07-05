@@ -35,7 +35,14 @@ for marker in \
     'data-v2-entry-form' \
     'data-v2-summary' \
     'data-v2-workspace-select' \
-    'data-v2-create-form'
+    'data-v2-create-form' \
+    'data-v2-entry-detail' \
+    'data-v2-entry-detail-body' \
+    'data-v2-category-select' \
+    'data-v2-category-save' \
+    'data-v2-category-error' \
+    'data-v2-other-review-jump' \
+    'data-v2-selected-entry-id'
 do
     grep -q "${marker}" "${PAGE}" || fail "Missing UI marker: ${marker}"
 done
@@ -46,6 +53,7 @@ for route in \
     '/flows' \
     '/entries' \
     '/summary' \
+    '/categories' \
     '/parse-preview' \
     '/other-expenses'
 do

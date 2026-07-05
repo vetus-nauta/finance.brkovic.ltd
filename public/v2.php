@@ -10,7 +10,7 @@ header('Pragma: no-cache');
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#f7f8fb">
   <title>FinDesk v2</title>
-  <link rel="stylesheet" href="/assets/v2/app.css?v=20260705-sprint02r-1">
+  <link rel="stylesheet" href="/assets/v2/app.css?v=20260705-sprint04r-1">
 </head>
 <body>
   <main class="v2-shell" data-v2-app>
@@ -68,7 +68,9 @@ header('Pragma: no-cache');
       </div>
       <div>
         <span>Other review</span>
-        <strong data-v2-other-count>—</strong>
+        <button class="v2-summary-action" type="button" data-v2-other-review-jump>
+          <strong data-v2-other-count>—</strong>
+        </button>
       </div>
     </section>
 
@@ -81,6 +83,7 @@ header('Pragma: no-cache');
       <section class="v2-boards" aria-label="Operational records">
         <div class="v2-mobile-tabs" role="tablist" aria-label="View">
           <button class="is-active" type="button" data-v2-view="write">Write</button>
+          <button type="button" data-v2-view="detail">Details</button>
           <button type="button" data-v2-view="check">Check</button>
         </div>
 
@@ -91,6 +94,28 @@ header('Pragma: no-cache');
               <span data-v2-count>0 records</span>
             </div>
             <div class="v2-feed" data-v2-feed aria-live="polite"></div>
+          </section>
+
+          <section class="v2-panel v2-detail" data-v2-entry-detail>
+            <div class="v2-panel-head">
+              <h2>Entry details</h2>
+              <span data-v2-selected-entry-id>None selected</span>
+            </div>
+            <div class="v2-detail-body" data-v2-entry-detail-body>
+              <div class="v2-detail-empty">Select a record to review.</div>
+              <div class="v2-detail-content" data-v2-detail-content hidden>
+                <div class="v2-detail-raw" data-v2-detail-raw></div>
+                <dl class="v2-detail-grid" data-v2-detail-fields></dl>
+                <form class="v2-category-form" data-v2-category-form>
+                  <label>
+                    <span>Category</span>
+                    <select data-v2-category-select></select>
+                  </label>
+                  <button type="submit" data-v2-category-save>Save category</button>
+                </form>
+                <div class="v2-category-error" data-v2-category-error role="alert"></div>
+              </div>
+            </div>
           </section>
 
           <section class="v2-panel v2-check" data-v2-check>
@@ -120,6 +145,6 @@ header('Pragma: no-cache');
     <section class="v2-preview" data-v2-preview-panel hidden></section>
   </main>
 
-  <script src="/assets/v2/app.js?v=20260705-sprint02r-1" defer></script>
+  <script src="/assets/v2/app.js?v=20260705-sprint04r-1" defer></script>
 </body>
 </html>

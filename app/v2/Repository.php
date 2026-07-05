@@ -362,8 +362,12 @@ final class FinDeskV2Repository
             $this->guardEntryMonthIsOpen($before);
             $categoryCode = FinDeskV2Support::requireString($input, 'category_code', 80);
             $categoryId = $this->categoryIdByCode($before['workspace_id'], $categoryCode);
+            $status = $before['status'];
+            if ($before['status'] === 'other_review' && $before['category_code'] === 'other' && $categoryCode !== 'other') {
+                $status = 'recognized';
+            }
 
-            $this->db->prepare("UPDATE v2_entries SET category_id = ? WHERE id = ?")->execute([$categoryId, $entryId]);
+            $this->db->prepare("UPDATE v2_entries SET category_id = ?, status = ? WHERE id = ?")->execute([$categoryId, $status, $entryId]);
 
             $after = $this->getEntry($entryId, $userId);
             $this->audit($before['workspace_id'], 'entry', $entryId, 'update_category', $before, $after, $userId);

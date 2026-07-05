@@ -5,10 +5,13 @@
     workspaceId: '',
     workspaces: [],
     flows: [],
+    categories: [],
     entries: [],
     otherExpenseQueue: [],
     summary: null,
     activeFlowType: 'cash',
+    selectedEntryId: '',
+    categorySaving: false,
     saving: false,
     draftKey: 'findesk.v2.operational.draft'
   };
@@ -34,6 +37,17 @@
     submit: $('[data-v2-submit]'),
     previewButton: $('[data-v2-preview]'),
     previewPanel: $('[data-v2-preview-panel]'),
+    detail: $('[data-v2-entry-detail]'),
+    detailBody: $('[data-v2-entry-detail-body]'),
+    detailContent: $('[data-v2-detail-content]'),
+    detailRaw: $('[data-v2-detail-raw]'),
+    detailFields: $('[data-v2-detail-fields]'),
+    selectedEntryId: $('[data-v2-selected-entry-id]'),
+    categoryForm: $('[data-v2-category-form]'),
+    categorySelect: $('[data-v2-category-select]'),
+    categorySave: $('[data-v2-category-save]'),
+    categoryError: $('[data-v2-category-error]'),
+    otherReviewJump: $('[data-v2-other-review-jump]'),
     cashNow: $('[data-v2-cash-now]'),
     cardTotal: $('[data-v2-card-total]'),
     openingCash: $('[data-v2-opening-cash]'),
@@ -98,6 +112,15 @@
     return state.flows.find((flow) => flow.type === state.activeFlowType) || state.flows[0] || null;
   }
 
+  function selectedEntry() {
+    return state.entries.find((entry) => entry.id === state.selectedEntryId) || null;
+  }
+
+  function categoryLabel(category) {
+    const name = category && category.name && (category.name.en || category.name.ru);
+    return category ? category.code + (name ? ' · ' + name : '') : '—';
+  }
+
   function renderShellVisibility(mode) {
     els.auth.hidden = mode !== 'auth';
     els.create.hidden = mode !== 'create';
@@ -149,11 +172,14 @@
     }
     els.feed.innerHTML = state.entries.map((entry) => {
       const amountClass = entry.direction === 'in' ? 'is-in' : (entry.direction === 'out' ? 'is-out' : '');
-      const rowClass = entry.status === 'unrecognized' ? 'v2-entry is-unrecognized' : 'v2-entry';
-      return '<article class="' + rowClass + '" data-v2-entry-id="' + escapeHtml(entry.id) + '">'
+      const rowClasses = ['v2-entry'];
+      if (entry.status === 'unrecognized') rowClasses.push('is-unrecognized');
+      if (entry.status === 'other_review' && entry.category_code === 'other') rowClasses.push('is-review');
+      if (entry.id === state.selectedEntryId) rowClasses.push('is-selected');
+      return '<button class="' + rowClasses.join(' ') + '" type="button" data-v2-entry-select data-v2-entry-id="' + escapeHtml(entry.id) + '">'
         + '<div><strong>' + escapeHtml(entry.raw_text) + '</strong><small>' + escapeHtml(entryMeta(entry)) + '</small></div>'
         + '<div class="v2-entry-amount ' + amountClass + '">' + money(entry.amount) + '</div>'
-        + '</article>';
+        + '</button>';
     }).join('');
   }
 
@@ -176,12 +202,61 @@
       + rows.map((row) => '<div class="v2-check-row">' + row.map((cell) => '<span>' + escapeHtml(text(cell)) + '</span>').join('') + '</div>').join('');
   }
 
+  function renderCategoryOptions(entry) {
+    const current = entry && entry.category_code ? entry.category_code : '';
+    els.categorySelect.innerHTML = state.categories.map((category) => (
+      '<option value="' + escapeHtml(category.code) + '">' + escapeHtml(categoryLabel(category)) + '</option>'
+    )).join('');
+    els.categorySelect.value = current;
+  }
+
+  function renderDetail() {
+    const entry = selectedEntry();
+    els.selectedEntryId.textContent = entry ? entry.id.slice(0, 8) : 'None selected';
+
+    if (!entry) {
+      els.detailContent.hidden = true;
+      const empty = els.detailBody.querySelector('.v2-detail-empty');
+      if (empty) empty.hidden = false;
+      return;
+    }
+
+    const empty = els.detailBody.querySelector('.v2-detail-empty');
+    if (empty) empty.hidden = true;
+    els.detailContent.hidden = false;
+    els.detailRaw.textContent = entry.raw_text;
+    els.detailRaw.classList.toggle('is-review', entry.status === 'other_review' && entry.category_code === 'other');
+    const rows = [
+      ['raw_text', entry.raw_text],
+      ['date', entry.date],
+      ['flow', entry.flow && entry.flow.type],
+      ['sign', entry.sign || 'null'],
+      ['amount', entry.amount === null ? 'null' : money(entry.amount)],
+      ['direction', entry.direction],
+      ['entry_type', entry.entry_type],
+      ['category', entry.category_code],
+      ['actor', entry.actor && entry.actor.name],
+      ['status', entry.status],
+      ['balance_after', entry.balance_after === null ? '—' : money(entry.balance_after)],
+      ['source_type', entry.source_type],
+      ['notes', entry.notes || '—'],
+      ['matched_rules', (entry.matched_rules || []).map((rule) => rule.pattern || rule.marker || rule.source).filter(Boolean).join(', ') || '—']
+    ];
+    els.detailFields.innerHTML = rows.map(([label, value]) => (
+      '<div><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(text(value)) + '</dd></div>'
+    )).join('');
+    renderCategoryOptions(entry);
+    els.categorySelect.disabled = state.categorySaving;
+    els.categorySave.disabled = state.categorySaving;
+  }
+
   function renderAll() {
     renderWorkspaces();
     renderFlows();
     renderSummary();
     renderFeed();
     renderCheckTable();
+    renderDetail();
   }
 
   async function loadWorkspaceData() {
@@ -190,11 +265,16 @@
     const flowsData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/flows');
     state.flows = flowsData.flows || [];
     if (!state.flows.some((flow) => flow.type === state.activeFlowType)) state.activeFlowType = 'cash';
+    const categoriesData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/categories');
+    state.categories = categoriesData.categories || [];
     const entriesData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/entries', null, {
       year: month.year,
       month: month.month
     });
     state.entries = entriesData.entries || [];
+    if (state.selectedEntryId && !state.entries.some((entry) => entry.id === state.selectedEntryId)) {
+      state.selectedEntryId = '';
+    }
     const otherExpenseData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/other-expenses');
     state.otherExpenseQueue = otherExpenseData.entries || [];
     const summaryData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/summary');
@@ -328,12 +408,72 @@
     }
   }
 
+  function selectEntry(entryId, view) {
+    state.selectedEntryId = entryId || '';
+    els.categoryError.textContent = '';
+    renderFeed();
+    renderDetail();
+    if (view) {
+      const panel = view === 'detail' ? $('[data-v2-entry-detail]') : $('[data-v2-writing]');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    }
+  }
+
+  function selectFirstOtherReview() {
+    const entry = state.otherExpenseQueue[0]
+      || state.entries.find((item) => item.status === 'other_review' && item.category_code === 'other');
+    if (entry) {
+      selectEntry(entry.id, 'detail');
+      return;
+    }
+    setStatus('No Other review records');
+  }
+
+  async function saveCategory(event) {
+    event.preventDefault();
+    const entry = selectedEntry();
+    if (!entry || state.categorySaving) return;
+    const categoryCode = els.categorySelect.value;
+    state.categorySaving = true;
+    els.categorySelect.disabled = true;
+    els.categorySave.disabled = true;
+    els.categoryError.textContent = '';
+    setStatus('Saving category');
+    try {
+      const data = await v2Api('PATCH', '/api/entries/' + entry.id + '/category', {
+        category_code: categoryCode
+      });
+      state.selectedEntryId = data.entry.id;
+      await loadWorkspaceData();
+      setStatus('Category updated');
+    } catch (error) {
+      if (error.status === 409 && error.error === 'closed_month_requires_decision') {
+        const message = 'Closed month: category cannot be changed without a correction decision. Choices: create correction, recalculate chain, cancel.';
+        els.categoryError.textContent = message;
+        setStatus(message, true);
+      } else {
+        const message = error.error || 'Category update failed';
+        els.categoryError.textContent = message;
+        setStatus(message, true);
+      }
+    } finally {
+      state.categorySaving = false;
+      renderDetail();
+    }
+  }
+
   function bindEvents() {
     els.createForm.addEventListener('submit', createWorkspace);
     els.form.addEventListener('submit', submitEntry);
+    els.categoryForm.addEventListener('submit', saveCategory);
     els.previewButton.addEventListener('click', previewEntry);
     els.rawText.addEventListener('input', saveDraft);
     els.refresh.addEventListener('click', loadApp);
+    els.otherReviewJump.addEventListener('click', selectFirstOtherReview);
+    els.feed.addEventListener('click', (event) => {
+      const row = event.target.closest('[data-v2-entry-select]');
+      if (row) selectEntry(row.getAttribute('data-v2-entry-id'), 'detail');
+    });
     els.workspaceSelect.addEventListener('change', async () => {
       state.workspaceId = els.workspaceSelect.value;
       await loadWorkspaceData();
@@ -348,7 +488,9 @@
       button.addEventListener('click', () => {
         $$('[data-v2-view]').forEach((item) => item.classList.toggle('is-active', item === button));
         const target = button.getAttribute('data-v2-view');
-        const panel = target === 'check' ? $('[data-v2-check]') : $('[data-v2-writing]');
+        const panel = target === 'check'
+          ? $('[data-v2-check]')
+          : (target === 'detail' ? $('[data-v2-entry-detail]') : $('[data-v2-writing]'));
         if (panel) panel.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
       });
     });
