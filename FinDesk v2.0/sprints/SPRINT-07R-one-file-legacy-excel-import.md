@@ -2,7 +2,7 @@
 
 Director: Codex Director, FinDesk v2.0
 
-Status: Implemented; blocked pending final Import/QA acceptance after fixes
+Status: Accepted
 
 ## Director Sprint Opening
 
@@ -248,8 +248,21 @@ Fixtures and HTTP smoke pass after the fix.
 Administrative status:
 
 ```text
-Not accepted yet.
-Final Import/QA re-audit after the fixes is still required by the orchestration protocol.
+Accepted after final Import and QA re-audit.
+```
+
+Final Import Acceptance Agent: Bernoulli
+
+```text
+ACCEPT
+Verified import routes, one-file .xlsx JSON/base64 path, sparse XLSX column preservation, date priority/provenance, review totals, source comparison, duplicate suspects, source traceability, accept path, and generated report reflection.
+```
+
+Final QA/Audit Acceptance Agent: Goodall
+
+```text
+ACCEPT
+Verified contract routes, .xlsx validation, base64 validation, excluded markers, source/row traceability, required review fields, date provenance, duplicate suspect handling, generated monthly report source trace, fixture/HTTP coverage, and scope boundaries.
 ```
 
 ## Residual Risks
@@ -263,14 +276,7 @@ Final Import/QA re-audit after the fixes is still required by the orchestration 
 
 ## Isolated Handoff For Next Director
 
-Required next action:
-
-```text
-Re-run final Import and QA acceptance agents on current branch.
-Do not mark SPRINT-07R Accepted until both report ACCEPT after the sparse-row and date-provenance fixes.
-```
-
-If accepted, recommended next sprint:
+Recommended next sprint:
 
 ```text
 SPRINT-08R — Attachments Base Or Import Review Resolution
