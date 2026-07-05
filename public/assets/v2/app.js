@@ -1,0 +1,361 @@
+(function () {
+  'use strict';
+
+  const state = {
+    workspaceId: '',
+    workspaces: [],
+    flows: [],
+    entries: [],
+    otherExpenseQueue: [],
+    summary: null,
+    activeFlowType: 'cash',
+    saving: false,
+    draftKey: 'findesk.v2.operational.draft'
+  };
+
+  const $ = (selector) => document.querySelector(selector);
+  const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+  const els = {
+    status: $('[data-v2-status]'),
+    auth: $('[data-v2-auth]'),
+    create: $('[data-v2-create]'),
+    createForm: $('[data-v2-create-form]'),
+    workspace: $('[data-v2-workspace]'),
+    workspaceSelect: $('[data-v2-workspace-select]'),
+    refresh: $('[data-v2-refresh]'),
+    month: $('[data-v2-month]'),
+    feed: $('[data-v2-feed]'),
+    checkTable: $('[data-v2-check-table]'),
+    count: $('[data-v2-count]'),
+    form: $('[data-v2-entry-form]'),
+    date: $('[data-v2-date]'),
+    rawText: $('[data-v2-raw-text]'),
+    submit: $('[data-v2-submit]'),
+    previewButton: $('[data-v2-preview]'),
+    previewPanel: $('[data-v2-preview-panel]'),
+    cashNow: $('[data-v2-cash-now]'),
+    cardTotal: $('[data-v2-card-total]'),
+    openingCash: $('[data-v2-opening-cash]'),
+    otherCount: $('[data-v2-other-count]')
+  };
+
+  function currentMonthParts() {
+    const now = new Date();
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      label: now.toLocaleString('en', { month: 'short', year: 'numeric' }),
+      today: now.toISOString().slice(0, 10)
+    };
+  }
+
+  async function v2Api(method, route, body, query) {
+    const url = new URL('/v2-api.php', window.location.origin);
+    url.searchParams.set('route', route);
+    Object.entries(query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
+    const response = await fetch(url.toString(), {
+      method,
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: body == null ? undefined : JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({ ok: false, error: 'invalid_json' }));
+    if (!response.ok || data.ok !== true) {
+      throw Object.assign({ status: response.status }, data);
+    }
+    return data;
+  }
+
+  function setStatus(message, isError) {
+    els.status.textContent = message || '';
+    els.status.classList.toggle('is-error', !!isError);
+  }
+
+  function money(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return new Intl.NumberFormat('en', { style: 'currency', currency: 'EUR' }).format(number);
+  }
+
+  function text(value, fallback) {
+    const out = value === null || value === undefined ? '' : String(value);
+    return out || fallback || '—';
+  }
+
+  function escapeHtml(value) {
+    return text(value, '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[char]);
+  }
+
+  function activeFlow() {
+    return state.flows.find((flow) => flow.type === state.activeFlowType) || state.flows[0] || null;
+  }
+
+  function renderShellVisibility(mode) {
+    els.auth.hidden = mode !== 'auth';
+    els.create.hidden = mode !== 'create';
+    els.workspace.hidden = mode !== 'workspace';
+    els.form.classList.toggle('v2-hidden', mode !== 'workspace');
+  }
+
+  function renderWorkspaces() {
+    els.workspaceSelect.innerHTML = state.workspaces.map((workspace) => (
+      '<option value="' + escapeHtml(workspace.id) + '">' + escapeHtml(workspace.name) + '</option>'
+    )).join('');
+    els.workspaceSelect.value = state.workspaceId;
+  }
+
+  function renderFlows() {
+    $$('.v2-flow').forEach((button) => {
+      const type = button.getAttribute('data-v2-flow');
+      const exists = state.flows.some((flow) => flow.type === type);
+      button.disabled = !exists;
+      button.classList.toggle('is-active', type === state.activeFlowType);
+    });
+  }
+
+  function renderSummary() {
+    els.cashNow.textContent = money(state.summary && state.summary.cash_now);
+    els.cardTotal.textContent = money(state.summary && state.summary.card_expense_total);
+    els.openingCash.textContent = money(state.summary && state.summary.opening_cash);
+    const otherRows = state.otherExpenseQueue.length
+      ? state.otherExpenseQueue
+      : state.entries.filter((entry) => entry.status === 'other_review' && entry.category_code === 'other');
+    els.otherCount.textContent = String(otherRows.length);
+  }
+
+  function entryMeta(entry) {
+    const parts = [
+      entry.date,
+      entry.flow && entry.flow.name,
+      entry.status,
+      entry.category_code || 'no category'
+    ].filter(Boolean);
+    return parts.join(' · ');
+  }
+
+  function renderFeed() {
+    els.count.textContent = state.entries.length + (state.entries.length === 1 ? ' record' : ' records');
+    if (!state.entries.length) {
+      els.feed.innerHTML = '<div class="v2-entry"><strong>No records yet</strong><small>Write the first money line below.</small></div>';
+      return;
+    }
+    els.feed.innerHTML = state.entries.map((entry) => {
+      const amountClass = entry.direction === 'in' ? 'is-in' : (entry.direction === 'out' ? 'is-out' : '');
+      const rowClass = entry.status === 'unrecognized' ? 'v2-entry is-unrecognized' : 'v2-entry';
+      return '<article class="' + rowClass + '" data-v2-entry-id="' + escapeHtml(entry.id) + '">'
+        + '<div><strong>' + escapeHtml(entry.raw_text) + '</strong><small>' + escapeHtml(entryMeta(entry)) + '</small></div>'
+        + '<div class="v2-entry-amount ' + amountClass + '">' + money(entry.amount) + '</div>'
+        + '</article>';
+    }).join('');
+  }
+
+  function renderCheckTable() {
+    const header = ['date', 'raw_text', 'flow', 'sign', 'amount', 'direction', 'entry_type', 'category', 'actor', 'status', 'balance_after'];
+    const rows = state.entries.map((entry) => [
+      entry.date,
+      entry.raw_text,
+      entry.flow && entry.flow.type,
+      entry.sign,
+      entry.amount === null ? 'null' : money(entry.amount),
+      entry.direction,
+      entry.entry_type,
+      entry.category_code,
+      entry.actor && entry.actor.name,
+      entry.status,
+      entry.balance_after === null ? '—' : money(entry.balance_after)
+    ]);
+    els.checkTable.innerHTML = '<div class="v2-check-row">' + header.map((cell) => '<span>' + cell + '</span>').join('') + '</div>'
+      + rows.map((row) => '<div class="v2-check-row">' + row.map((cell) => '<span>' + escapeHtml(text(cell)) + '</span>').join('') + '</div>').join('');
+  }
+
+  function renderAll() {
+    renderWorkspaces();
+    renderFlows();
+    renderSummary();
+    renderFeed();
+    renderCheckTable();
+  }
+
+  async function loadWorkspaceData() {
+    const month = currentMonthParts();
+    const workspaceId = state.workspaceId;
+    const flowsData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/flows');
+    state.flows = flowsData.flows || [];
+    if (!state.flows.some((flow) => flow.type === state.activeFlowType)) state.activeFlowType = 'cash';
+    const entriesData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/entries', null, {
+      year: month.year,
+      month: month.month
+    });
+    state.entries = entriesData.entries || [];
+    const otherExpenseData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/other-expenses');
+    state.otherExpenseQueue = otherExpenseData.entries || [];
+    const summaryData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/summary');
+    state.summary = summaryData.summary || null;
+    renderAll();
+  }
+
+  async function loadApp() {
+    const month = currentMonthParts();
+    els.month.textContent = month.label;
+    els.date.value = month.today;
+    setStatus('Loading');
+    try {
+      const data = await v2Api('GET', '/api/workspaces');
+      state.workspaces = data.workspaces || [];
+      if (!state.workspaces.length) {
+        renderShellVisibility('create');
+        setStatus('Create a workspace to start writing');
+        return;
+      }
+      state.workspaceId = state.workspaceId || state.workspaces[0].id;
+      renderShellVisibility('workspace');
+      await loadWorkspaceData();
+      restoreDraft();
+      setStatus(navigator.onLine === false ? 'Offline: draft is kept locally' : 'Ready');
+    } catch (error) {
+      if (error.status === 401) {
+        renderShellVisibility('auth');
+        setStatus('Not authenticated', true);
+      } else {
+        renderShellVisibility('workspace');
+        setStatus(error.error || 'Load failed', true);
+      }
+    }
+  }
+
+  async function createWorkspace(event) {
+    event.preventDefault();
+    const form = new FormData(els.createForm);
+    setStatus('Creating workspace');
+    try {
+      const data = await v2Api('POST', '/api/workspaces', {
+        name: form.get('name') || 'FinDesk v2 Workspace',
+        type: 'yacht',
+        currency: 'EUR',
+        locale: 'ru',
+        opening_cash: form.get('opening_cash') || null
+      });
+      state.workspaceId = data.workspace.id;
+      await loadApp();
+    } catch (error) {
+      setStatus(error.error || 'Workspace create failed', true);
+    }
+  }
+
+  function saveDraft() {
+    try {
+      localStorage.setItem(state.draftKey, els.rawText.value || '');
+    } catch (error) {}
+  }
+
+  function restoreDraft() {
+    try {
+      const draft = localStorage.getItem(state.draftKey);
+      if (draft && !els.rawText.value) els.rawText.value = draft;
+    } catch (error) {}
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(state.draftKey);
+    } catch (error) {}
+  }
+
+  async function previewEntry() {
+    const flow = activeFlow();
+    if (!flow || !els.rawText.value.trim()) return;
+    els.previewPanel.hidden = false;
+    els.previewPanel.textContent = 'Checking';
+    try {
+      const data = await v2Api('POST', '/api/workspaces/' + state.workspaceId + '/parse-preview', {
+        flow_id: flow.id,
+        date: els.date.value,
+        raw_text: els.rawText.value
+      });
+      const p = data.preview || {};
+      els.previewPanel.textContent = [
+        'flow ' + text(p.flow && p.flow.type),
+        'sign ' + text(p.sign, 'null'),
+        'amount ' + text(p.amount, 'null'),
+        'category ' + text(p.category_code),
+        'status ' + text(p.status)
+      ].join(' · ');
+    } catch (error) {
+      els.previewPanel.textContent = error.error || 'Preview unavailable';
+    }
+  }
+
+  async function submitEntry(event) {
+    event.preventDefault();
+    if (state.saving) return;
+    const flow = activeFlow();
+    const raw = els.rawText.value.trim();
+    if (!flow || !raw) return;
+    state.saving = true;
+    els.submit.disabled = true;
+    saveDraft();
+    setStatus(navigator.onLine === false ? 'Offline: draft kept locally' : 'Saving');
+    try {
+      await v2Api('POST', '/api/workspaces/' + state.workspaceId + '/entries', {
+        flow_id: flow.id,
+        date: els.date.value,
+        raw_text: raw
+      });
+      els.rawText.value = '';
+      els.previewPanel.hidden = true;
+      clearDraft();
+      await loadWorkspaceData();
+      setStatus('Saved');
+    } catch (error) {
+      if (error.status === 409 && error.error === 'closed_month_requires_decision') {
+        setStatus('Closed month: create correction, recalculate chain, or cancel', true);
+      } else if (navigator.onLine === false || error.status === 0) {
+        setStatus('Offline: draft kept locally', true);
+      } else {
+        setStatus(error.error || 'Save failed', true);
+      }
+    } finally {
+      state.saving = false;
+      els.submit.disabled = false;
+    }
+  }
+
+  function bindEvents() {
+    els.createForm.addEventListener('submit', createWorkspace);
+    els.form.addEventListener('submit', submitEntry);
+    els.previewButton.addEventListener('click', previewEntry);
+    els.rawText.addEventListener('input', saveDraft);
+    els.refresh.addEventListener('click', loadApp);
+    els.workspaceSelect.addEventListener('change', async () => {
+      state.workspaceId = els.workspaceSelect.value;
+      await loadWorkspaceData();
+    });
+    $$('.v2-flow').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.activeFlowType = button.getAttribute('data-v2-flow') || 'cash';
+        renderFlows();
+      });
+    });
+    $$('[data-v2-view]').forEach((button) => {
+      button.addEventListener('click', () => {
+        $$('[data-v2-view]').forEach((item) => item.classList.toggle('is-active', item === button));
+        const target = button.getAttribute('data-v2-view');
+        const panel = target === 'check' ? $('[data-v2-check]') : $('[data-v2-writing]');
+        if (panel) panel.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+      });
+    });
+    window.addEventListener('online', () => setStatus('Back online'));
+    window.addEventListener('offline', () => setStatus('Offline: draft kept locally', true));
+  }
+
+  bindEvents();
+  loadApp();
+})();

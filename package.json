@@ -9,6 +9,7 @@
     "smoke:v2": "php scripts/v2_clean_core_static_smoke.php",
     "smoke:v2:db": "bash scripts/v2_disposable_db_smoke.sh",
     "smoke:v2:http": "bash scripts/v2_http_api_smoke.sh",
+    "smoke:v2:ui": "bash scripts/v2_operational_ui_smoke.sh",
     "test:v2:fixtures": "bash scripts/v2_fixture_runner.sh"
   }
 }
