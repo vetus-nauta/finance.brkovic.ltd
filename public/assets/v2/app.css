@@ -678,10 +678,18 @@ select {
     scroll-snap-align: start;
   }
 
-  .v2-inputbar,
   .v2-create-form,
   .v2-category-form,
   .v2-attachment-form {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .v2-inputbar {
+    grid-template-columns: minmax(104px, 128px) minmax(0, 1fr) 48px 56px;
+    align-items: end;
+  }
+
+  .v2-inputbar button {
+    padding-inline: 0;
   }
 }

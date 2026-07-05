@@ -452,20 +452,40 @@ async function run() {
     await mobilePage.setViewportSize({ width: 390, height: 520 });
     await mobilePage.locator('[data-v2-raw-text]').focus();
     const inputReachMetrics = await mobilePage.evaluate(() => {
+      const shell = document.querySelector('[data-v2-app]');
       const inputbar = document.querySelector('[data-v2-entry-form]');
+      const workspace = document.querySelector('[data-v2-workspace]');
       const submit = document.querySelector('[data-v2-submit]');
+      const shellRect = shell.getBoundingClientRect();
       const inputRect = inputbar.getBoundingClientRect();
+      const workspaceRect = workspace.getBoundingClientRect();
       const submitRect = submit.getBoundingClientRect();
       return {
+        shellTop: shellRect.top,
+        shellBottom: shellRect.bottom,
+        shellWidth: shellRect.width,
         inputTop: inputRect.top,
         inputBottom: inputRect.bottom,
+        inputHeight: inputRect.height,
+        workspaceHeight: workspaceRect.height,
         submitTop: submitRect.top,
         submitBottom: submitRect.bottom,
+        bodyScrollWidth: document.body.scrollWidth,
+        htmlScrollWidth: document.documentElement.scrollWidth,
+        windowWidth: window.innerWidth,
         windowHeight: window.innerHeight,
         bodyOverflow: getComputedStyle(document.body).overflow,
       };
     });
+    await mobilePage.locator('[data-v2-submit]').click({ trial: true });
+    await mobilePage.screenshot({ path: path.join(resultsDir, 'mobile-reduced-viewport-fit.png'), fullPage: false });
+    assert(inputReachMetrics.shellTop >= -2, `phone shell starts outside viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.shellBottom <= inputReachMetrics.windowHeight + 2, `phone shell exceeds viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.bodyScrollWidth <= inputReachMetrics.windowWidth + 2, `phone body overhangs viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.htmlScrollWidth <= inputReachMetrics.windowWidth + 2, `phone document overhangs viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.inputBottom <= inputReachMetrics.windowHeight + 2, `phone input hidden in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.inputHeight <= 100, `phone input bar consumes too much viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.workspaceHeight >= 120, `phone workspace collapsed in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.submitBottom <= inputReachMetrics.windowHeight + 2, `phone submit hidden in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
     assert(inputReachMetrics.bodyOverflow === 'hidden', `phone keyboard check changed body overflow: ${JSON.stringify(inputReachMetrics)}`);
     await mobilePage.setViewportSize({ width: 390, height: 844 });
