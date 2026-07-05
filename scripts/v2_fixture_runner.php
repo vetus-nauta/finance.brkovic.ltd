@@ -148,6 +148,22 @@ function runFixture(FixtureReport $report, string $fixture, callable $callback):
     }
 }
 
+function expectClosedMonthDecision(callable $callback): array
+{
+    try {
+        $callback();
+    } catch (FinDeskV2HttpError $e) {
+        fixtureAssert($e->status === 409, 'closed month error status');
+        $payload = json_decode($e->getMessage(), true);
+        fixtureAssert(is_array($payload), 'closed month error payload is not JSON');
+        assertSameValue($payload['error'] ?? null, 'closed_month_requires_decision', 'closed month error code');
+        assertSameValue($payload['choices'] ?? null, ['create_correction', 'recalculate_chain', 'cancel'], 'closed month choices');
+        return $payload;
+    }
+
+    throw new RuntimeException('closed month mutation was allowed');
+}
+
 $pdo = ql_db();
 $repo = new FinDeskV2Repository($pdo);
 $userId = 15001;
@@ -421,7 +437,42 @@ runFixture($report, 'Fixture 9 - Month insertion recalculation', function () use
 
     return 'inserting a middle cash row recalculates later balance_after values';
 });
-$report->blocked('Fixture 10 - Closed month protection', 'closed-month edit prompt/correction workflow is not implemented yet');
+
+runFixture($report, 'Fixture 10 - Closed month protection', function () use ($repo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Closed Month Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $cashFlow = byFlowType($repo->listFlows($workspace['id'], $userId), 'cash');
+    $entry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 fuel',
+    ], $userId);
+    $repo->closeMonthForFixture($workspace['id'], 2026, 7, $userId);
+
+    expectClosedMonthDecision(static fn () => $repo->updateEntry($entry['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-200 fuel',
+    ], $userId));
+    expectClosedMonthDecision(static fn () => $repo->deleteEntry($entry['id'], $userId));
+    expectClosedMonthDecision(static fn () => $repo->updateEntryCategory($entry['id'], [
+        'category_code' => 'tech_parts',
+    ], $userId));
+
+    $entries = $repo->listEntries($workspace['id'], [], $userId);
+    fixtureAssert(count($entries) === 1, 'closed month entry should remain visible');
+    assertSameValue($entries[0]['raw_text'], '-100 fuel', 'closed month entry raw_text should not change');
+    assertSameValue($entries[0]['category_code'], 'fuel', 'closed month category should not change');
+    assertAmount($entries[0]['amount'], 100.0, 'closed month entry amount should not change');
+    assertAmount($entries[0]['balance_after'], 900.0, 'closed month balance should not silently recalculate');
+
+    return 'closed month edit/category/delete are blocked with create_correction/recalculate_chain/cancel choices and no silent mutation';
+});
 
 runFixture($report, 'Card plus semantics', function () use ($repo, $workspace, $cardFlow, $userId): string {
     $manual = $repo->createEntry($workspace['id'], [

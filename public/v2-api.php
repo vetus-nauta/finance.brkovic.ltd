@@ -20,7 +20,11 @@ try {
     $api = new FinDeskV2Api();
     ql_json($api->handle($method, $route, $input, $_GET));
 } catch (FinDeskV2HttpError $e) {
-    ql_json(['ok' => false, 'error' => $e->getMessage()], $e->status);
+    $payload = json_decode($e->getMessage(), true);
+    if (!is_array($payload)) {
+        $payload = ['error' => $e->getMessage()];
+    }
+    ql_json(array_merge(['ok' => false], $payload), $e->status);
 } catch (Throwable $e) {
     ql_json(['ok' => false, 'error' => 'v2_internal_error'], 500);
 }

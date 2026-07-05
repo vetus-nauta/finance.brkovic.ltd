@@ -314,6 +314,7 @@ final class FinDeskV2Repository
     {
         return FinDeskV2Database::transact(function () use ($entryId, $input, $userId): array {
             $before = $this->getEntry($entryId, $userId);
+            $this->guardEntryMonthIsOpen($before);
             $flowId = FinDeskV2Support::optionalString($input, 'flow_id', $before['flow']['id'], 36) ?? $before['flow']['id'];
             $flow = $this->getFlowForWorkspace($flowId, $before['workspace_id']);
             $entry = $this->normalizeEntryInput($before['workspace_id'], $flow, array_merge($before, $input));
@@ -358,6 +359,7 @@ final class FinDeskV2Repository
     {
         return FinDeskV2Database::transact(function () use ($entryId, $input, $userId): array {
             $before = $this->getEntry($entryId, $userId);
+            $this->guardEntryMonthIsOpen($before);
             $categoryCode = FinDeskV2Support::requireString($input, 'category_code', 80);
             $categoryId = $this->categoryIdByCode($before['workspace_id'], $categoryCode);
 
@@ -374,11 +376,34 @@ final class FinDeskV2Repository
     {
         return FinDeskV2Database::transact(function () use ($entryId, $userId): array {
             $before = $this->getEntry($entryId, $userId);
+            $this->guardEntryMonthIsOpen($before);
             $this->db->prepare("UPDATE v2_entries SET archived_at = NOW() WHERE id = ?")->execute([$entryId]);
             $this->recalculateFlowBalance($before['flow']['id']);
             $this->audit($before['workspace_id'], 'entry', $entryId, 'delete', $before, ['archived' => true], $userId);
 
             return ['id' => $entryId, 'archived' => true];
+        });
+    }
+
+    public function closeMonthForFixture(string $workspaceId, int $year, int $month, int $userId): array
+    {
+        return FinDeskV2Database::transact(function () use ($workspaceId, $year, $month, $userId): array {
+            $this->getWorkspace($workspaceId, $userId);
+            $this->assertValidMonth($year, $month);
+            $id = FinDeskV2Support::uuid();
+
+            $this->db->prepare("
+                INSERT INTO v2_monthly_closures (id, workspace_id, year, month, is_closed, closed_by, closed_at)
+                VALUES (?, ?, ?, ?, 1, ?, NOW())
+                ON DUPLICATE KEY UPDATE is_closed = 1, closed_by = VALUES(closed_by), closed_at = VALUES(closed_at)
+            ")->execute([$id, $workspaceId, $year, $month, $userId]);
+
+            return [
+                'workspace_id' => $workspaceId,
+                'year' => $year,
+                'month' => $month,
+                'is_closed' => true,
+            ];
         });
     }
 
@@ -481,6 +506,43 @@ final class FinDeskV2Repository
         }
 
         return $this->flowRow($row);
+    }
+
+    private function guardEntryMonthIsOpen(array $entry): void
+    {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', (string)$entry['date']);
+        if (!$date) {
+            return;
+        }
+
+        $year = (int)$date->format('Y');
+        $month = (int)$date->format('n');
+
+        $stmt = $this->db->prepare("
+            SELECT is_closed
+            FROM v2_monthly_closures
+            WHERE workspace_id = ? AND year = ? AND month = ? AND is_closed = 1
+            LIMIT 1
+        ");
+        $stmt->execute([$entry['workspace_id'], $year, $month]);
+
+        if (!$stmt->fetchColumn()) {
+            return;
+        }
+
+        throw new FinDeskV2HttpError(409, FinDeskV2Support::jsonEncode([
+            'error' => 'closed_month_requires_decision',
+            'year' => $year,
+            'month' => $month,
+            'choices' => ['create_correction', 'recalculate_chain', 'cancel'],
+        ]));
+    }
+
+    private function assertValidMonth(int $year, int $month): void
+    {
+        if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
+            throw new FinDeskV2HttpError(422, 'invalid_month');
+        }
     }
 
     private function recalculateFlowBalance(string $flowId): void
