@@ -13,4 +13,5 @@ RewriteRule ^sitemap.xml$ public/sitemap.xml [L]
 RewriteRule ^favicon.ico$ public/favicon.ico [L]
 </IfModule>
 
-RedirectMatch 403 ^/(app|storage|deploy|cron)(/|$)
+RedirectMatch 403 ^/(app|storage|deploy|cron|backups|zip-archives|test-results|node_modules)(/|$)
+RedirectMatch 403 (^|/)(\.git|\.env|.*\.sql|.*\.bak|.*\.tar\.gz|.*\.zip)(/|$)
