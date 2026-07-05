@@ -4,7 +4,7 @@ Sprint: `SPRINT-01R — Clean Foundation Implementation`
 
 Director: Codex Director, FinDesk v2.0
 
-Status: Accepted as foundation/API/parser/fixture gate candidate / awaiting final QA acceptance
+Status: Accepted / foundation API parser fixture gate passed
 
 ## Goal
 
@@ -237,12 +237,7 @@ Rejected as completion evidence:
 
 ## Recommended Next Director Focus
 
-Continue inside `SPRINT-01R` until these gates pass:
-
-1. Convert blocked fixture expectations into implemented behavior or explicitly move them to the next named sprint.
-2. Prove parser/category behavior needed before operational input UI.
-3. Prove balance-chain behavior needed before operational input UI.
-4. Only then consider `SPRINT-02R — Parser, Balance Chain, and Operational Entry Semantics` or a UX sprint.
+`SPRINT-01R` is accepted as the clean foundation/API/parser/fixture gate. The next sprint may be opened by Director decision.
 
 ## Handoff Summary
 
@@ -250,13 +245,13 @@ The old FinDesk screen remains rejected as product direction.
 
 The new v2 foundation candidate is now materially stronger: it has clean `v2_*` schema, clean PHP module, static smoke, disposable MariaDB repository smoke, disposable authenticated HTTP API smoke, fixture-scoped parser/category semantics, live Cash balance-chain proof, read-only card rollup proof, and a disposable partial fixture runner.
 
-SPRINT-01R foundation/API/parser/fixture gate is ready for final QA acceptance. The fixture runner now reports `PASS (12)` and `BLOCKED / NOT_IMPLEMENTED (0)`. UI has not started.
+SPRINT-01R foundation/API/parser/fixture gate passed final QA acceptance path. The fixture runner reports `PASS (12)` and `BLOCKED / NOT_IMPLEMENTED (0)`. UI has not started.
 
 ## Director Final Handoff
 
 Sprint: `SPRINT-01R — Clean Foundation Implementation`
 
-Status: Foundation/API/parser/fixture gate passed locally and pushed to branch evidence; final QA acceptance pending
+Status: Accepted / foundation API parser fixture gate passed
 
 Agents assigned:
 
@@ -334,7 +329,7 @@ Tests or checks:
 
 Risks:
 
-- Branch evidence exists, but SPRINT-01R is still not complete.
+- SPRINT-01R is accepted as a foundation gate, not as a complete MVP.
 - Full closed-month correction creation/recalculate execution workflow is not implemented.
 - Opening cash is a flow seed only; do not present it as a full opening-balance workflow.
 - Parser/category behavior is fixture-scoped and must be replaced or formalized in a dedicated parser sprint.
@@ -342,7 +337,7 @@ Risks:
 
 Next sprint:
 
-Close `SPRINT-01R` after final QA acceptance, then open the next sprint by Director decision. Operational input UI may begin only as an explicit next-sprint scope.
+Open `SPRINT-02R — Operational Input Window UI` by Director decision. Operational input UI may begin only inside that explicit next-sprint scope.
 
 Paste-to-next-director prompt:
 
@@ -357,14 +352,15 @@ Start from:
 - FinDesk v2.0/33-director-agent-orchestration-protocol.md
 
 Current state:
-- SPRINT-01R is blocked before completion but foundation candidate advanced.
+- SPRINT-01R is accepted as the foundation/API/parser/fixture gate.
 - Branch evidence exists on origin/findesk-v2-sprint-01r-foundation.
 - Static smoke, disposable DB smoke, disposable authenticated HTTP API smoke, and partial disposable fixture runner pass.
 - Fixture runner output is PASS (12) and BLOCKED / NOT_IMPLEMENTED (0).
 - UI has not started; next sprint must explicitly decide whether the gate is sufficient for operational input UI.
 
 Next required gates:
-1. Obtain final QA acceptance for SPRINT-01R.
-2. Re-run npm run smoke:v2, npm run smoke:v2:db, npm run smoke:v2:http, npm run test:v2:fixtures.
-3. If accepted, prepare the next sprint: operational input UI or full closed-month workflow, by Director decision.
+1. Open SPRINT-02R explicitly before any UI work.
+2. Build the first operational input window, not dashboard/report UI.
+3. Preserve old FinDesk only as infrastructure donor.
+4. Re-run npm run smoke:v2, npm run smoke:v2:db, npm run smoke:v2:http, npm run test:v2:fixtures after backend/API changes.
 ```
