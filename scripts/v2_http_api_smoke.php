@@ -43,6 +43,14 @@ function smokeCloseMonth(string $workspaceId, int $year, int $month): void
     $stmt->execute([$workspaceId, $year, $month]);
 }
 
+function smokeAuditCount(string $action, string $entryId): int
+{
+    $stmt = smokeDb()->prepare("SELECT COUNT(*) FROM v2_audit_log WHERE action = ? AND entity_id = ?");
+    $stmt->execute([$action, $entryId]);
+
+    return (int)$stmt->fetchColumn();
+}
+
 function smokeRequest(string $method, string $route, ?array $body = null, bool $authenticated = true): HttpSmokeResponse
 {
     $base = rtrim((string)getenv('FINDESK_V2_HTTP_BASE'), '/');
@@ -215,6 +223,37 @@ expectError(smokeRequest('PATCH', '/api/entries/' . $closedEntry['id'] . '/categ
     'category_code' => 'fuel',
 ]), 409, 'closed_month_requires_decision', 'closed month category patch');
 expectError(smokeRequest('DELETE', '/api/entries/' . $closedEntry['id']), 409, 'closed_month_requires_decision', 'closed month delete');
+$cancelDecision = expectOk(smokeRequest('POST', '/api/entries/' . $closedEntry['id'] . '/category/closed-month-decision', [
+    'decision' => 'cancel',
+    'category_code' => 'fuel',
+]), 'closed month category cancel');
+smokeAssert($cancelDecision['decision'] === 'cancel', 'cancel decision mismatch');
+smokeAssert($cancelDecision['changed'] === false, 'cancel should not mutate entry');
+smokeAssert($cancelDecision['entry']['category_code'] === 'media_comms', 'cancel changed category');
+smokeAssert(smokeAuditCount('closed_month_category_cancel', $closedEntry['id']) >= 1, 'cancel audit missing');
+
+$correctionDecision = expectOk(smokeRequest('POST', '/api/entries/' . $closedEntry['id'] . '/category/closed-month-decision', [
+    'decision' => 'create_correction',
+    'category_code' => 'fuel',
+    'reason' => 'smoke correction request',
+]), 'closed month category create correction');
+smokeAssert($correctionDecision['decision'] === 'create_correction', 'create correction decision mismatch');
+smokeAssert($correctionDecision['changed'] === false, 'create correction should not mutate category-only entry');
+smokeAssert(($correctionDecision['requires_followup'] ?? null) === true, 'create correction should declare follow-up required');
+smokeAssert($correctionDecision['entry']['category_code'] === 'media_comms', 'create correction changed original category');
+smokeAssert(smokeAuditCount('closed_month_category_correction_requested', $closedEntry['id']) >= 1, 'create correction audit missing');
+
+$recalculateDecision = expectOk(smokeRequest('POST', '/api/entries/' . $closedEntry['id'] . '/category/closed-month-decision', [
+    'decision' => 'recalculate_chain',
+    'category_code' => 'fuel',
+]), 'closed month category recalculate chain');
+smokeAssert($recalculateDecision['decision'] === 'recalculate_chain', 'recalculate decision mismatch');
+smokeAssert($recalculateDecision['changed'] === true, 'recalculate should mutate explicit category choice');
+smokeAssert($recalculateDecision['entry']['category_code'] === 'fuel', 'recalculate did not change category');
+smokeAssert((float)$recalculateDecision['entry']['amount'] === 33.0, 'recalculate changed amount');
+smokeAssert($recalculateDecision['entry']['raw_text'] === '-33 Netflix closed month', 'recalculate changed raw_text');
+smokeAssert(smokeAuditCount('closed_month_category_recalculate', $closedEntry['id']) >= 1, 'recalculate audit missing');
+
 $entriesAfterClosedRejection = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after closed-month rejection')['entries'];
 $closedAfterRejection = null;
 foreach ($entriesAfterClosedRejection as $candidate) {
@@ -224,7 +263,7 @@ foreach ($entriesAfterClosedRejection as $candidate) {
     }
 }
 smokeAssert(is_array($closedAfterRejection), 'closed probe disappeared after rejected mutation');
-smokeAssert($closedAfterRejection['category_code'] === 'media_comms', 'closed probe category changed after rejected mutation');
+smokeAssert($closedAfterRejection['category_code'] === 'fuel', 'closed probe category did not reflect explicit recalculate decision');
 
 echo "FinDesk v2 HTTP API smoke: OK\n";
 echo "Workspace: {$workspaceId}\n";

@@ -42,7 +42,13 @@ for marker in \
     'data-v2-category-save' \
     'data-v2-category-error' \
     'data-v2-other-review-jump' \
-    'data-v2-selected-entry-id'
+    'data-v2-selected-entry-id' \
+    'data-v2-closed-month-decision' \
+    'data-v2-closed-month-decision-from' \
+    'data-v2-closed-month-decision-to' \
+    'data-v2-closed-month-decision-action="create_correction"' \
+    'data-v2-closed-month-decision-action="recalculate_chain"' \
+    'data-v2-closed-month-decision-action="cancel"'
 do
     grep -q "${marker}" "${PAGE}" || fail "Missing UI marker: ${marker}"
 done
@@ -52,6 +58,7 @@ for route in \
     '/api/workspaces/' \
     '/flows' \
     '/entries' \
+    '/category/closed-month-decision' \
     '/summary' \
     '/categories' \
     '/parse-preview' \

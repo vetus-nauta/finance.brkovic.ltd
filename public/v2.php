@@ -114,6 +114,19 @@ header('Pragma: no-cache');
                   <button type="submit" data-v2-category-save>Save category</button>
                 </form>
                 <div class="v2-category-error" data-v2-category-error role="alert"></div>
+                <div class="v2-closed-decision" data-v2-closed-month-decision hidden>
+                  <strong>Closed month</strong>
+                  <p>Choose how to apply this category change.</p>
+                  <div class="v2-closed-decision-meta">
+                    <span>From <b data-v2-closed-month-decision-from>—</b></span>
+                    <span>To <b data-v2-closed-month-decision-to>—</b></span>
+                  </div>
+                  <div class="v2-closed-decision-actions">
+                    <button type="button" data-v2-closed-month-decision-action="create_correction">Create correction</button>
+                    <button type="button" data-v2-closed-month-decision-action="recalculate_chain">Recalculate chain</button>
+                    <button type="button" data-v2-closed-month-decision-action="cancel">Cancel</button>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

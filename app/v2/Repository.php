@@ -361,18 +361,69 @@ final class FinDeskV2Repository
             $before = $this->getEntry($entryId, $userId);
             $this->guardEntryMonthIsOpen($before);
             $categoryCode = FinDeskV2Support::requireString($input, 'category_code', 80);
-            $categoryId = $this->categoryIdByCode($before['workspace_id'], $categoryCode);
-            $status = $before['status'];
-            if ($before['status'] === 'other_review' && $before['category_code'] === 'other' && $categoryCode !== 'other') {
-                $status = 'recognized';
-            }
-
-            $this->db->prepare("UPDATE v2_entries SET category_id = ?, status = ? WHERE id = ?")->execute([$categoryId, $status, $entryId]);
+            $this->applyEntryCategory($before, $categoryCode);
 
             $after = $this->getEntry($entryId, $userId);
             $this->audit($before['workspace_id'], 'entry', $entryId, 'update_category', $before, $after, $userId);
 
             return $after;
+        });
+    }
+
+    public function decideClosedMonthCategoryCorrection(string $entryId, array $input, int $userId): array
+    {
+        return FinDeskV2Database::transact(function () use ($entryId, $input, $userId): array {
+            $before = $this->getEntry($entryId, $userId);
+            $month = $this->entryMonthParts($before);
+            if (!$this->isEntryMonthClosed($before)) {
+                throw new FinDeskV2HttpError(422, 'month_is_not_closed');
+            }
+
+            $decision = FinDeskV2Support::enum(
+                FinDeskV2Support::requireString($input, 'decision', 40),
+                ['cancel', 'create_correction', 'recalculate_chain'],
+                'decision'
+            );
+            $categoryCode = FinDeskV2Support::requireString($input, 'category_code', 80);
+            $reason = FinDeskV2Support::optionalString($input, 'reason', null, 500);
+            $meta = [
+                'decision' => $decision,
+                'requested_category_code' => $categoryCode,
+                'year' => $month['year'],
+                'month' => $month['month'],
+                'reason' => $reason,
+            ];
+
+            if ($decision === 'cancel') {
+                $this->audit($before['workspace_id'], 'entry', $entryId, 'closed_month_category_cancel', $before + ['decision' => $meta], $before + ['decision' => $meta], $userId);
+                return [
+                    'decision' => $decision,
+                    'entry' => $before,
+                    'changed' => false,
+                ];
+            }
+
+            if ($decision === 'create_correction') {
+                $this->categoryIdByCode($before['workspace_id'], $categoryCode);
+                $this->audit($before['workspace_id'], 'entry', $entryId, 'closed_month_category_correction_requested', $before + ['decision' => $meta], $before + ['decision' => $meta], $userId);
+                return [
+                    'decision' => $decision,
+                    'entry' => $before,
+                    'changed' => false,
+                    'requires_followup' => true,
+                ];
+            }
+
+            $this->applyEntryCategory($before, $categoryCode);
+            $this->recalculateFlowBalance($before['flow']['id']);
+            $after = $this->getEntry($entryId, $userId);
+            $this->audit($before['workspace_id'], 'entry', $entryId, 'closed_month_category_recalculate', $before + ['decision' => $meta], $after + ['decision' => $meta], $userId);
+
+            return [
+                'decision' => $decision,
+                'entry' => $after,
+                'changed' => true,
+            ];
         });
     }
 
@@ -514,32 +565,55 @@ final class FinDeskV2Repository
 
     private function guardEntryMonthIsOpen(array $entry): void
     {
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d', (string)$entry['date']);
-        if (!$date) {
+        if (!$this->isEntryMonthClosed($entry)) {
             return;
         }
+        $month = $this->entryMonthParts($entry);
 
-        $year = (int)$date->format('Y');
-        $month = (int)$date->format('n');
+        throw new FinDeskV2HttpError(409, FinDeskV2Support::jsonEncode([
+            'error' => 'closed_month_requires_decision',
+            'year' => $month['year'],
+            'month' => $month['month'],
+            'choices' => ['create_correction', 'recalculate_chain', 'cancel'],
+        ]));
+    }
 
+    private function entryMonthParts(array $entry): array
+    {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', (string)$entry['date']);
+        if (!$date) {
+            throw new FinDeskV2HttpError(422, 'invalid_date');
+        }
+
+        return [
+            'year' => (int)$date->format('Y'),
+            'month' => (int)$date->format('n'),
+        ];
+    }
+
+    private function isEntryMonthClosed(array $entry): bool
+    {
+        $month = $this->entryMonthParts($entry);
         $stmt = $this->db->prepare("
             SELECT is_closed
             FROM v2_monthly_closures
             WHERE workspace_id = ? AND year = ? AND month = ? AND is_closed = 1
             LIMIT 1
         ");
-        $stmt->execute([$entry['workspace_id'], $year, $month]);
+        $stmt->execute([$entry['workspace_id'], $month['year'], $month['month']]);
 
-        if (!$stmt->fetchColumn()) {
-            return;
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function applyEntryCategory(array $entry, string $categoryCode): void
+    {
+        $categoryId = $this->categoryIdByCode($entry['workspace_id'], $categoryCode);
+        $status = $entry['status'];
+        if ($entry['status'] === 'other_review' && $entry['category_code'] === 'other' && $categoryCode !== 'other') {
+            $status = 'recognized';
         }
 
-        throw new FinDeskV2HttpError(409, FinDeskV2Support::jsonEncode([
-            'error' => 'closed_month_requires_decision',
-            'year' => $year,
-            'month' => $month,
-            'choices' => ['create_correction', 'recalculate_chain', 'cancel'],
-        ]));
+        $this->db->prepare("UPDATE v2_entries SET category_id = ?, status = ? WHERE id = ?")->execute([$categoryId, $status, $entry['id']]);
     }
 
     private function assertValidMonth(int $year, int $month): void

@@ -457,6 +457,42 @@ select {
   font-size: 13px;
 }
 
+.v2-closed-decision {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #f0c36d;
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.v2-closed-decision[hidden] {
+  display: none;
+}
+
+.v2-closed-decision p {
+  margin: 0;
+  color: #74531d;
+  font-size: 13px;
+}
+
+.v2-closed-decision-meta,
+.v2-closed-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.v2-closed-decision-meta span {
+  color: #74531d;
+  font-size: 12px;
+}
+
+.v2-closed-decision-actions button {
+  min-height: 36px;
+}
+
 .v2-check-row {
   display: grid;
   grid-template-columns: 84px 180px 64px 58px 88px 88px 126px 118px 92px 104px 112px;

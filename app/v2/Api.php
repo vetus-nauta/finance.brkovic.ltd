@@ -85,6 +85,10 @@ final class FinDeskV2Api
             return ['ok' => true, 'entry' => $this->repo->updateEntryCategory($match[1], $input, $userId)];
         }
 
+        if (preg_match('#^/api/entries/([a-f0-9-]{36})/category/closed-month-decision$#i', $route, $match) === 1 && $method === 'POST') {
+            return ['ok' => true] + $this->repo->decideClosedMonthCategoryCorrection($match[1], $input, $userId);
+        }
+
         if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/categories$#i', $route, $match) === 1 && $method === 'GET') {
             return ['ok' => true, 'categories' => $this->repo->listCategories($match[1], $userId)];
         }

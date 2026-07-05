@@ -141,6 +141,7 @@ async function run() {
 
     const entryPostBodies = [];
     const categoryPatchBodies = [];
+    const closedDecisionBodies = [];
     await page.route('**/v2-api.php?**', async (route) => {
       const request = route.request();
       if (request.method() === 'POST' && routeFromRequest(request).endsWith('/entries')) {
@@ -151,6 +152,9 @@ async function run() {
       }
       if (request.method() === 'PATCH' && routeFromRequest(request).endsWith('/category')) {
         categoryPatchBodies.push(request.postData() || '');
+      }
+      if (request.method() === 'POST' && routeFromRequest(request).endsWith('/category/closed-month-decision')) {
+        closedDecisionBodies.push(request.postData() || '');
       }
       await route.continue();
     });
@@ -251,9 +255,57 @@ async function run() {
     await page.locator('[data-v2-category-save]').click();
     assert((await closedResponse).status() === 409, 'closed month category patch should return 409');
     await waitForText(page, '[data-v2-category-error]', 'Closed month');
+    await page.locator('[data-v2-closed-month-decision]').waitFor({ state: 'visible', timeout: 10000 });
+    await waitForText(page, '[data-v2-closed-month-decision-to]', 'fuel');
     await waitForText(page, '[data-v2-entry-detail-body]', 'media_comms');
     assert((await detailFieldValue(page, 'category')).includes('media_comms'), 'closed month category mutation appeared optimistic');
-    console.log('Closed-month category guard: OK');
+    const beforeCancelDecisions = closedDecisionBodies.length;
+    await page.locator('[data-v2-closed-month-decision-action="cancel"]').click();
+    await page.locator('[data-v2-closed-month-decision]').waitFor({ state: 'hidden', timeout: 10000 });
+    assert(closedDecisionBodies.length === beforeCancelDecisions, 'cancel should not send a decision request from UI');
+    assert((await page.locator('[data-v2-category-select]').inputValue()) === 'media_comms', 'cancel did not reset category selector');
+    await waitForText(page, '[data-v2-status]', 'Closed month change cancelled');
+
+    await page.locator('[data-v2-category-select]').selectOption('fuel');
+    const closedResponseForCorrection = page.waitForResponse((response) => (
+      response.request().method() === 'PATCH'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/category')
+    ));
+    await page.locator('[data-v2-category-save]').click();
+    assert((await closedResponseForCorrection).status() === 409, 'closed month category patch before create correction should return 409');
+    await page.locator('[data-v2-closed-month-decision]').waitFor({ state: 'visible', timeout: 10000 });
+    const correctionDecision = page.waitForResponse((response) => (
+      response.request().method() === 'POST'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/category/closed-month-decision')
+    ));
+    await page.locator('[data-v2-closed-month-decision-action="create_correction"]').click();
+    assert((await correctionDecision).status() === 200, 'create correction decision failed');
+    assert(closedDecisionBodies.some((body) => body.includes('"decision":"create_correction"')), 'create correction decision body missing');
+    await waitForText(page, '[data-v2-status]', 'Correction decision recorded');
+    assert((await detailFieldValue(page, 'category')).includes('media_comms'), 'create correction mutated original category');
+
+    await page.locator('[data-v2-category-select]').selectOption('fuel');
+    const closedResponseForRecalculate = page.waitForResponse((response) => (
+      response.request().method() === 'PATCH'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/category')
+    ));
+    await page.locator('[data-v2-category-save]').click();
+    assert((await closedResponseForRecalculate).status() === 409, 'closed month category patch before recalculate should return 409');
+    await page.locator('[data-v2-closed-month-decision]').waitFor({ state: 'visible', timeout: 10000 });
+    const recalculateDecision = page.waitForResponse((response) => (
+      response.request().method() === 'POST'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith('/category/closed-month-decision')
+    ));
+    await page.locator('[data-v2-closed-month-decision-action="recalculate_chain"]').click();
+    assert((await recalculateDecision).status() === 200, 'recalculate decision failed');
+    assert(closedDecisionBodies.some((body) => body.includes('"decision":"recalculate_chain"')), 'recalculate decision body missing');
+    await waitForText(page, '[data-v2-status]', 'Category updated with recalculation');
+    assert((await detailFieldValue(page, 'category')).includes('fuel'), 'recalculate decision did not update category');
+    console.log('Closed-month category decisions: OK');
 
     const desktopMetrics = await assertNoPageScroll(page);
     await page.screenshot({ path: path.join(resultsDir, 'desktop-operational-window.png'), fullPage: false });

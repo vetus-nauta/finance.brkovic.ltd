@@ -12,6 +12,7 @@
     activeFlowType: 'cash',
     selectedEntryId: '',
     categorySaving: false,
+    closedMonthDecision: null,
     saving: false,
     draftKey: 'findesk.v2.operational.draft'
   };
@@ -47,6 +48,9 @@
     categorySelect: $('[data-v2-category-select]'),
     categorySave: $('[data-v2-category-save]'),
     categoryError: $('[data-v2-category-error]'),
+    closedDecision: $('[data-v2-closed-month-decision]'),
+    closedDecisionFrom: $('[data-v2-closed-month-decision-from]'),
+    closedDecisionTo: $('[data-v2-closed-month-decision-to]'),
     otherReviewJump: $('[data-v2-other-review-jump]'),
     cashNow: $('[data-v2-cash-now]'),
     cardTotal: $('[data-v2-card-total]'),
@@ -213,6 +217,7 @@
   function renderDetail() {
     const entry = selectedEntry();
     els.selectedEntryId.textContent = entry ? entry.id.slice(0, 8) : 'None selected';
+    renderClosedMonthDecision();
 
     if (!entry) {
       els.detailContent.hidden = true;
@@ -248,6 +253,14 @@
     renderCategoryOptions(entry);
     els.categorySelect.disabled = state.categorySaving;
     els.categorySave.disabled = state.categorySaving;
+  }
+
+  function renderClosedMonthDecision() {
+    const decision = state.closedMonthDecision;
+    els.closedDecision.hidden = !decision;
+    if (!decision) return;
+    els.closedDecisionFrom.textContent = decision.fromCategoryCode || '—';
+    els.closedDecisionTo.textContent = decision.toCategoryCode || '—';
   }
 
   function renderAll() {
@@ -410,6 +423,7 @@
 
   function selectEntry(entryId, view) {
     state.selectedEntryId = entryId || '';
+    state.closedMonthDecision = null;
     els.categoryError.textContent = '';
     renderFeed();
     renderDetail();
@@ -449,8 +463,14 @@
     } catch (error) {
       if (error.status === 409 && error.error === 'closed_month_requires_decision') {
         const message = 'Closed month: category cannot be changed without a correction decision. Choices: create correction, recalculate chain, cancel.';
+        state.closedMonthDecision = {
+          entryId: entry.id,
+          fromCategoryCode: entry.category_code,
+          toCategoryCode: categoryCode
+        };
         els.categoryError.textContent = message;
         setStatus(message, true);
+        renderClosedMonthDecision();
       } else {
         const message = error.error || 'Category update failed';
         els.categoryError.textContent = message;
@@ -462,10 +482,52 @@
     }
   }
 
+  async function applyClosedMonthDecision(decision) {
+    const pending = state.closedMonthDecision;
+    const entry = selectedEntry();
+    if (!pending || !entry || pending.entryId !== entry.id || state.categorySaving) return;
+
+    if (decision === 'cancel') {
+      state.closedMonthDecision = null;
+      els.categoryError.textContent = '';
+      renderDetail();
+      setStatus('Closed month change cancelled');
+      return;
+    }
+
+    state.categorySaving = true;
+    els.categorySelect.disabled = true;
+    els.categorySave.disabled = true;
+    setStatus(decision === 'create_correction' ? 'Recording correction decision' : 'Recalculating chain');
+    try {
+      const data = await v2Api('POST', '/api/entries/' + entry.id + '/category/closed-month-decision', {
+        decision,
+        category_code: pending.toCategoryCode,
+        reason: 'category correction from operational detail'
+      });
+      state.selectedEntryId = data.entry.id;
+      state.closedMonthDecision = null;
+      els.categoryError.textContent = '';
+      await loadWorkspaceData();
+      setStatus(decision === 'create_correction' ? 'Correction decision recorded' : 'Category updated with recalculation');
+    } catch (error) {
+      const message = error.error || 'Closed month decision failed';
+      els.categoryError.textContent = message;
+      setStatus(message, true);
+    } finally {
+      state.categorySaving = false;
+      renderDetail();
+    }
+  }
+
   function bindEvents() {
     els.createForm.addEventListener('submit', createWorkspace);
     els.form.addEventListener('submit', submitEntry);
     els.categoryForm.addEventListener('submit', saveCategory);
+    els.closedDecision.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-v2-closed-month-decision-action]');
+      if (button) applyClosedMonthDecision(button.getAttribute('data-v2-closed-month-decision-action'));
+    });
     els.previewButton.addEventListener('click', previewEntry);
     els.rawText.addEventListener('input', saveDraft);
     els.refresh.addEventListener('click', loadApp);
