@@ -213,6 +213,15 @@ function fixtureAuditCount(PDO $pdo, string $entityType, string $entityId, strin
     return (int)$stmt->fetchColumn();
 }
 
+function addFixtureWorkspaceMember(PDO $pdo, string $workspaceId, int $memberUserId, string $role): void
+{
+    $stmt = $pdo->prepare("
+        INSERT INTO v2_workspace_members (id, workspace_id, user_id, role)
+        VALUES (?, ?, ?, ?)
+    ");
+    $stmt->execute([FinDeskV2Support::uuid(), $workspaceId, $memberUserId, $role]);
+}
+
 function runFixture(FixtureReport $report, string $fixture, callable $callback): void
 {
     try {
@@ -541,6 +550,11 @@ runFixture($report, 'Fixture 10 - Closed month protection', function () use ($re
         'raw_text' => '-100 fuel',
     ], $userId);
     $repo->closeMonthForFixture($workspace['id'], 2026, 7, $userId);
+    $openMonthEntry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-08-05',
+        'raw_text' => '+50 open month topup',
+    ], $userId);
 
     expectClosedMonthDecision(static fn () => $repo->updateEntry($entry['id'], [
         'flow_id' => $cashFlow['id'],
@@ -551,15 +565,25 @@ runFixture($report, 'Fixture 10 - Closed month protection', function () use ($re
     expectClosedMonthDecision(static fn () => $repo->updateEntryCategory($entry['id'], [
         'category_code' => 'tech_parts',
     ], $userId));
+    expectClosedMonthDecision(static fn () => $repo->updateEntry($openMonthEntry['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-08',
+        'raw_text' => '+50 moved into closed month',
+    ], $userId));
 
     $entries = $repo->listEntries($workspace['id'], [], $userId);
-    fixtureAssert(count($entries) === 1, 'closed month entry should remain visible');
-    assertSameValue($entries[0]['raw_text'], '-100 fuel', 'closed month entry raw_text should not change');
-    assertSameValue($entries[0]['category_code'], 'fuel', 'closed month category should not change');
-    assertAmount($entries[0]['amount'], 100.0, 'closed month entry amount should not change');
-    assertAmount($entries[0]['balance_after'], 900.0, 'closed month balance should not silently recalculate');
+    $entriesById = [];
+    foreach ($entries as $candidate) {
+        $entriesById[$candidate['id']] = $candidate;
+    }
+    fixtureAssert(count($entries) === 2, 'closed month fixture entry count mismatch');
+    assertSameValue($entriesById[$entry['id']]['raw_text'], '-100 fuel', 'closed month entry raw_text should not change');
+    assertSameValue($entriesById[$entry['id']]['category_code'], 'fuel', 'closed month category should not change');
+    assertAmount($entriesById[$entry['id']]['amount'], 100.0, 'closed month entry amount should not change');
+    assertAmount($entriesById[$entry['id']]['balance_after'], 900.0, 'closed month balance should not silently recalculate');
+    assertSameValue($entriesById[$openMonthEntry['id']]['date'], '2026-08-05', 'open-month entry should not move into closed month');
 
-    return 'closed month edit/category/delete are blocked with create_correction/recalculate_chain/cancel choices and no silent mutation';
+    return 'closed month edit/category/delete and open-to-closed date moves are blocked without silent mutation';
 });
 
 runFixture($report, 'Attachments base', function () use ($repo, $pdo, $userId): string {
@@ -623,6 +647,144 @@ runFixture($report, 'Attachments base', function () use ($repo, $pdo, $userId): 
     assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['cash_now'], (float)$summaryBefore['cash_now'], 'attachment delete should not alter cash now');
 
     return 'attachments create/list/delete use v2 private storage, audit closed-month metadata changes, and do not alter money';
+});
+
+runFixture($report, 'Month closure controls', function () use ($repo, $pdo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Month Closure Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $cashFlow = byFlowType($repo->listFlows($workspace['id'], $userId), 'cash');
+    $entry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 fuel',
+    ], $userId);
+
+    $closed = $repo->closeMonth($workspace['id'], 2026, 7, ['comment' => 'July closed'], $userId);
+    assertSameValue($closed['closure']['is_closed'], true, 'month should be closed');
+    assertSameValue($closed['report']['is_closed'], true, 'closed report flag');
+    assertSameValue($closed['report']['comment'], 'July closed', 'closed report comment');
+    assertAmount($closed['closure']['opening_balance'], 1000.0, 'closed opening balance');
+    assertAmount($closed['closure']['closing_balance'], 900.0, 'closed closing balance');
+    fixtureAssert(fixtureAuditCount($pdo, 'month_closure', $closed['closure']['id'], 'month_close') === 1, 'month close audit missing');
+
+    expectClosedMonthDecision(static fn () => $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-06',
+        'raw_text' => '+15 should be correction',
+    ], $userId));
+
+    $correction = $repo->createMonthCorrection($workspace['id'], 2026, 7, [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-06',
+        'raw_text' => '+15 correction for closed month',
+        'reason' => 'cash count correction',
+        'reference_entry_id' => $entry['id'],
+        'source_type' => 'manual',
+        'status' => 'recognized',
+        'entry_type' => 'cash_income',
+    ], $userId);
+    assertSameValue($correction['entry_type'], 'correction', 'correction entry type');
+    assertSameValue($correction['status'], 'corrected', 'correction status');
+    assertSameValue($correction['source_type'], 'correction', 'correction source');
+    assertSameValue($correction['direction'], 'in', 'correction direction');
+    assertAmount($correction['amount'], 15.0, 'correction amount');
+    fixtureAssert(fixtureAuditCount($pdo, 'entry', $correction['id'], 'month_correction_create') === 1, 'month correction audit missing');
+
+    $original = null;
+    foreach ($repo->listEntries($workspace['id'], [], $userId) as $candidate) {
+        if ($candidate['id'] === $entry['id']) {
+            $original = $candidate;
+        }
+    }
+    fixtureAssert(is_array($original), 'original entry missing');
+    assertSameValue($original['raw_text'], '-100 fuel', 'correction should not mutate original raw text');
+    assertSameValue($original['entry_type'], 'cash_expense', 'correction should not mutate original type');
+
+    $monthly = $repo->getMonthlyReport($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
+    assertAmount($monthly['cash_expense'], 100.0, 'correction should not change cash expense');
+    assertAmount($monthly['external_cash_income'], 0.0, 'correction should not become external income');
+    assertAmount($monthly['corrections'], 15.0, 'correction total');
+    assertAmount($monthly['ending_cash'], 915.0, 'correction ending cash');
+
+    $reopened = $repo->reopenMonth($workspace['id'], 2026, 7, ['comment' => ''], $userId);
+    assertSameValue($reopened['closure']['is_closed'], false, 'month should reopen');
+    assertSameValue($reopened['report']['is_closed'], false, 'reopened report flag');
+    assertSameValue($reopened['report']['comment'], null, 'reopened report comment should be clear');
+    fixtureAssert(fixtureAuditCount($pdo, 'month_closure', $closed['closure']['id'], 'month_reopen') === 1, 'month reopen audit missing');
+
+    $afterReopen = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-07',
+        'raw_text' => '+10 reopened topup',
+    ], $userId);
+    assertSameValue($afterReopen['entry_type'], 'cash_income', 'entry after reopen should save normally');
+
+    return 'close/reopen/correction API semantics preserve generated formulas and explicit closed-month mutation rules';
+});
+
+runFixture($report, 'Workspace writer roles', function () use ($repo, $pdo, $userId): string {
+    $viewerUserId = 15002;
+    $workspace = $repo->createWorkspace([
+        'name' => 'Read Only Role Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    addFixtureWorkspaceMember($pdo, $workspace['id'], $viewerUserId, 'viewer');
+    $cashFlow = byFlowType($repo->listFlows($workspace['id'], $userId), 'cash');
+    $entry = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 fuel',
+    ], $userId);
+    $xlsx = fixtureCreateXlsx([
+        ['дата', 'Описание платежа', 'Приход КЕШ', 'Расход КЕШ'],
+        ['2026-07-05', 'fuel marina', '', '200'],
+    ]);
+    $import = $repo->createLegacyExcelImport($workspace['id'], [
+        'file_name' => 'july-final-2026-07-01.xlsx',
+        'content_base64' => base64_encode((string)file_get_contents($xlsx)),
+    ], $userId);
+    @unlink($xlsx);
+
+    fixtureAssert(count($repo->listFlows($workspace['id'], $viewerUserId)) >= 2, 'viewer should retain read access');
+    expectFixtureHttpError(static fn () => $repo->updateWorkspace($workspace['id'], ['name' => 'Viewer Write'], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->createFlow($workspace['id'], ['name' => 'Viewer Cash', 'type' => 'cash'], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-06',
+        'raw_text' => '+10 viewer write',
+    ], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->updateEntry($entry['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-200 viewer edit',
+    ], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->updateEntryCategory($entry['id'], ['category_code' => 'tech_parts'], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->deleteEntry($entry['id'], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->createCategoryRule($workspace['id'], [
+        'category_code' => 'fuel',
+        'pattern' => 'viewer-rule',
+    ], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->createLegacyExcelImport($workspace['id'], [
+        'file_name' => 'viewer.xlsx',
+        'content_base64' => base64_encode('viewer import'),
+    ], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->acceptLegacyImport($workspace['id'], $import['import_id'], ['decision' => 'accept'], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->closeMonth($workspace['id'], 2026, 7, [], $viewerUserId), 403, 'workspace_read_only');
+    expectFixtureHttpError(static fn () => $repo->createMonthCorrection($workspace['id'], 2026, 7, [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-06',
+        'raw_text' => '+5 viewer correction',
+    ], $viewerUserId), 403, 'workspace_read_only');
+
+    return 'viewer can read workspace data but core mutations, imports, month close, and corrections require writer role';
 });
 
 runFixture($report, 'Card plus semantics', function () use ($repo, $workspace, $cardFlow, $userId): string {

@@ -48,6 +48,8 @@ for marker in \
     'data-v2-attachment-list' \
     'data-v2-attachment-status' \
     'data-v2-other-review-jump' \
+    'data-v2-month-state' \
+    'data-v2-month-toggle' \
     'data-v2-selected-entry-id' \
     'data-v2-closed-month-decision' \
     'data-v2-closed-month-decision-from' \
@@ -77,7 +79,9 @@ for route in \
     '/summary' \
     '/categories' \
     '/parse-preview' \
-    '/other-expenses'
+    '/other-expenses' \
+    '/reports/monthly' \
+    '/months/'
 do
     grep -q "${route}" "${JS}" || fail "Missing v2 API route marker in JS: ${route}"
 done

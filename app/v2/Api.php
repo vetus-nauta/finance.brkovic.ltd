@@ -83,7 +83,7 @@ final class FinDeskV2Api
                 return ['ok' => true, 'entries' => $this->repo->listEntries($match[1], $query, $userId)];
             }
             if ($method === 'POST') {
-                return ['ok' => true, 'entry' => $this->repo->createEntry($match[1], $input, $userId)];
+                return ['ok' => true, 'entry' => $this->repo->createEntry($match[1], $this->entryCreateInput($input), $userId)];
             }
         }
 
@@ -126,6 +126,18 @@ final class FinDeskV2Api
             return ['ok' => true] + $this->repo->decideClosedMonthCategoryCorrection($match[1], $input, $userId);
         }
 
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/months/([0-9]{4})/([0-9]{1,2})/close$#i', $route, $match) === 1 && $method === 'POST') {
+            return ['ok' => true] + $this->repo->closeMonth($match[1], (int)$match[2], (int)$match[3], $input, $userId);
+        }
+
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/months/([0-9]{4})/([0-9]{1,2})/reopen$#i', $route, $match) === 1 && $method === 'POST') {
+            return ['ok' => true] + $this->repo->reopenMonth($match[1], (int)$match[2], (int)$match[3], $input, $userId);
+        }
+
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/months/([0-9]{4})/([0-9]{1,2})/correction$#i', $route, $match) === 1 && $method === 'POST') {
+            return ['ok' => true, 'entry' => $this->repo->createMonthCorrection($match[1], (int)$match[2], (int)$match[3], $input, $userId)];
+        }
+
         if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/categories$#i', $route, $match) === 1 && $method === 'GET') {
             return ['ok' => true, 'categories' => $this->repo->listCategories($match[1], $userId)];
         }
@@ -145,5 +157,12 @@ final class FinDeskV2Api
         }
 
         return $user;
+    }
+
+    private function entryCreateInput(array $input): array
+    {
+        $allowed = ['flow_id', 'date', 'raw_text', 'category_code', 'amount'];
+
+        return array_intersect_key($input, array_fill_keys($allowed, true));
     }
 }

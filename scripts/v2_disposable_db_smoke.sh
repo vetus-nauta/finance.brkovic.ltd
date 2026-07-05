@@ -149,6 +149,19 @@ function byFlowType(array $flows, string $type): array
     throw new RuntimeException("Missing flow type: {$type}");
 }
 
+function expectRepoError(callable $callback, int $status, string $error): void
+{
+    try {
+        $callback();
+    } catch (FinDeskV2HttpError $e) {
+        check($e->status === $status, "expected HTTP {$status}, got {$e->status}");
+        check($e->getMessage() === $error, "expected error {$error}, got {$e->getMessage()}");
+        return;
+    }
+
+    throw new RuntimeException("expected error {$error}");
+}
+
 $pdo = ql_db();
 $repo = new FinDeskV2Repository($pdo);
 $userId = 7001;
@@ -182,6 +195,24 @@ check(abs($cashEntry['amount'] - 12.34) < 0.001, 'cash entry amount mismatch');
 check($cashEntry['direction'] === 'out', 'cash entry direction mismatch');
 check($cashEntry['entry_type'] === 'cash_expense', 'cash entry type mismatch');
 check($cashEntry['status'] === 'recognized', 'cash entry status mismatch');
+
+$viewerUserId = 7002;
+$stmt = $pdo->prepare("INSERT INTO v2_workspace_members (id, workspace_id, user_id, role) VALUES (UUID(), ?, ?, 'viewer')");
+$stmt->execute([$workspace['id'], $viewerUserId]);
+check(count($repo->listFlows($workspace['id'], $viewerUserId)) === 2, 'viewer read access mismatch');
+expectRepoError(fn () => $repo->createEntry($workspace['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+1 viewer write',
+], $viewerUserId), 403, 'workspace_read_only');
+expectRepoError(fn () => $repo->updateEntry($cashEntry['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-20 viewer edit',
+], $viewerUserId), 403, 'workspace_read_only');
+expectRepoError(fn () => $repo->updateEntryCategory($cashEntry['id'], ['category_code' => 'tech_parts'], $viewerUserId), 403, 'workspace_read_only');
+expectRepoError(fn () => $repo->deleteEntry($cashEntry['id'], $viewerUserId), 403, 'workspace_read_only');
+expectRepoError(fn () => $repo->closeMonth($workspace['id'], 2026, 7, [], $viewerUserId), 403, 'workspace_read_only');
 
 $cardExpense = $repo->createEntry($workspace['id'], [
     'flow_id' => $cardFlow['id'],
@@ -276,6 +307,61 @@ check($deletedAttachment['deleted'] === true, 'attachment delete flag mismatch')
 check($deletedAttachment['file_deleted'] === true, 'attachment file delete flag mismatch');
 clearstatcache(true, $attachmentPath);
 check(!is_file($attachmentPath), 'attachment file remained after delete');
+
+$closureWorkspace = $repo->createWorkspace([
+    'name' => 'Disposable Closure Workspace',
+    'type' => 'yacht',
+    'currency' => 'EUR',
+    'locale' => 'en',
+    'opening_cash' => '1000.00',
+], $userId);
+$closureCashFlow = byFlowType($repo->listFlows($closureWorkspace['id'], $userId), 'cash');
+$closureEntry = $repo->createEntry($closureWorkspace['id'], [
+    'flow_id' => $closureCashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-100 fuel',
+], $userId);
+$closedMonth = $repo->closeMonth($closureWorkspace['id'], 2026, 7, ['comment' => 'db smoke close'], $userId);
+check($closedMonth['closure']['is_closed'] === true, 'db smoke month close flag mismatch');
+check($closedMonth['report']['comment'] === 'db smoke close', 'db smoke month close comment mismatch');
+$openMonthEntry = $repo->createEntry($closureWorkspace['id'], [
+    'flow_id' => $closureCashFlow['id'],
+    'date' => '2026-08-05',
+    'raw_text' => '+50 open month topup',
+], $userId);
+try {
+    $repo->createEntry($closureWorkspace['id'], [
+        'flow_id' => $closureCashFlow['id'],
+        'date' => '2026-07-06',
+        'raw_text' => '+10 should be correction',
+    ], $userId);
+    throw new RuntimeException('closed month create was allowed');
+} catch (FinDeskV2HttpError $e) {
+    check($e->status === 409, 'closed month create should return 409');
+}
+try {
+    $repo->updateEntry($openMonthEntry['id'], [
+        'flow_id' => $closureCashFlow['id'],
+        'date' => '2026-07-08',
+        'raw_text' => '+50 moved into closed month',
+    ], $userId);
+    throw new RuntimeException('open-month entry move into closed month was allowed');
+} catch (FinDeskV2HttpError $e) {
+    check($e->status === 409, 'closed month target update should return 409');
+}
+$closureCorrection = $repo->createMonthCorrection($closureWorkspace['id'], 2026, 7, [
+    'flow_id' => $closureCashFlow['id'],
+    'date' => '2026-07-06',
+    'raw_text' => '+10 db smoke correction',
+    'reference_entry_id' => $closureEntry['id'],
+], $userId);
+check($closureCorrection['entry_type'] === 'correction', 'db smoke correction type mismatch');
+check($closureCorrection['status'] === 'corrected', 'db smoke correction status mismatch');
+$closureReport = $repo->getMonthlyReport($closureWorkspace['id'], ['year' => 2026, 'month' => 7], $userId);
+check(abs($closureReport['corrections'] - 10.0) < 0.001, 'db smoke correction total mismatch');
+check(abs($closureReport['ending_cash'] - 910.0) < 0.001, 'db smoke correction ending cash mismatch');
+$reopenedMonth = $repo->reopenMonth($closureWorkspace['id'], 2026, 7, ['comment' => ''], $userId);
+check($reopenedMonth['closure']['is_closed'] === false, 'db smoke month reopen flag mismatch');
 
 $repo->deleteEntry($cardExpense['id'], $userId);
 $remainingIds = array_column($repo->listEntries($workspace['id'], [], $userId), 'id');

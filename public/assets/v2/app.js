@@ -9,6 +9,8 @@
     entries: [],
     otherExpenseQueue: [],
     summary: null,
+    monthReport: null,
+    monthActionBusy: false,
     activeFlowType: 'cash',
     selectedEntryId: '',
     categorySaving: false,
@@ -64,7 +66,9 @@
     cashNow: $('[data-v2-cash-now]'),
     cardTotal: $('[data-v2-card-total]'),
     openingCash: $('[data-v2-opening-cash]'),
-    otherCount: $('[data-v2-other-count]')
+    otherCount: $('[data-v2-other-count]'),
+    monthState: $('[data-v2-month-state]'),
+    monthToggle: $('[data-v2-month-toggle]')
   };
 
   function currentMonthParts() {
@@ -145,6 +149,10 @@
     return state.entries.find((entry) => entry.id === state.selectedEntryId) || null;
   }
 
+  function isCurrentMonthClosed() {
+    return Boolean(state.monthReport && state.monthReport.is_closed);
+  }
+
   function categoryLabel(category) {
     const name = category && category.name && (category.name.en || category.name.ru);
     return category ? category.code + (name ? ' · ' + name : '') : '—';
@@ -181,6 +189,21 @@
       ? state.otherExpenseQueue
       : state.entries.filter((entry) => entry.status === 'other_review' && entry.category_code === 'other');
     els.otherCount.textContent = String(otherRows.length);
+    renderMonthClosure();
+    renderInputState();
+  }
+
+  function renderInputState() {
+    els.submit.disabled = state.saving || isCurrentMonthClosed();
+  }
+
+  function renderMonthClosure() {
+    const isClosed = isCurrentMonthClosed();
+    els.monthState.textContent = state.monthActionBusy ? 'Working' : (isClosed ? 'Closed' : 'Open');
+    els.monthToggle.disabled = state.monthActionBusy || !state.workspaceId;
+    els.monthToggle.setAttribute('aria-label', isClosed ? 'Reopen current month' : 'Close current month');
+    els.monthToggle.title = isClosed ? 'Reopen current month' : 'Close current month';
+    els.monthToggle.classList.toggle('is-closed', isClosed);
   }
 
   function entryMeta(entry) {
@@ -358,9 +381,38 @@
     state.otherExpenseQueue = otherExpenseData.entries || [];
     const summaryData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/summary');
     state.summary = summaryData.summary || null;
+    const reportData = await v2Api('GET', '/api/workspaces/' + workspaceId + '/reports/monthly', null, {
+      year: month.year,
+      month: month.month
+    });
+    state.monthReport = reportData.report || null;
     renderAll();
     if (state.selectedEntryId) {
       loadSelectedEntryAttachments();
+    }
+  }
+
+  async function toggleMonthClosure() {
+    if (!state.workspaceId || state.monthActionBusy) return;
+    const month = currentMonthParts();
+    const isClosed = isCurrentMonthClosed();
+    const action = isClosed ? 'reopen' : 'close';
+    state.monthActionBusy = true;
+    renderMonthClosure();
+    setStatus(isClosed ? 'Reopening month' : 'Closing month');
+    try {
+      const data = await v2Api('POST', '/api/workspaces/' + state.workspaceId + '/months/' + month.year + '/' + month.month + '/' + action, {
+        comment: isClosed ? null : 'Closed from operational journal'
+      });
+      state.monthReport = data.report || null;
+      await loadWorkspaceData();
+      setStatus(isClosed ? 'Month reopened' : 'Month closed');
+    } catch (error) {
+      setStatus(error.error || (isClosed ? 'Month reopen failed' : 'Month close failed'), true);
+    } finally {
+      state.monthActionBusy = false;
+      renderMonthClosure();
+      renderInputState();
     }
   }
 
@@ -525,8 +577,14 @@
     const flow = activeFlow();
     const raw = els.rawText.value.trim();
     if (!flow || !raw) return;
+    if (isCurrentMonthClosed()) {
+      saveDraft();
+      setStatus('Closed month: reopen month or create correction', true);
+      renderInputState();
+      return;
+    }
     state.saving = true;
-    els.submit.disabled = true;
+    renderInputState();
     saveDraft();
     setStatus(navigator.onLine === false ? 'Offline: draft kept locally' : 'Saving');
     try {
@@ -550,7 +608,7 @@
       }
     } finally {
       state.saving = false;
-      els.submit.disabled = false;
+      renderInputState();
     }
   }
 
@@ -672,6 +730,7 @@
     els.rawText.addEventListener('input', saveDraft);
     els.refresh.addEventListener('click', loadApp);
     els.otherReviewJump.addEventListener('click', selectFirstOtherReview);
+    els.monthToggle.addEventListener('click', toggleMonthClosure);
     els.feed.addEventListener('click', (event) => {
       const row = event.target.closest('[data-v2-entry-select]');
       if (row) selectEntry(row.getAttribute('data-v2-entry-id'), 'detail');

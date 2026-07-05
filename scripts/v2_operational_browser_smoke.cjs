@@ -287,7 +287,17 @@ async function run() {
     await selectEntryByText(page, '-33 Netflix closed month');
     await waitForText(page, '[data-v2-entry-detail-body]', 'media_comms');
     const entryMonth = monthPartsFromDate(await page.locator('[data-v2-date]').inputValue());
-    markClosedMonth(workspaceId, entryMonth.year, entryMonth.month);
+    await waitForText(page, '[data-v2-month-state]', 'Open');
+    const closeMonthResponse = page.waitForResponse((response) => (
+      response.request().method() === 'POST'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith(`/months/${entryMonth.year}/${entryMonth.month}/close`)
+    ));
+    await page.locator('[data-v2-month-toggle]').click();
+    assert((await closeMonthResponse).status() === 200, 'month close failed');
+    await waitForText(page, '[data-v2-month-state]', 'Closed');
+    await waitForText(page, '[data-v2-status]', 'Month closed');
+    assert(await page.locator('[data-v2-submit]').isDisabled(), 'entry submit should be disabled while current month is closed');
     await page.locator('[data-v2-category-select]').selectOption('fuel');
     const closedResponse = page.waitForResponse((response) => (
       response.request().method() === 'PATCH'
@@ -347,6 +357,17 @@ async function run() {
     assert(closedDecisionBodies.some((body) => body.includes('"decision":"recalculate_chain"')), 'recalculate decision body missing');
     await waitForText(page, '[data-v2-status]', 'Category updated with recalculation');
     assert((await detailFieldValue(page, 'category')).includes('fuel'), 'recalculate decision did not update category');
+
+    const reopenMonthResponse = page.waitForResponse((response) => (
+      response.request().method() === 'POST'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(response.request()).endsWith(`/months/${entryMonth.year}/${entryMonth.month}/reopen`)
+    ));
+    await page.locator('[data-v2-month-toggle]').click();
+    assert((await reopenMonthResponse).status() === 200, 'month reopen failed');
+    await waitForText(page, '[data-v2-month-state]', 'Open');
+    await waitForText(page, '[data-v2-status]', 'Month reopened');
+    assert(!(await page.locator('[data-v2-submit]').isDisabled()), 'entry submit should be enabled after month reopen');
     console.log('Closed-month category decisions: OK');
 
     const desktopMetrics = await assertNoPageScroll(page);

@@ -72,6 +72,12 @@ header('Pragma: no-cache');
           <strong data-v2-other-count>—</strong>
         </button>
       </div>
+      <div>
+        <span>Month</span>
+        <button class="v2-summary-action" type="button" data-v2-month-toggle>
+          <strong data-v2-month-state>Open</strong>
+        </button>
+      </div>
     </section>
 
     <section class="v2-workspace" data-v2-workspace hidden>

@@ -124,6 +124,15 @@ function smokeCloseMonthWithComment(string $workspaceId, int $year, int $month, 
     $stmt->execute([$comment, $workspaceId, $year, $month]);
 }
 
+function smokeAddWorkspaceMember(string $workspaceId, int $userId, string $role): void
+{
+    $stmt = smokeDb()->prepare("
+        INSERT INTO v2_workspace_members (id, workspace_id, user_id, role)
+        VALUES (UUID(), ?, ?, ?)
+    ");
+    $stmt->execute([$workspaceId, $userId, $role]);
+}
+
 function smokeAuditCount(string $action, string $entryId): int
 {
     $stmt = smokeDb()->prepare("SELECT COUNT(*) FROM v2_audit_log WHERE action = ? AND entity_id = ?");
@@ -140,11 +149,11 @@ function smokeStoragePath(string $fileUrl): string
     return $harness . '/' . ltrim($fileUrl, '/');
 }
 
-function smokeRequest(string $method, string $route, ?array $body = null, bool $authenticated = true): HttpSmokeResponse
+function smokeRequest(string $method, string $route, ?array $body = null, bool $authenticated = true, ?string $tokenOverride = null): HttpSmokeResponse
 {
     $base = rtrim((string)getenv('FINDESK_V2_HTTP_BASE'), '/');
     $cookieName = (string)getenv('FINDESK_V2_HTTP_COOKIE');
-    $token = (string)getenv('FINDESK_V2_HTTP_TOKEN');
+    $token = $tokenOverride ?? (string)getenv('FINDESK_V2_HTTP_TOKEN');
 
     smokeAssert($base !== '', 'Missing FINDESK_V2_HTTP_BASE');
     smokeAssert($cookieName !== '', 'Missing FINDESK_V2_HTTP_COOKIE');
@@ -251,6 +260,46 @@ $entry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries",
 ]), 'create entry')['entry'];
 smokeAssert($entry['entry_type'] === 'cash_expense', 'entry type mismatch');
 smokeAssert((float)$entry['amount'] === 60.0, 'entry amount mismatch');
+
+$viewerToken = (string)getenv('FINDESK_V2_HTTP_VIEWER_TOKEN');
+smokeAssert($viewerToken !== '', 'Missing FINDESK_V2_HTTP_VIEWER_TOKEN');
+smokeAddWorkspaceMember($workspaceId, 19002, 'viewer');
+$viewerWorkspaces = expectOk(smokeRequest('GET', '/api/workspaces', null, true, $viewerToken), 'viewer list workspaces')['workspaces'];
+smokeAssert(count($viewerWorkspaces) === 1, 'viewer workspace list count mismatch');
+smokeAssert((string)$viewerWorkspaces[0]['id'] === $workspaceId, 'viewer workspace id mismatch');
+expectError(smokeRequest('PATCH', "/api/workspaces/{$workspaceId}", [
+    'name' => 'Viewer Rename',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer update workspace');
+expectError(smokeRequest('POST', "/api/workspaces/{$workspaceId}/flows", [
+    'name' => 'Viewer Cash',
+    'type' => 'cash',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer create flow');
+expectError(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+10 viewer write',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer create entry');
+expectError(smokeRequest('PATCH', '/api/entries/' . $entry['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-70 viewer edit',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer update entry');
+expectError(smokeRequest('PATCH', '/api/entries/' . $entry['id'] . '/category', [
+    'category_code' => 'fuel',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer update entry category');
+expectError(smokeRequest('DELETE', '/api/entries/' . $entry['id'], null, true, $viewerToken), 403, 'workspace_read_only', 'viewer delete entry');
+expectError(smokeRequest('POST', "/api/workspaces/{$workspaceId}/category-rules", [
+    'category_code' => 'media_comms',
+    'pattern' => 'viewer-netflix',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer create category rule');
+expectError(smokeRequest('POST', "/api/workspaces/{$workspaceId}/months/2026/7/close", [
+    'comment' => 'viewer close',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer close month');
+expectError(smokeRequest('POST', "/api/workspaces/{$workspaceId}/months/2026/7/correction", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+5 viewer correction',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer create month correction');
 
 expectError(smokeRequest('POST', '/api/entries/' . $entry['id'] . '/attachments', null, false), 401, 'not_authenticated', 'unauthenticated attachment upload');
 expectError(smokeRequest('POST', '/api/entries/' . $entry['id'] . '/attachments', [
@@ -427,7 +476,13 @@ smokeAssert($reportCashTopup['category_code'] === 'cash_topup_from_card', 'cash 
 smokeAssert($reportCardMedia['category_code'] === 'media_comms', 'card media category mismatch');
 smokeAssert($reportInvalid['status'] === 'unrecognized' && $reportInvalid['amount'] === null, 'invalid no-sign row should not be counted');
 
-smokeCloseMonthWithComment($reportWorkspaceId, 2026, 7, 'report smoke closed month');
+$closedReportMonth = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/months/2026/7/close", [
+    'comment' => 'report smoke closed month',
+]), 'close report month');
+smokeAssert(($closedReportMonth['closure']['is_closed'] ?? null) === true, 'close route closure flag mismatch');
+smokeAssert(($closedReportMonth['report']['is_closed'] ?? null) === true, 'close route report flag mismatch');
+smokeAssert(($closedReportMonth['report']['comment'] ?? null) === 'report smoke closed month', 'close route report comment mismatch');
+smokeAssert(smokeAuditCount('month_close', (string)$closedReportMonth['closure']['id']) === 1, 'month close audit missing');
 $monthlyReport = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/reports/monthly?year=2026&month=7"), 'monthly report')['report'];
 smokeAssert($monthlyReport['month_key'] === '2026-07', 'monthly report key mismatch');
 smokeAssert($monthlyReport['is_closed'] === true, 'monthly report should expose closed month');
@@ -445,6 +500,14 @@ smokeAssert(($monthlyReport['counts']['entries'] ?? null) === 8, 'monthly entrie
 smokeAssert(($monthlyReport['counts']['counted'] ?? null) === 7, 'monthly counted count mismatch');
 smokeAssert(($monthlyReport['counts']['unrecognized'] ?? null) === 1, 'monthly unrecognized count mismatch');
 smokeAssert(($monthlyReport['counts']['other_review'] ?? null) === 1, 'monthly other_review count mismatch');
+
+$reopenedReportMonth = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/months/2026/7/reopen", [
+    'comment' => '',
+]), 'reopen report month');
+smokeAssert(($reopenedReportMonth['closure']['is_closed'] ?? null) === false, 'reopen route closure flag mismatch');
+smokeAssert(($reopenedReportMonth['report']['is_closed'] ?? null) === false, 'reopen route report flag mismatch');
+smokeAssert(array_key_exists('comment', $reopenedReportMonth['report']) && $reopenedReportMonth['report']['comment'] === null, 'reopen should clear report comment');
+smokeAssert(smokeAuditCount('month_reopen', (string)$closedReportMonth['closure']['id']) === 1, 'month reopen audit missing');
 
 $categoryMatrix = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/reports/category-matrix?year=2026"), 'category matrix report')['matrix'];
 $matrixRows = [];
@@ -494,6 +557,14 @@ $importUpload = expectOk(smokeRequest('POST', "/api/workspaces/{$importWorkspace
     'content_base64' => base64_encode((string)file_get_contents($xlsxPath)),
 ]), 'upload excel import')['import'];
 @unlink($xlsxPath);
+smokeAddWorkspaceMember($importWorkspaceId, 19002, 'viewer');
+expectError(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/excel", [
+    'file_name' => 'viewer.xlsx',
+    'content_base64' => base64_encode('viewer import'),
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer upload excel import');
+expectError(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/" . $importUpload['import_id'] . "/accept", [
+    'decision' => 'accept',
+], true, $viewerToken), 403, 'workspace_read_only', 'viewer accept excel import');
 smokeAssert($importUpload['include_decision'] === 'included', 'import should be included');
 smokeAssert($importUpload['sheets_scanned'] === 1, 'import sheets scanned mismatch');
 smokeAssert($importUpload['rows_scanned'] === 11, 'import rows scanned mismatch');
@@ -581,7 +652,43 @@ $closedEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/ent
     'raw_text' => '-33 Netflix closed month',
 ]), 'create closed-month probe entry')['entry'];
 smokeAssert($closedEntry['category_code'] === 'media_comms', 'closed probe initial category mismatch');
-smokeCloseMonth($workspaceId, 2026, 7);
+$closedBaseMonth = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/months/2026/7/close", [
+    'comment' => 'base smoke closed month',
+]), 'close base month');
+smokeAssert(($closedBaseMonth['closure']['is_closed'] ?? null) === true, 'base month close flag mismatch');
+$openMonthEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-08-05',
+    'raw_text' => '+50 open month topup',
+]), 'create open-month probe entry')['entry'];
+expectError(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+5 should be correction',
+]), 409, 'closed_month_requires_decision', 'closed month entry create');
+expectError(smokeRequest('PATCH', '/api/entries/' . $openMonthEntry['id'], [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-08',
+    'raw_text' => '+50 moved into closed month',
+]), 409, 'closed_month_requires_decision', 'open-month entry moved into closed month');
+$monthCorrection = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/months/2026/7/correction", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+5 smoke month correction',
+    'reason' => 'HTTP smoke correction',
+    'reference_entry_id' => $closedEntry['id'],
+    'source_type' => 'manual',
+    'status' => 'recognized',
+    'entry_type' => 'cash_income',
+]), 'month correction route')['entry'];
+smokeAssert($monthCorrection['entry_type'] === 'correction', 'month correction type mismatch');
+smokeAssert($monthCorrection['status'] === 'corrected', 'month correction status mismatch');
+smokeAssert($monthCorrection['source_type'] === 'correction', 'month correction source mismatch');
+smokeAssert((float)$monthCorrection['amount'] === 5.0, 'month correction amount mismatch');
+smokeAssert(smokeAuditCount('month_correction_create', $monthCorrection['id']) === 1, 'month correction audit missing');
+$baseMonthlyAfterCorrection = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/reports/monthly?year=2026&month=7"), 'base monthly after correction')['report'];
+smokeAssertAmount($baseMonthlyAfterCorrection['corrections'], 5.0, 'month correction total mismatch');
+smokeAssertAmount($baseMonthlyAfterCorrection['external_cash_income'], 0.0, 'month correction should not become external income');
 expectError(smokeRequest('PATCH', '/api/entries/' . $closedEntry['id'] . '/category', [
     'category_code' => 'fuel',
 ]), 409, 'closed_month_requires_decision', 'closed month category patch');

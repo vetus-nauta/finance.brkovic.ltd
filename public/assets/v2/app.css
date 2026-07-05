@@ -154,7 +154,7 @@ select {
 
 .v2-summary-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
 }
@@ -192,6 +192,10 @@ select {
   border: 0;
   background: transparent;
   text-align: left;
+}
+
+.v2-summary-action.is-closed strong {
+  color: var(--v2-red);
 }
 
 .v2-auth-state,
@@ -635,7 +639,7 @@ select {
   }
 
   .v2-summary-strip {
-    grid-template-columns: repeat(4, minmax(118px, 1fr));
+    grid-template-columns: repeat(5, minmax(118px, 1fr));
     overflow-x: auto;
     box-shadow: none;
   }

@@ -12,6 +12,7 @@ SERVER_PID_FILE="${TMP_DIR}/php-server.pid"
 DB_NAME="findesk_v2_http_smoke"
 COOKIE_NAME="findesk_v2_http_smoke_session"
 TOKEN="findesk-v2-http-smoke-token"
+VIEWER_TOKEN="findesk-v2-http-viewer-token"
 
 cleanup() {
     if [[ -f "${SERVER_PID_FILE}" ]]; then
@@ -97,12 +98,17 @@ mariadb --no-defaults --socket="${SOCKET}" -uroot "${DB_NAME}" \
     < "${ROOT}/FinDesk v2.0/sql/001-clean-core-mariadb.sql"
 
 TOKEN_HASH="$(TOKEN="${TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
+VIEWER_TOKEN_HASH="$(TOKEN="${VIEWER_TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
 mariadb --no-defaults --socket="${SOCKET}" -uroot "${DB_NAME}" <<SQL
 INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
 VALUES (19001, 'v2-http-smoke@example.test', 'V2 HTTP Smoke', 'en', 'UTC', 'active', NOW());
+INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
+VALUES (19002, 'v2-http-viewer@example.test', 'V2 HTTP Viewer', 'en', 'UTC', 'active', NOW());
 
 INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
 VALUES (19001, '${TOKEN_HASH}', 'http-smoke', '127.0.0.1', 'FinDesk v2 HTTP smoke', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
+INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
+VALUES (19002, '${VIEWER_TOKEN_HASH}', 'http-smoke-viewer', '127.0.0.1', 'FinDesk v2 HTTP smoke viewer', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
 SQL
 
 HARNESS="${TMP_DIR}/harness"
@@ -177,6 +183,7 @@ fi
 FINDESK_V2_HTTP_BASE="http://127.0.0.1:${PORT}" \
 FINDESK_V2_HTTP_COOKIE="${COOKIE_NAME}" \
 FINDESK_V2_HTTP_TOKEN="${TOKEN}" \
+FINDESK_V2_HTTP_VIEWER_TOKEN="${VIEWER_TOKEN}" \
 FINDESK_V2_HTTP_SOCKET="${SOCKET}" \
 FINDESK_V2_HTTP_DB="${DB_NAME}" \
 FINDESK_V2_HTTP_HARNESS="${HARNESS}" \
