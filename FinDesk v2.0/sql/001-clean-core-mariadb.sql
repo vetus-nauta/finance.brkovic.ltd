@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS v2_flows (
     name VARCHAR(120) NOT NULL,
     type ENUM('cash','card','assistant_journal') NOT NULL,
     has_live_balance TINYINT(1) NOT NULL DEFAULT 0,
+    opening_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
     is_default TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -96,6 +97,7 @@ CREATE TABLE IF NOT EXISTS v2_import_sources (
 
 CREATE TABLE IF NOT EXISTS v2_entries (
     id CHAR(36) NOT NULL,
+    created_seq BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     workspace_id CHAR(36) NOT NULL,
     flow_id CHAR(36) NOT NULL,
     created_by BIGINT UNSIGNED DEFAULT NULL,
@@ -119,6 +121,7 @@ CREATE TABLE IF NOT EXISTS v2_entries (
     updated_at DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
     archived_at DATETIME DEFAULT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_v2_entries_created_seq (created_seq),
     KEY idx_v2_entries_workspace_date (workspace_id, date),
     KEY idx_v2_entries_flow_date (flow_id, date),
     KEY idx_v2_entries_status (status),

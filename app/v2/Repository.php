@@ -48,7 +48,9 @@ final class FinDeskV2Repository
                 VALUES (?, ?, ?, 'owner')
             ")->execute([FinDeskV2Support::uuid(), $id, $userId]);
 
-            $this->createDefaultFlow($id, 'Cash', 'cash', true);
+            $openingCash = FinDeskV2Support::nullableAmount($input['opening_cash'] ?? $input['opening_balance'] ?? null) ?? '0.00';
+
+            $this->createDefaultFlow($id, 'Cash', 'cash', true, true, $openingCash);
             $this->createDefaultFlow($id, 'Card', 'card', false);
             $workspace = $this->getWorkspace($id, $userId);
             $this->audit($id, 'workspace', $id, 'create', null, $workspace, $userId);
@@ -125,7 +127,8 @@ final class FinDeskV2Repository
                 FinDeskV2Support::requireString($input, 'name', 120),
                 FinDeskV2Support::enum((string)($input['type'] ?? ''), ['cash', 'card', 'assistant_journal'], 'type'),
                 (bool)($input['has_live_balance'] ?? false),
-                (bool)($input['is_default'] ?? false)
+                (bool)($input['is_default'] ?? false),
+                FinDeskV2Support::nullableAmount($input['opening_balance'] ?? null) ?? '0.00'
             );
             $this->audit($workspaceId, 'flow', $flow['id'], 'create', null, $flow, $userId);
 
@@ -161,7 +164,7 @@ final class FinDeskV2Repository
             LEFT JOIN v2_categories c ON c.id = e.category_id
             LEFT JOIN v2_actors a ON a.id = e.actor_id
             WHERE " . implode(' AND ', $where) . "
-            ORDER BY e.date ASC, e.created_at ASC
+            ORDER BY e.date ASC, e.created_seq ASC
         ");
         $stmt->execute($params);
 
@@ -203,6 +206,8 @@ final class FinDeskV2Repository
                 FinDeskV2Support::jsonEncode($entry['matched_rules']),
             ]);
 
+            $created = $this->getEntry($entry['id'], $userId);
+            $this->recalculateFlowBalance($flow['id']);
             $created = $this->getEntry($entry['id'], $userId);
             $this->audit($workspaceId, 'entry', $entry['id'], 'create', null, $created, $userId);
 
@@ -252,6 +257,11 @@ final class FinDeskV2Repository
             ]);
 
             $after = $this->getEntry($entryId, $userId);
+            $this->recalculateFlowBalance($flow['id']);
+            if ($before['flow']['id'] !== $flow['id']) {
+                $this->recalculateFlowBalance($before['flow']['id']);
+            }
+            $after = $this->getEntry($entryId, $userId);
             $this->audit($before['workspace_id'], 'entry', $entryId, 'update', $before, $after, $userId);
 
             return $after;
@@ -279,6 +289,7 @@ final class FinDeskV2Repository
         return FinDeskV2Database::transact(function () use ($entryId, $userId): array {
             $before = $this->getEntry($entryId, $userId);
             $this->db->prepare("UPDATE v2_entries SET archived_at = NOW() WHERE id = ?")->execute([$entryId]);
+            $this->recalculateFlowBalance($before['flow']['id']);
             $this->audit($before['workspace_id'], 'entry', $entryId, 'delete', $before, ['archived' => true], $userId);
 
             return ['id' => $entryId, 'archived' => true];
@@ -352,13 +363,14 @@ final class FinDeskV2Repository
         string $name,
         string $type,
         bool $hasLiveBalance,
-        bool $isDefault = true
+        bool $isDefault = true,
+        string $openingBalance = '0.00'
     ): array {
         $id = FinDeskV2Support::uuid();
         $this->db->prepare("
-            INSERT INTO v2_flows (id, workspace_id, name, type, has_live_balance, is_default)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([$id, $workspaceId, $name, $type, $hasLiveBalance ? 1 : 0, $isDefault ? 1 : 0]);
+            INSERT INTO v2_flows (id, workspace_id, name, type, has_live_balance, opening_balance, is_default)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ")->execute([$id, $workspaceId, $name, $type, $hasLiveBalance ? 1 : 0, $openingBalance, $isDefault ? 1 : 0]);
 
         return $this->flowRow([
             'id' => $id,
@@ -366,6 +378,7 @@ final class FinDeskV2Repository
             'name' => $name,
             'type' => $type,
             'has_live_balance' => $hasLiveBalance ? 1 : 0,
+            'opening_balance' => $openingBalance,
             'is_default' => $isDefault ? 1 : 0,
             'created_at' => null,
         ]);
@@ -382,6 +395,68 @@ final class FinDeskV2Repository
         }
 
         return $this->flowRow($row);
+    }
+
+    private function recalculateFlowBalance(string $flowId): void
+    {
+        $stmt = $this->db->prepare("SELECT * FROM v2_flows WHERE id = ? LIMIT 1");
+        $stmt->execute([$flowId]);
+        $flow = $stmt->fetch();
+
+        if (!$flow) {
+            return;
+        }
+
+        if ((int)$flow['has_live_balance'] !== 1 || (string)$flow['type'] !== 'cash') {
+            $this->db->prepare("UPDATE v2_entries SET balance_after = NULL WHERE flow_id = ?")->execute([$flowId]);
+            return;
+        }
+
+        $balance = (float)$flow['opening_balance'];
+        $entries = $this->db->prepare("
+            SELECT id, amount, direction, entry_type, status
+            FROM v2_entries
+            WHERE flow_id = ? AND archived_at IS NULL
+            ORDER BY date ASC, created_seq ASC
+        ");
+        $entries->execute([$flowId]);
+        $update = $this->db->prepare("UPDATE v2_entries SET balance_after = ? WHERE id = ?");
+
+        foreach ($entries->fetchAll() as $entry) {
+            $delta = $this->cashBalanceDelta($entry);
+            if ($delta === null) {
+                $update->execute([null, $entry['id']]);
+                continue;
+            }
+
+            $balance += $delta;
+            $update->execute([number_format($balance, 2, '.', ''), $entry['id']]);
+        }
+    }
+
+    private function cashBalanceDelta(array $entry): ?float
+    {
+        if ($entry['amount'] === null) {
+            return null;
+        }
+
+        if (!in_array((string)$entry['status'], ['recognized', 'other_review', 'imported', 'accepted', 'corrected'], true)) {
+            return null;
+        }
+
+        $amount = (float)$entry['amount'];
+        $direction = (string)$entry['direction'];
+        $entryType = (string)$entry['entry_type'];
+
+        if ($direction === 'in' && in_array($entryType, ['cash_income', 'correction'], true)) {
+            return $amount;
+        }
+
+        if ($direction === 'out' && in_array($entryType, ['cash_expense', 'correction'], true)) {
+            return -$amount;
+        }
+
+        return null;
     }
 
     private function getEntry(string $entryId, int $userId): array
@@ -709,6 +784,7 @@ final class FinDeskV2Repository
             'name' => (string)$row['name'],
             'type' => (string)$row['type'],
             'has_live_balance' => (bool)$row['has_live_balance'],
+            'opening_balance' => isset($row['opening_balance']) ? (float)$row['opening_balance'] : 0.0,
             'is_default' => (bool)$row['is_default'],
             'created_at' => $row['created_at'] ?? null,
         ];

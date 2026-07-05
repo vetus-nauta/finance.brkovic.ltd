@@ -115,6 +115,18 @@ function countEntriesForFlow(FinDeskV2Repository $repo, string $workspaceId, int
     return $count;
 }
 
+function lastBalanceForFlow(FinDeskV2Repository $repo, string $workspaceId, int $userId, string $flowId): ?float
+{
+    $balance = null;
+    foreach ($repo->listEntries($workspaceId, [], $userId) as $entry) {
+        if ($entry['flow']['id'] === $flowId && $entry['balance_after'] !== null) {
+            $balance = (float)$entry['balance_after'];
+        }
+    }
+
+    return $balance;
+}
+
 function matchedRuleHas(array $entry, string $key, string $value): bool
 {
     foreach ($entry['matched_rules'] ?? [] as $rule) {
@@ -146,6 +158,7 @@ $workspace = $repo->createWorkspace([
     'type' => 'yacht',
     'currency' => 'EUR',
     'locale' => 'ru',
+    'opening_cash' => '1000.00',
 ], $userId);
 
 $flows = $repo->listFlows($workspace['id'], $userId);
@@ -175,6 +188,7 @@ runFixture($report, 'Fixture 1 - Basic cash', function () use ($repo, $workspace
     assertSameValue($income['entry_type'], 'cash_income', 'income type');
     assertSameValue($income['status'], 'recognized', 'income status');
     assertAmount($income['amount'], 500.0, 'income amount');
+    assertAmount($income['balance_after'], 1500.0, 'income balance_after');
 
     assertSameValue($expense['flow']['type'], 'cash', 'expense flow');
     assertSameValue($expense['sign'], '-', 'expense sign');
@@ -182,10 +196,10 @@ runFixture($report, 'Fixture 1 - Basic cash', function () use ($repo, $workspace
     assertSameValue($expense['entry_type'], 'cash_expense', 'expense type');
     assertSameValue($expense['status'], 'recognized', 'expense status');
     assertAmount($expense['amount'], 250.0, 'expense amount');
+    assertAmount($expense['balance_after'], 1250.0, 'expense balance_after');
 
-    return 'cash +500/-250 normalized as income/expense with correct amounts';
+    return 'cash +500/-250 normalized as income/expense with cash_now 1250 from opening 1000';
 });
-$report->blocked('Fixture 1 - Basic cash', 'cash_now/live balance chain is outside the SPRINT-01R repository foundation');
 
 runFixture($report, 'Fixture 2 - Invalid no-sign row', function () use ($repo, $workspace, $cashFlow, $userId): string {
     $entry = $repo->createEntry($workspace['id'], [
@@ -228,6 +242,7 @@ runFixture($report, 'Fixture 3 - Card expense', function () use ($repo, $workspa
 $report->blocked('Fixture 3 - Card expense', 'card expense rollups are not implemented yet');
 
 runFixture($report, 'Fixture 4 - Card to cash', function () use ($repo, $workspace, $cashFlow, $cardFlow, $userId): string {
+    $cashBalanceBefore = lastBalanceForFlow($repo, $workspace['id'], $userId, $cashFlow['id']);
     $cardSide = $repo->createEntry($workspace['id'], [
         'flow_id' => $cardFlow['id'],
         'date' => '2026-07-05',
@@ -245,17 +260,18 @@ runFixture($report, 'Fixture 4 - Card to cash', function () use ($repo, $workspa
     assertSameValue($cardSide['status'], 'recognized', 'card side status');
     assertSameValue($cardSide['category_code'], 'cash_topup_from_card', 'card side category');
     assertAmount($cardSide['amount'], 1000.0, 'card side amount');
+    assertSameValue($cardSide['balance_after'], null, 'card side cash balance_after');
     fixtureAssert($cardSide['status'] !== 'duplicate_suspect', 'card side was marked duplicate');
 
     assertSameValue($cashSide['entry_type'], 'cash_income', 'cash side type');
     assertSameValue($cashSide['status'], 'recognized', 'cash side status');
     assertSameValue($cashSide['category_code'], 'cash_topup_from_card', 'cash side category');
     assertAmount($cashSide['amount'], 1000.0, 'cash side amount');
+    assertAmount($cashSide['balance_after'], ($cashBalanceBefore ?? 1000.0) + 1000.0, 'cash side balance_after');
     fixtureAssert($cashSide['status'] !== 'duplicate_suspect', 'cash side was marked duplicate');
 
-    return 'card -1000 and cash +1000 can both be saved with transfer category and no duplicate/error status';
+    return 'card -1000 and cash +1000 save with transfer category; only cash side increases cash balance';
 });
-$report->blocked('Fixture 4 - Card to cash', 'cash balance increase is not calculated by the SPRINT-01R foundation');
 
 runFixture($report, 'Fixture 5 - Commercial income', function () use ($repo, $workspace, $cashFlow, $userId): string {
     $charter = $repo->createEntry($workspace['id'], [
@@ -276,13 +292,13 @@ runFixture($report, 'Fixture 5 - Commercial income', function () use ($repo, $wo
         assertSameValue($entry['entry_type'], 'cash_income', 'commercial income type');
         assertSameValue($entry['category_code'], 'commercial_income', 'commercial income category');
     }
+    assertSameValue($cashFlow['opening_balance'], 1000.0, 'commercial income should not alter opening cash seed');
 
     $total = (float)$charter['amount'] + (float)$agency['amount'];
     assertAmount($total, 5750.0, 'commercial income total');
 
-    return 'commercial_income can be explicitly assigned and remains a distinct income category totaling 5750';
+    return 'commercial_income can be explicitly assigned, totals 5750, and does not alter opening cash seed';
 });
-$report->blocked('Fixture 5 - Commercial income', 'opening balance behavior is not implemented in the SPRINT-01R foundation');
 
 runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $workspace, $cashFlow, $userId): string {
     $entry = $repo->createEntry($workspace['id'], [
@@ -343,7 +359,43 @@ runFixture($report, 'Fixture 8 - Person is actor, not category', function () use
 
     return 'Вова is extracted as actor; category follows transaction context, not person name alone';
 });
-$report->blocked('Fixture 9 - Month insertion recalculation', 'balance_after chain recalculation for inserted rows is not implemented yet');
+runFixture($report, 'Fixture 9 - Month insertion recalculation', function () use ($repo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Balance Chain Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $cashFlow = byFlowType($repo->listFlows($workspace['id'], $userId), 'cash');
+
+    $first = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-01',
+        'raw_text' => '-100 fuel',
+    ], $userId);
+    $third = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-03',
+        'raw_text' => '-100 food',
+    ], $userId);
+    $second = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-02',
+        'raw_text' => '+500 top-up',
+    ], $userId);
+
+    $entries = [];
+    foreach ($repo->listEntries($workspace['id'], [], $userId) as $entry) {
+        $entries[$entry['id']] = $entry;
+    }
+
+    assertAmount($entries[$first['id']]['balance_after'], 900.0, '01.07 balance');
+    assertAmount($entries[$second['id']]['balance_after'], 1400.0, '02.07 inserted balance');
+    assertAmount($entries[$third['id']]['balance_after'], 1300.0, '03.07 recalculated balance');
+
+    return 'inserting a middle cash row recalculates later balance_after values';
+});
 $report->blocked('Fixture 10 - Closed month protection', 'closed-month edit prompt/correction workflow is not implemented yet');
 
 runFixture($report, 'Card plus semantics', function () use ($repo, $workspace, $cardFlow, $userId): string {
