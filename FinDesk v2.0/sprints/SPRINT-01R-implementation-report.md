@@ -16,6 +16,10 @@ Create a GitHub-proven clean FinDesk v2.0 foundation before any UI work starts.
 - Financial Logic Engine Agent
 - QA, Audit, and Acceptance Agent
 - Data/Backend Core implementation worker
+- QA fixture-runner reviewer
+- Data/Backend branch-evidence reviewer
+- QA/Security branch-evidence reviewer
+- QA HTTP API smoke reviewer
 
 ## Files Changed
 
@@ -31,6 +35,8 @@ Create a GitHub-proven clean FinDesk v2.0 foundation before any UI work starts.
 - `public/v2-api.php`
 - `scripts/v2_clean_core_static_smoke.php`
 - `scripts/v2_disposable_db_smoke.sh`
+- `scripts/v2_http_api_smoke.php`
+- `scripts/v2_http_api_smoke.sh`
 - `scripts/v2_fixture_runner.php`
 - `scripts/v2_fixture_runner.sh`
 
@@ -42,6 +48,7 @@ Create a GitHub-proven clean FinDesk v2.0 foundation before any UI work starts.
 - Separate public v2 API entrypoint exists at `public/v2-api.php`.
 - Static smoke exists as `npm run smoke:v2`.
 - Disposable MariaDB repository smoke exists as `npm run smoke:v2:db`.
+- Disposable authenticated HTTP API smoke exists as `npm run smoke:v2:http`.
 - Disposable MariaDB fixture runner exists as `npm run test:v2:fixtures`.
 - No-sign rows are hard-locked as unrecognized and uncounted-looking:
   - `sign = null`
@@ -71,10 +78,13 @@ php -l app/v2/Api.php
 php -l public/v2-api.php
 php -l scripts/v2_clean_core_static_smoke.php
 bash -n scripts/v2_disposable_db_smoke.sh
+php -l scripts/v2_http_api_smoke.php
+bash -n scripts/v2_http_api_smoke.sh
 php -l scripts/v2_fixture_runner.php
 bash -n scripts/v2_fixture_runner.sh
 npm run smoke:v2
 npm run smoke:v2:db
+npm run smoke:v2:http
 npm run test:v2:fixtures
 ```
 
@@ -111,6 +121,25 @@ The disposable DB smoke:
 - verifies delete hides entry from list;
 - verifies audit rows.
 
+The disposable authenticated HTTP API smoke:
+
+- creates a temporary MariaDB datadir/socket under `/tmp`;
+- runs MariaDB with `--skip-networking`;
+- applies `deploy/auth_foundation.sql` as infrastructure-only auth/session schema;
+- applies `FinDesk v2.0/sql/001-clean-core-mariadb.sql`;
+- injects a temporary `app/db.php` harness instead of reading `config.local.php`;
+- starts PHP's built-in server against a temporary `public/` harness on `127.0.0.1`;
+- verifies unauthenticated requests return `401 not_authenticated`;
+- verifies authenticated API calls through `public/v2-api.php` for workspace creation/listing, flows, categories, entry creation, parse preview, category patch, category rule creation, and delete/list behavior.
+
+HTTP API smoke result:
+
+```text
+FinDesk v2 HTTP API smoke: OK
+Flows: 2
+Categories: 16
+```
+
 The disposable fixture runner:
 
 - creates a temporary MariaDB datadir/socket under `/tmp`;
@@ -137,7 +166,6 @@ BLOCKED / NOT_IMPLEMENTED (9)
 
 ## Tests Not Yet Run
 
-- Authenticated HTTP API smoke through `public/v2-api.php`.
 - Full green fixture gate from `15-test-fixtures.md`; current runner is partial and reports 9 blocked/not implemented expectations.
 - Cash balance chain recalculation.
 - Closed-month correction/recalculate/cancel behavior.
@@ -151,6 +179,7 @@ Accepted as local foundation candidate:
 - `v2_*` isolation.
 - v2 schema applies to a disposable MariaDB 10.11 database.
 - Repository-level foundation behavior passes disposable DB smoke.
+- Authenticated HTTP path through `public/v2-api.php` passes disposable smoke.
 - Supported fixture-runner subset passes in disposable MariaDB.
 - No old FinDesk product logic was used as v2 truth in candidate code.
 
@@ -166,9 +195,8 @@ Rejected as completion evidence:
 
 ## Blockers
 
-- Candidate files are still working-tree evidence until committed or otherwise accepted as branch evidence.
+- Branch evidence exists on `origin/findesk-v2-sprint-01r-foundation`.
 - Full fixture gate is not complete; the runner exists, but 9 expectations are explicitly blocked/not implemented.
-- HTTP API/auth smoke is not implemented.
 - Reports, imports, attachments, month closure, and UI are intentionally not implemented.
 
 ## Risks For Next Sprint
@@ -189,17 +217,16 @@ Rejected as completion evidence:
 
 Continue inside `SPRINT-01R` until these gates pass:
 
-1. Commit or otherwise formally accept candidate files as branch evidence.
-2. Convert blocked fixture expectations into implemented behavior or explicitly move them to the next named sprint.
-3. Add authenticated HTTP API smoke for `public/v2-api.php`.
-4. Prove parser/category behavior needed before operational input UI.
-5. Only then consider `SPRINT-02R — Parser, Fixtures, and Operational Entry Semantics` or a UX sprint.
+1. Convert blocked fixture expectations into implemented behavior or explicitly move them to the next named sprint.
+2. Prove parser/category behavior needed before operational input UI.
+3. Prove balance-chain behavior needed before operational input UI.
+4. Only then consider `SPRINT-02R — Parser, Balance Chain, and Operational Entry Semantics` or a UX sprint.
 
 ## Handoff Summary
 
 The old FinDesk screen remains rejected as product direction.
 
-The new v2 foundation candidate is now materially stronger: it has clean `v2_*` schema, clean PHP module, static smoke, disposable MariaDB repository smoke, and a disposable partial fixture runner.
+The new v2 foundation candidate is now materially stronger: it has clean `v2_*` schema, clean PHP module, static smoke, disposable MariaDB repository smoke, disposable authenticated HTTP API smoke, and a disposable partial fixture runner.
 
 SPRINT-01R is not complete yet. The fixture runner is accepted only as progress: `PASS (7)` and `BLOCKED / NOT_IMPLEMENTED (9)`. UI remains blocked.
 
@@ -216,6 +243,9 @@ Agents assigned:
 - QA, Audit, and Acceptance Agent
 - Data/Backend Core implementation worker
 - QA fixture-runner reviewer
+- Data/Backend branch-evidence reviewer
+- QA/Security branch-evidence reviewer
+- QA HTTP API smoke reviewer
 
 Agent reports received:
 
@@ -224,6 +254,9 @@ Agent reports received:
 - QA/Audit: accepted static and disposable DB smoke as progress, rejected sprint completion.
 - Implementation worker: added route hardening, category endpoints, disposable DB smoke, and fixture runner path.
 - QA fixture-runner reviewer: accepted `npm run test:v2:fixtures` as safe disposable progress, rejected full fixture completion because 9 expectations remain blocked/not implemented.
+- Data/Backend branch-evidence reviewer: accepted committing branch evidence as foundation candidate, rejected sprint completion.
+- QA/Security branch-evidence reviewer: accepted branch evidence after confirming no candidate secrets and no production DB access in disposable scripts.
+- QA HTTP API smoke reviewer: accepted the HTTP smoke design after requiring stale SHA wording to be removed before commit/push.
 
 Accepted work:
 
@@ -232,6 +265,7 @@ Accepted work:
 - Separate `public/v2-api.php` candidate.
 - Static smoke: `npm run smoke:v2`.
 - Disposable DB smoke: `npm run smoke:v2:db`.
+- Disposable authenticated HTTP API smoke: `npm run smoke:v2:http`.
 - Partial disposable fixture runner: `npm run test:v2:fixtures`.
 
 Rejected work:
@@ -253,6 +287,8 @@ Files changed:
 - `public/v2-api.php`
 - `scripts/v2_clean_core_static_smoke.php`
 - `scripts/v2_disposable_db_smoke.sh`
+- `scripts/v2_http_api_smoke.php`
+- `scripts/v2_http_api_smoke.sh`
 - `scripts/v2_fixture_runner.php`
 - `scripts/v2_fixture_runner.sh`
 
@@ -262,18 +298,18 @@ Tests or checks:
 - `bash -n scripts/v2_fixture_runner.sh`
 - `npm run smoke:v2`
 - `npm run smoke:v2:db`
+- `npm run smoke:v2:http`
 - `npm run test:v2:fixtures`
 
 Risks:
 
-- Working tree is not committed; evidence is local until branch evidence exists.
-- HTTP API/auth smoke is still missing.
+- Branch evidence exists, but SPRINT-01R is still not complete.
 - Balance chain, closed-month behavior, actor/category parser, Other review queue, and tender ambiguity are not implemented.
 - Fixture runner exits zero when implemented behavior passes, even if blocked expectations remain; handoff language must preserve that distinction.
 
 Next sprint:
 
-Continue `SPRINT-01R` or open `SPRINT-02R — Parser, Balance Chain, and API Gate` only after Director decision. UI remains blocked.
+Continue `SPRINT-01R` or open `SPRINT-02R — Parser, Balance Chain, and Operational Entry Semantics` only after Director decision. UI remains blocked.
 
 Paste-to-next-director prompt:
 
@@ -289,14 +325,13 @@ Start from:
 
 Current state:
 - SPRINT-01R is blocked before completion but foundation candidate advanced.
-- Static smoke, disposable DB smoke, and partial disposable fixture runner pass.
+- Branch evidence exists on origin/findesk-v2-sprint-01r-foundation.
+- Static smoke, disposable DB smoke, disposable authenticated HTTP API smoke, and partial disposable fixture runner pass.
 - Fixture runner output is PASS (7) and BLOCKED / NOT_IMPLEMENTED (9); do not claim full fixture completion.
 - UI remains blocked.
 
 Next required gates:
-1. Create branch evidence or commit candidate files after review.
-2. Add authenticated HTTP API smoke for public/v2-api.php.
-3. Implement or explicitly defer blocked fixture expectations: balance chain, parser/category assignment, Other queue, tender metadata, actor extraction, closed-month workflow.
-4. Re-run npm run smoke:v2, npm run smoke:v2:db, npm run test:v2:fixtures.
-5. Do not start UI until the foundation/API/parser/fixture gate is accepted by QA.
+1. Implement or explicitly defer blocked fixture expectations: balance chain, parser/category assignment, Other queue, tender metadata, actor extraction, closed-month workflow.
+2. Re-run npm run smoke:v2, npm run smoke:v2:db, npm run smoke:v2:http, npm run test:v2:fixtures.
+3. Do not start UI until the foundation/API/parser/fixture gate is accepted by QA.
 ```
