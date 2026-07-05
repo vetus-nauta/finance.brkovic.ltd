@@ -132,8 +132,11 @@ function ql_send_auth_email(string $email, string $code): array
 {
     $mailConfig = ql_mail_config();
 
-    if (($mailConfig['mode'] ?? '') === 'log') {
+    if (($mailConfig['mode'] ?? '') === 'log' && ql_should_log_auth_codes()) {
         return ['ok' => true, 'method' => 'log'];
+    }
+    if (($mailConfig['mode'] ?? '') === 'log') {
+        return ['ok' => false, 'method' => 'log', 'error' => 'local_log_mail_disabled'];
     }
 
     $subject = 'Your FinDesk sign-in code: ' . $code;
@@ -165,12 +168,10 @@ function ql_send_auth_email(string $email, string $code): array
 function ql_is_local_dev_context(): bool
 {
     $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    $addr = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     $config = function_exists('ql_config') ? ql_config() : [];
     $appUrl = strtolower((string)($config['app_url'] ?? ''));
 
-    return in_array($addr, ['127.0.0.1', '::1'], true)
-        || str_contains($host, '127.0.0.1')
+    return str_contains($host, '127.0.0.1')
         || str_contains($host, 'localhost')
         || str_contains($appUrl, '127.0.0.1')
         || str_contains($appUrl, 'localhost');
@@ -304,6 +305,42 @@ function ql_cookie_name(): string
     return $config['session_cookie_name'] ?? 'ql_session';
 }
 
+function ql_should_log_auth_codes(): bool
+{
+    $mailConfig = ql_mail_config();
+
+    return ($mailConfig['mode'] ?? '') === 'log' && ql_is_local_dev_context();
+}
+
+function ql_auth_code_log_path(): string
+{
+    return dirname(__DIR__) . '/storage/logs/auth_codes.log';
+}
+
+function ql_log_auth_code(string $email, string $code): void
+{
+    $logPath = ql_auth_code_log_path();
+    $logDir = dirname($logPath);
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0700, true);
+    }
+
+    $logLine = date('c') . " | {$email} | {$code}\n";
+    file_put_contents($logPath, $logLine, FILE_APPEND | LOCK_EX);
+    @chmod($logPath, 0600);
+}
+
+function ql_secure_cookie_required(): bool
+{
+    $config = ql_config();
+    $appUrl = strtolower((string)($config['app_url'] ?? ''));
+    if (str_starts_with($appUrl, 'https://')) {
+        return true;
+    }
+
+    return !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+}
+
 function ql_issue_code(string $email): array
 {
     $email = ql_normalize_email($email);
@@ -323,9 +360,6 @@ function ql_issue_code(string $email): array
     ");
     $stmt->execute([$email, $hash]);
 
-    $logLine = date('c') . " | {$email} | {$code}\n";
-    file_put_contents(dirname(__DIR__) . '/storage/logs/auth_codes.log', $logLine, FILE_APPEND);
-
     $send = ql_send_auth_email($email, $code);
 
     if (!$send['ok']) {
@@ -334,7 +368,6 @@ function ql_issue_code(string $email): array
             'error' => 'email_send_failed',
             'mail_method' => $send['method'] ?? 'unknown',
             'mail_error' => $send['error'] ?? null,
-            'dev_message' => 'The sign-in code was saved locally.'
         ];
     }
 
@@ -342,10 +375,10 @@ function ql_issue_code(string $email): array
         'ok' => true,
         'email_sent' => true,
         'mail_method' => $send['method'] ?? 'unknown',
-        'dev_message' => 'The sign-in code was sent by email and saved locally.'
     ];
 
-    if (($send['method'] ?? '') === 'log' && ql_is_local_dev_context()) {
+    if (($send['method'] ?? '') === 'log' && ql_should_log_auth_codes()) {
+        ql_log_auth_code($email, $code);
         $response['email_sent'] = false;
         $response['dev_code'] = $code;
         $response['dev_message'] = 'Local sign-in code. Mail delivery is logged locally.';
@@ -447,7 +480,7 @@ function ql_verify_code(string $email, string $code): array
         setcookie(ql_cookie_name(), $token, [
             'expires' => time() + 60 * 60 * 24 * 30,
             'path' => '/',
-            'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+            'secure' => ql_secure_cookie_required(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
@@ -519,7 +552,7 @@ function ql_logout(): void
     setcookie(ql_cookie_name(), '', [
         'expires' => time() - 3600,
         'path' => '/',
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'secure' => ql_secure_cookie_required(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

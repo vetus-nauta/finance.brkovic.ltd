@@ -532,7 +532,31 @@ runFixture($report, 'Fixture 9 - Month insertion recalculation', function () use
     assertAmount($entries[$second['id']]['balance_after'], 1400.0, '02.07 inserted balance');
     assertAmount($entries[$third['id']]['balance_after'], 1300.0, '03.07 recalculated balance');
 
-    return 'inserting a middle cash row recalculates later balance_after values';
+    $repo->updateEntry($third['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-03',
+        'raw_text' => '-200 food corrected',
+    ], $userId);
+    $afterUpdate = [];
+    foreach ($repo->listEntries($workspace['id'], [], $userId) as $entry) {
+        $afterUpdate[$entry['id']] = $entry;
+    }
+    assertAmount($afterUpdate[$first['id']]['balance_after'], 900.0, '01.07 balance after edit');
+    assertAmount($afterUpdate[$second['id']]['balance_after'], 1400.0, '02.07 balance after edit');
+    assertAmount($afterUpdate[$third['id']]['balance_after'], 1200.0, '03.07 balance after edit');
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['cash_now'], 1200.0, 'cash now after edit');
+
+    $repo->deleteEntry($second['id'], $userId);
+    $afterDelete = [];
+    foreach ($repo->listEntries($workspace['id'], [], $userId) as $entry) {
+        $afterDelete[$entry['id']] = $entry;
+    }
+    fixtureAssert(!isset($afterDelete[$second['id']]), 'deleted middle entry remains visible');
+    assertAmount($afterDelete[$first['id']]['balance_after'], 900.0, '01.07 balance after delete');
+    assertAmount($afterDelete[$third['id']]['balance_after'], 700.0, '03.07 balance after delete');
+    assertAmount($repo->getWorkspaceSummary($workspace['id'], $userId)['cash_now'], 700.0, 'cash now after delete');
+
+    return 'insert/edit/delete recalculate later balance_after values and cash_now';
 });
 
 runFixture($report, 'Fixture 10 - Closed month protection', function () use ($repo, $userId): string {
@@ -956,6 +980,7 @@ runFixture($report, 'One-file legacy Excel import', function () use ($repo, $use
         ['2026-07-05', 'какая-то штука', '', '50', '', '', '', ''],
         ['2026-07-06', 'card refund', '', '', '', '25', '', ''],
         ['2026-07-07', 'информационная строка', '', '', '', '', '', ''],
+        ['2026-07-08', 'ambiguous two money columns', '100', '50', '', '', '', ''],
         ['2026-07-01', 'fuel marina', '', '200', '', '', '', ''],
         ['2026-07-31', 'Сводные данные', '6300', '250', '', '25', '1060', 'summary'],
     ]);
@@ -968,13 +993,15 @@ runFixture($report, 'One-file legacy Excel import', function () use ($repo, $use
     @unlink($xlsx);
 
     assertSameValue($import['include_decision'], 'included', 'import include decision');
-    assertSameValue($import['rows_scanned'], 11, 'import rows scanned');
+    assertSameValue($import['rows_scanned'], 12, 'import rows scanned');
     assertSameValue($import['rows_parsed'], 9, 'import rows parsed');
+    assertSameValue($import['rows_unrecognized'], 1, 'import rows unrecognized');
     assertSameValue(count($import['duplicate_suspects']), 1, 'import duplicate suspect count');
     assertAmount($import['source_summary_totals']['cash_income'], 6300.0, 'import source summary cash income');
 
     $accepted = $repo->acceptLegacyImport($workspace['id'], $import['import_id'], ['decision' => 'accept'], $userId);
     assertSameValue($accepted['entries_created'], 9, 'accepted import entries created');
+    assertSameValue($accepted['rows_unrecognized'], 1, 'accepted import rows unrecognized');
     assertAmount($accepted['normalized_totals']['cash_income'], 6300.0, 'accepted import cash income');
     assertAmount($accepted['normalized_totals']['cash_expense'], 250.0, 'accepted import cash expense');
     assertAmount($accepted['normalized_totals']['card_income'], 25.0, 'accepted import card income');
@@ -984,6 +1011,15 @@ runFixture($report, 'One-file legacy Excel import', function () use ($repo, $use
     fixtureAssert(isset($dateSources['filename_date']), 'import fixture missing filename date provenance');
     fixtureAssert(isset($dateSources['inherited_previous_row_date']), 'import fixture missing inherited date provenance');
     fixtureAssert(isset($dateSources['row_date']), 'import fixture missing row date provenance');
+    $unrecognizedTrace = null;
+    foreach ($accepted['row_traces'] as $trace) {
+        if (($trace['parse_status'] ?? null) === 'unrecognized') {
+            $unrecognizedTrace = $trace;
+            break;
+        }
+    }
+    fixtureAssert(is_array($unrecognizedTrace), 'import fixture missing unrecognized row trace');
+    assertSameValue($unrecognizedTrace['parse_notes'], 'multiple money columns in one row', 'unrecognized row parse notes');
 
     $entries = $repo->listEntries($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
     fixtureAssert(count($entries) === 9, 'accepted import entries are not visible');

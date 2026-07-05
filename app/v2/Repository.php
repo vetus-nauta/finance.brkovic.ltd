@@ -658,7 +658,23 @@ final class FinDeskV2Repository
             $this->guardEntryMonthIsOpen($before);
             $flowId = FinDeskV2Support::optionalString($input, 'flow_id', $before['flow']['id'], 36) ?? $before['flow']['id'];
             $flow = $this->getFlowForWorkspace($flowId, $before['workspace_id']);
-            $entry = $this->normalizeEntryInput($before['workspace_id'], $flow, array_merge($before, $input));
+            $entryInput = [
+                'flow_id' => $flow['id'],
+                'date' => $input['date'] ?? $before['date'],
+                'raw_text' => $input['raw_text'] ?? $before['raw_text'],
+                'category_code' => $input['category_code'] ?? $before['category_code'],
+                'status' => $input['status'] ?? $before['status'],
+                'source_type' => $input['source_type'] ?? $before['source_type'],
+                'source_id' => $input['source_id'] ?? $before['source_id'],
+                'source_row_id' => $input['source_row_id'] ?? $before['source_row_id'],
+                'notes' => $input['notes'] ?? $before['notes'],
+                'confidence' => $input['confidence'] ?? $before['confidence'],
+                'matched_rules' => $input['matched_rules'] ?? $before['matched_rules'],
+            ];
+            if (array_key_exists('amount', $input)) {
+                $entryInput['amount'] = $input['amount'];
+            }
+            $entry = $this->normalizeEntryInput($before['workspace_id'], $flow, $entryInput);
             $this->guardWorkspaceMonthIsOpen($before['workspace_id'], $entry['date']);
 
             $this->db->prepare("

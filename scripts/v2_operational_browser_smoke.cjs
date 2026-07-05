@@ -114,6 +114,46 @@ async function assertNoPageScroll(page) {
   return metrics;
 }
 
+async function assertViewportLayout(browser, viewport, expected, label, screenshotName = null) {
+  const context = await browser.newContext({
+    baseURL: base,
+    viewport,
+    isMobile: expected === 'mobile',
+    hasTouch: expected === 'mobile',
+  });
+  await context.addCookies([{ name: cookieName, value: token, url: base }]);
+  const page = await context.newPage();
+  await page.goto('/v2.php', { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
+  const metrics = await page.evaluate(() => {
+    const horizontal = document.querySelector('.v2-horizontal');
+    const firstPanel = document.querySelector('.v2-panel');
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      horizontalDisplay: getComputedStyle(horizontal).display,
+      horizontalOverflowX: getComputedStyle(horizontal).overflowX,
+      panelFlexBasis: getComputedStyle(firstPanel).flexBasis,
+      bodyOverflow: getComputedStyle(document.body).overflow,
+      feedOverflowY: getComputedStyle(document.querySelector('[data-v2-feed]')).overflowY,
+    };
+  });
+  assert(metrics.bodyOverflow === 'hidden', `${label} body overflow must stay hidden: ${JSON.stringify(metrics)}`);
+  assert(metrics.feedOverflowY === 'auto', `${label} feed must own vertical scroll: ${JSON.stringify(metrics)}`);
+  if (expected === 'mobile') {
+    assert(metrics.horizontalDisplay === 'flex', `${label} must use mobile horizontal flex, got ${metrics.horizontalDisplay}: ${JSON.stringify(metrics)}`);
+    assert(['auto', 'scroll'].includes(metrics.horizontalOverflowX), `${label} horizontal overflow missing: ${JSON.stringify(metrics)}`);
+    assert(metrics.panelFlexBasis === '100%', `${label} panel should snap full width: ${JSON.stringify(metrics)}`);
+  } else {
+    assert(metrics.horizontalDisplay === 'grid', `${label} must use full workspace grid, got ${metrics.horizontalDisplay}: ${JSON.stringify(metrics)}`);
+  }
+  if (screenshotName) {
+    await page.screenshot({ path: path.join(resultsDir, screenshotName), fullPage: false });
+  }
+  await context.close();
+  console.log(`${label} layout metrics: ${JSON.stringify(metrics)}`);
+}
+
 async function run() {
   assert(base, 'Missing FINDESK_V2_BROWSER_BASE');
   assert(cookieName, 'Missing FINDESK_V2_BROWSER_COOKIE');
@@ -397,6 +437,38 @@ async function run() {
     const mobilePage = await mobile.newPage();
     await mobilePage.goto('/v2.php', { waitUntil: 'domcontentloaded' });
     await mobilePage.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
+    await mobilePage.locator('[data-v2-view="write"]').click();
+    await mobilePage.waitForTimeout(300);
+    const feedScrollMetrics = await mobilePage.locator('[data-v2-feed]').evaluate((feed) => {
+      feed.scrollTop = feed.scrollHeight;
+      return {
+        scrollTop: feed.scrollTop,
+        scrollHeight: feed.scrollHeight,
+        clientHeight: feed.clientHeight,
+      };
+    });
+    assert(feedScrollMetrics.scrollHeight > feedScrollMetrics.clientHeight, `phone feed should own vertical history scroll: ${JSON.stringify(feedScrollMetrics)}`);
+    assert(feedScrollMetrics.scrollTop > 0, `phone feed did not scroll vertically: ${JSON.stringify(feedScrollMetrics)}`);
+    await mobilePage.setViewportSize({ width: 390, height: 520 });
+    await mobilePage.locator('[data-v2-raw-text]').focus();
+    const inputReachMetrics = await mobilePage.evaluate(() => {
+      const inputbar = document.querySelector('[data-v2-entry-form]');
+      const submit = document.querySelector('[data-v2-submit]');
+      const inputRect = inputbar.getBoundingClientRect();
+      const submitRect = submit.getBoundingClientRect();
+      return {
+        inputTop: inputRect.top,
+        inputBottom: inputRect.bottom,
+        submitTop: submitRect.top,
+        submitBottom: submitRect.bottom,
+        windowHeight: window.innerHeight,
+        bodyOverflow: getComputedStyle(document.body).overflow,
+      };
+    });
+    assert(inputReachMetrics.inputBottom <= inputReachMetrics.windowHeight + 2, `phone input hidden in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.submitBottom <= inputReachMetrics.windowHeight + 2, `phone submit hidden in reduced viewport: ${JSON.stringify(inputReachMetrics)}`);
+    assert(inputReachMetrics.bodyOverflow === 'hidden', `phone keyboard check changed body overflow: ${JSON.stringify(inputReachMetrics)}`);
+    await mobilePage.setViewportSize({ width: 390, height: 844 });
     await mobilePage.locator('[data-v2-entry-select]', { hasText: '-250 рыба' }).first().click();
     await mobilePage.waitForTimeout(650);
     await waitForText(mobilePage, '[data-v2-detail-raw]', '-250 рыба');
@@ -427,6 +499,12 @@ async function run() {
     await mobilePage.screenshot({ path: path.join(resultsDir, 'mobile-structured-check.png'), fullPage: false });
     await mobile.close();
     console.log(`Mobile horizontal metrics: ${JSON.stringify(mobileMetrics)}`);
+    console.log(`Mobile feed/input metrics: ${JSON.stringify({ feedScrollMetrics, inputReachMetrics })}`);
+
+    await assertViewportLayout(browser, { width: 768, height: 1024 }, 'mobile', 'iPad mini portrait', 'ipad-mini-portrait.png');
+    await assertViewportLayout(browser, { width: 1024, height: 768 }, 'mobile', 'iPad mini landscape', 'ipad-mini-landscape.png');
+    await assertViewportLayout(browser, { width: 834, height: 1194 }, 'desktop', 'iPad 11 portrait', 'ipad-11-portrait.png');
+    await assertViewportLayout(browser, { width: 1194, height: 834 }, 'desktop', 'iPad 11 landscape', 'ipad-11-landscape.png');
 
     console.log('FinDesk v2 browser UI smoke: OK');
     console.log(`Screenshots: ${resultsDir}`);

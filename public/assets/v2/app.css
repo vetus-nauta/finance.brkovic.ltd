@@ -618,7 +618,7 @@ select {
   display: none !important;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 820px), ((hover: none) and (pointer: coarse) and (max-width: 1024px) and (max-height: 820px)) {
   .v2-shell {
     grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
     padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));

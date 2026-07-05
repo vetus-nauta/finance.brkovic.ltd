@@ -395,6 +395,68 @@ $rule = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/category-r
 ]), 'create category rule')['category_rule'];
 smokeAssert($rule['pattern'] === 'netflix', 'category rule pattern mismatch');
 
+$recalcWorkspace = expectOk(smokeRequest('POST', '/api/workspaces', [
+    'name' => 'HTTP Smoke Recalculation Workspace',
+    'type' => 'yacht',
+    'currency' => 'EUR',
+    'locale' => 'ru',
+    'opening_cash' => '1000.00',
+]), 'create recalculation workspace')['workspace'];
+$recalcWorkspaceId = (string)$recalcWorkspace['id'];
+$recalcFlows = expectOk(smokeRequest('GET', "/api/workspaces/{$recalcWorkspaceId}/flows"), 'list recalculation flows')['flows'];
+$recalcCashFlow = null;
+foreach ($recalcFlows as $flow) {
+    if (($flow['type'] ?? '') === 'cash') {
+        $recalcCashFlow = $flow;
+        break;
+    }
+}
+smokeAssert(is_array($recalcCashFlow), 'recalculation cash flow missing');
+$recalcFirst = expectOk(smokeRequest('POST', "/api/workspaces/{$recalcWorkspaceId}/entries", [
+    'flow_id' => $recalcCashFlow['id'],
+    'date' => '2026-07-01',
+    'raw_text' => '-100 fuel',
+]), 'create recalculation first entry')['entry'];
+$recalcThird = expectOk(smokeRequest('POST', "/api/workspaces/{$recalcWorkspaceId}/entries", [
+    'flow_id' => $recalcCashFlow['id'],
+    'date' => '2026-07-03',
+    'raw_text' => '-100 food',
+]), 'create recalculation third entry')['entry'];
+$recalcSecond = expectOk(smokeRequest('POST', "/api/workspaces/{$recalcWorkspaceId}/entries", [
+    'flow_id' => $recalcCashFlow['id'],
+    'date' => '2026-07-02',
+    'raw_text' => '+500 topup',
+]), 'create recalculation middle entry')['entry'];
+$recalcEntries = expectOk(smokeRequest('GET', "/api/workspaces/{$recalcWorkspaceId}/entries"), 'list recalculation entries')['entries'];
+$recalcById = [];
+foreach ($recalcEntries as $candidate) {
+    $recalcById[(string)$candidate['id']] = $candidate;
+}
+smokeAssertAmount($recalcById[(string)$recalcFirst['id']]['balance_after'], 900.0, 'recalculation first balance after insert');
+smokeAssertAmount($recalcById[(string)$recalcSecond['id']]['balance_after'], 1400.0, 'recalculation second balance after insert');
+smokeAssertAmount($recalcById[(string)$recalcThird['id']]['balance_after'], 1300.0, 'recalculation third balance after insert');
+expectOk(smokeRequest('PATCH', '/api/entries/' . $recalcThird['id'], [
+    'flow_id' => $recalcCashFlow['id'],
+    'date' => '2026-07-03',
+    'raw_text' => '-200 food corrected',
+]), 'update recalculation third entry');
+$recalcAfterUpdate = expectOk(smokeRequest('GET', "/api/workspaces/{$recalcWorkspaceId}/entries"), 'list recalculation entries after update')['entries'];
+$recalcById = [];
+foreach ($recalcAfterUpdate as $candidate) {
+    $recalcById[(string)$candidate['id']] = $candidate;
+}
+smokeAssertAmount($recalcById[(string)$recalcThird['id']]['balance_after'], 1200.0, 'recalculation third balance after update');
+smokeAssertAmount(expectOk(smokeRequest('GET', "/api/workspaces/{$recalcWorkspaceId}/summary"), 'recalculation summary after update')['summary']['cash_now'], 1200.0, 'recalculation cash now after update');
+expectOk(smokeRequest('DELETE', '/api/entries/' . $recalcSecond['id']), 'delete recalculation middle entry');
+$recalcAfterDelete = expectOk(smokeRequest('GET', "/api/workspaces/{$recalcWorkspaceId}/entries"), 'list recalculation entries after delete')['entries'];
+$recalcById = [];
+foreach ($recalcAfterDelete as $candidate) {
+    $recalcById[(string)$candidate['id']] = $candidate;
+}
+smokeAssert(!isset($recalcById[(string)$recalcSecond['id']]), 'recalculation deleted middle entry still visible');
+smokeAssertAmount($recalcById[(string)$recalcThird['id']]['balance_after'], 700.0, 'recalculation third balance after delete');
+smokeAssertAmount(expectOk(smokeRequest('GET', "/api/workspaces/{$recalcWorkspaceId}/summary"), 'recalculation summary after delete')['summary']['cash_now'], 700.0, 'recalculation cash now after delete');
+
 $reportWorkspace = expectOk(smokeRequest('POST', '/api/workspaces', [
     'name' => 'HTTP Smoke Report Workspace',
     'type' => 'yacht',
@@ -547,6 +609,7 @@ $xlsxPath = smokeCreateXlsx([
     ['2026-07-05', 'какая-то штука', '', '50', '', '', '', ''],
     ['2026-07-06', 'card refund', '', '', '', '25', '', ''],
     ['2026-07-07', 'информационная строка', '', '', '', '', '', ''],
+    ['2026-07-08', 'ambiguous two money columns', '100', '50', '', '', '', ''],
     ['2026-07-01', 'fuel marina', '', '200', '', '', '', ''],
     ['2026-07-31', 'Сводные данные', '6300', '250', '', '25', '1060', 'summary'],
 ]);
@@ -567,11 +630,12 @@ expectError(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/"
 ], true, $viewerToken), 403, 'workspace_read_only', 'viewer accept excel import');
 smokeAssert($importUpload['include_decision'] === 'included', 'import should be included');
 smokeAssert($importUpload['sheets_scanned'] === 1, 'import sheets scanned mismatch');
-smokeAssert($importUpload['rows_scanned'] === 11, 'import rows scanned mismatch');
+smokeAssert($importUpload['rows_scanned'] === 12, 'import rows scanned mismatch');
 smokeAssert($importUpload['rows_parsed'] === 9, 'import rows parsed mismatch');
 smokeAssert($importUpload['entries_created'] === 0, 'entries should not be created before accept');
 smokeAssert($importUpload['summary_rows_ignored'] === 1, 'summary row ignored mismatch');
 smokeAssert($importUpload['rows_ignored'] === 1, 'info row ignored mismatch');
+smokeAssert($importUpload['rows_unrecognized'] === 1, 'unrecognized import row should be reported');
 smokeAssert(count($importUpload['duplicate_suspects']) === 1, 'duplicate suspect should be reported');
 smokeAssertAmount($importUpload['source_summary_totals']['cash_income'], 6300.0, 'source summary cash income');
 smokeAssertAmount($importUpload['source_summary_totals']['cash_expense'], 250.0, 'source summary cash expense');
@@ -581,12 +645,14 @@ smokeAssertAmount($importUpload['source_summary_totals']['card_expense'], 1060.0
 $importId = (string)$importUpload['import_id'];
 $reviewBeforeAccept = expectOk(smokeRequest('GET', "/api/workspaces/{$importWorkspaceId}/imports/{$importId}/review"), 'import review before accept')['review'];
 smokeAssert($reviewBeforeAccept['entries_created'] === 0, 'review before accept should not have entries');
-smokeAssert(count($reviewBeforeAccept['row_traces']) === 11, 'row trace count before accept mismatch');
+smokeAssert(count($reviewBeforeAccept['row_traces']) === 12, 'row trace count before accept mismatch');
+smokeAssert($reviewBeforeAccept['rows_unrecognized'] === 1, 'review before accept unrecognized row mismatch');
 
 $acceptedImport = expectOk(smokeRequest('POST', "/api/workspaces/{$importWorkspaceId}/imports/{$importId}/accept", [
     'decision' => 'accept',
 ]), 'accept excel import')['review'];
 smokeAssert($acceptedImport['entries_created'] === 9, 'accepted import entry count mismatch');
+smokeAssert($acceptedImport['rows_unrecognized'] === 1, 'accepted import unrecognized row mismatch');
 smokeAssertAmount($acceptedImport['normalized_totals']['cash_income'], 6300.0, 'accepted normalized cash income');
 smokeAssertAmount($acceptedImport['normalized_totals']['cash_expense'], 250.0, 'accepted normalized cash expense');
 smokeAssertAmount($acceptedImport['normalized_totals']['card_income'], 25.0, 'accepted normalized card income');
@@ -600,6 +666,15 @@ $dateSources = array_fill_keys(array_map(static fn (array $trace): ?string => $t
 smokeAssert(isset($dateSources['filename_date']), 'import review missing filename_date provenance');
 smokeAssert(isset($dateSources['inherited_previous_row_date']), 'import review missing inherited date provenance');
 smokeAssert(isset($dateSources['row_date']), 'import review missing row_date provenance');
+$unrecognizedTrace = null;
+foreach ($acceptedImport['row_traces'] as $trace) {
+    if (($trace['parse_status'] ?? null) === 'unrecognized') {
+        $unrecognizedTrace = $trace;
+        break;
+    }
+}
+smokeAssert(is_array($unrecognizedTrace), 'accepted import missing unrecognized trace');
+smokeAssert(($unrecognizedTrace['parse_notes'] ?? null) === 'multiple money columns in one row', 'accepted import unrecognized notes mismatch');
 
 $importEntries = expectOk(smokeRequest('GET', "/api/workspaces/{$importWorkspaceId}/entries?year=2026&month=7"), 'import entries after accept')['entries'];
 smokeAssert(count($importEntries) === 9, 'import entries visible count mismatch');

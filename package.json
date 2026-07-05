@@ -7,6 +7,7 @@
     "check:atlas": "node scripts/atlas_connection_smoke.js",
     "audit:cash": "node scripts/cash_session_math_audit.js",
     "smoke:v2": "php scripts/v2_clean_core_static_smoke.php",
+    "smoke:v2:auth": "bash scripts/v2_auth_security_smoke.sh",
     "smoke:v2:db": "bash scripts/v2_disposable_db_smoke.sh",
     "smoke:v2:http": "bash scripts/v2_http_api_smoke.sh",
     "smoke:v2:ui": "bash scripts/v2_operational_ui_smoke.sh",
