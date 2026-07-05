@@ -50,6 +50,18 @@ final class FinDeskV2Api
             return ['ok' => true, 'summary' => $this->repo->getWorkspaceSummary($match[1], $userId)];
         }
 
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/reports/monthly$#i', $route, $match) === 1 && $method === 'GET') {
+            return ['ok' => true, 'report' => $this->repo->getMonthlyReport($match[1], $query, $userId)];
+        }
+
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/reports/category-matrix$#i', $route, $match) === 1 && $method === 'GET') {
+            return ['ok' => true, 'matrix' => $this->repo->getCategoryMatrixReport($match[1], $query, $userId)];
+        }
+
+        if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/reports/other-review$#i', $route, $match) === 1 && $method === 'GET') {
+            return ['ok' => true, 'report' => $this->repo->getOtherReviewReport($match[1], $userId)];
+        }
+
         if (preg_match('#^/api/workspaces/([a-f0-9-]{36})/other-expenses$#i', $route, $match) === 1 && $method === 'GET') {
             return ['ok' => true, 'entries' => $this->repo->listOtherExpenseQueue($match[1], $userId)];
         }

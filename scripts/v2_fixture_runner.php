@@ -522,5 +522,107 @@ runFixture($report, 'Parse preview', function () use ($repo, $workspace, $cashFl
     return 'parse preview returns normalized output without saving';
 });
 
+runFixture($report, 'Generated monthly reports', function () use ($repo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Generated Report Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $flows = $repo->listFlows($workspace['id'], $userId);
+    $cashFlow = byFlowType($flows, 'cash');
+    $cardFlow = byFlowType($flows, 'card');
+
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-06-30',
+        'raw_text' => '+200 prior month topup',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-01',
+        'raw_text' => '+300 private topup',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-02',
+        'raw_text' => '+5000 charter deposit',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-03',
+        'raw_text' => '-200 fuel',
+    ], $userId);
+    $other = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-04',
+        'raw_text' => '-50 какая-то штука',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cardFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-1000 снял с карты',
+        'category_code' => 'cash_topup_from_card',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+1000 снял с карты',
+        'category_code' => 'cash_topup_from_card',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cardFlow['id'],
+        'date' => '2026-07-06',
+        'raw_text' => '-60 Netflix',
+    ], $userId);
+    $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-07',
+        'raw_text' => '250 ignored no sign',
+        'amount' => '250.00',
+        'status' => 'recognized',
+    ], $userId);
+    $repo->closeMonthForFixture($workspace['id'], 2026, 7, $userId);
+
+    $monthly = $repo->getMonthlyReport($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
+    assertSameValue($monthly['month_key'], '2026-07', 'monthly report key');
+    assertSameValue($monthly['is_closed'], true, 'monthly report closed flag');
+    assertAmount($monthly['opening_cash'], 1200.0, 'monthly opening cash');
+    assertAmount($monthly['external_cash_income'], 300.0, 'monthly external cash income');
+    assertAmount($monthly['commercial_income'], 5000.0, 'monthly commercial income');
+    assertAmount($monthly['cash_expense'], 250.0, 'monthly cash expense');
+    assertAmount($monthly['card_expense'], 1060.0, 'monthly card expense');
+    assertAmount($monthly['cash_topup_from_card_card_side'], 1000.0, 'monthly card topup side');
+    assertAmount($monthly['cash_topup_from_card_cash_side'], 1000.0, 'monthly cash topup side');
+    assertAmount($monthly['other_expenses'], 50.0, 'monthly other expenses');
+    assertAmount($monthly['ending_cash'], 7250.0, 'monthly ending cash');
+    assertSameValue($monthly['counts']['entries'], 8, 'monthly entries count');
+    assertSameValue($monthly['counts']['counted'], 7, 'monthly counted count');
+    assertSameValue($monthly['counts']['unrecognized'], 1, 'monthly unrecognized count');
+    assertSameValue($monthly['counts']['other_review'], 1, 'monthly other review count');
+
+    $matrix = $repo->getCategoryMatrixReport($workspace['id'], ['year' => 2026], $userId);
+    $rows = [];
+    foreach ($matrix['rows'] as $row) {
+        $rows[$row['category_code']] = $row;
+    }
+
+    assertAmount($rows['fuel']['months']['7'], 200.0, 'category matrix fuel July');
+    assertAmount($rows['commercial_income']['months']['7'], 5000.0, 'category matrix commercial July');
+    assertAmount($rows['cash_topup_from_card']['months']['7'], 2000.0, 'category matrix topup July');
+    assertAmount($rows['other']['months']['7'], 50.0, 'category matrix other July');
+    assertAmount($rows['media_comms']['months']['7'], 60.0, 'category matrix media July');
+    fixtureAssert(isset($rows['cash_topup_from_card']['breakdown']['7']['card:out']), 'category matrix missing card topup side');
+    fixtureAssert(isset($rows['cash_topup_from_card']['breakdown']['7']['cash:in']), 'category matrix missing cash topup side');
+
+    $otherReport = $repo->getOtherReviewReport($workspace['id'], $userId);
+    assertSameValue($otherReport['count'], 1, 'other review report count');
+    assertAmount($otherReport['total'], 50.0, 'other review report total');
+    assertSameValue($otherReport['entries'][0]['id'], $other['id'], 'other review report entry');
+
+    return 'monthly report, category matrix, and other-review report are generated from operational entries';
+});
+
 $report->print();
 exit($report->hasFailures() ? 1 : 0);

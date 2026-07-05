@@ -180,7 +180,7 @@ final class FinDeskV2Repository
                   AND archived_at IS NULL
                   AND direction = 'out'
                   AND entry_type = 'card_expense'
-                  AND status IN ('recognized', 'other_review', 'imported', 'accepted')
+                  AND status IN (" . $this->countedStatusSqlList() . ")
                   AND amount IS NOT NULL
             ");
             $stmt->execute($cardFlowIds);
@@ -192,6 +192,222 @@ final class FinDeskV2Repository
             'opening_cash' => $cashFlow === null ? null : $cashFlow['opening_balance'],
             'cash_now' => $cashNow,
             'card_expense_total' => $cardExpenseTotal,
+        ];
+    }
+
+    public function getMonthlyReport(string $workspaceId, array $query, int $userId): array
+    {
+        $this->getWorkspace($workspaceId, $userId);
+        $year = $this->optionalInt($query, 'year', (int)date('Y'));
+        $month = $this->optionalInt($query, 'month', (int)date('n'));
+        $this->assertValidMonth($year, $month);
+
+        $monthStart = sprintf('%04d-%02d-01', $year, $month);
+        $monthEnd = (new DateTimeImmutable($monthStart))->modify('first day of next month')->format('Y-m-d');
+        $cashFlow = $this->cashFlowForWorkspace($workspaceId, $userId);
+        $openingCash = $cashFlow === null
+            ? null
+            : (float)$cashFlow['opening_balance'] + $this->cashDeltaBefore($cashFlow['id'], $monthStart);
+
+        $report = [
+            'workspace_id' => $workspaceId,
+            'year' => $year,
+            'month' => $month,
+            'month_key' => sprintf('%04d-%02d', $year, $month),
+            'source_files' => $this->sourceFilesForMonth($workspaceId, $monthStart, $monthEnd),
+            'opening_cash' => $openingCash,
+            'discrepancy_with_previous' => 0.0,
+            'external_cash_income' => 0.0,
+            'commercial_income' => 0.0,
+            'cash_expense' => 0.0,
+            'card_expense' => 0.0,
+            'cash_topup_from_card_card_side' => 0.0,
+            'cash_topup_from_card_cash_side' => 0.0,
+            'other_expenses' => 0.0,
+            'corrections' => 0.0,
+            'ending_cash' => $openingCash,
+            'comment' => null,
+            'is_closed' => false,
+            'counts' => [
+                'entries' => 0,
+                'counted' => 0,
+                'unrecognized' => 0,
+                'other_review' => 0,
+            ],
+        ];
+
+        $entries = $this->db->prepare("
+            SELECT
+                e.amount,
+                e.direction,
+                e.entry_type,
+                e.status,
+                f.type AS flow_type,
+                c.code AS category_code
+            FROM v2_entries e
+            INNER JOIN v2_flows f ON f.id = e.flow_id
+            LEFT JOIN v2_categories c ON c.id = e.category_id
+            WHERE e.workspace_id = ?
+              AND e.archived_at IS NULL
+              AND e.date >= ?
+              AND e.date < ?
+        ");
+        $entries->execute([$workspaceId, $monthStart, $monthEnd]);
+
+        $monthCashDelta = 0.0;
+        foreach ($entries->fetchAll() as $entry) {
+            $report['counts']['entries']++;
+            if ((string)$entry['status'] === 'unrecognized') {
+                $report['counts']['unrecognized']++;
+            }
+            if ((string)$entry['status'] === 'other_review') {
+                $report['counts']['other_review']++;
+            }
+
+            if (!$this->isCountedStatus((string)$entry['status']) || $entry['amount'] === null) {
+                continue;
+            }
+
+            $report['counts']['counted']++;
+            $amount = (float)$entry['amount'];
+            $flowType = (string)$entry['flow_type'];
+            $direction = (string)$entry['direction'];
+            $entryType = (string)$entry['entry_type'];
+            $categoryCode = (string)($entry['category_code'] ?? '');
+
+            if ($flowType === 'cash') {
+                $cashDelta = $this->cashBalanceDelta($entry);
+                if ($cashDelta !== null) {
+                    $monthCashDelta += $cashDelta;
+                }
+            }
+
+            if ($flowType === 'cash' && $direction === 'in' && $entryType === 'cash_income') {
+                if ($categoryCode === 'commercial_income') {
+                    $report['commercial_income'] += $amount;
+                } elseif ($categoryCode === 'cash_topup_from_card') {
+                    $report['cash_topup_from_card_cash_side'] += $amount;
+                } else {
+                    $report['external_cash_income'] += $amount;
+                }
+            }
+
+            if ($flowType === 'cash' && $direction === 'out' && $entryType === 'cash_expense') {
+                $report['cash_expense'] += $amount;
+            }
+
+            if ($flowType === 'card' && $direction === 'out' && $entryType === 'card_expense') {
+                $report['card_expense'] += $amount;
+                if ($categoryCode === 'cash_topup_from_card') {
+                    $report['cash_topup_from_card_card_side'] += $amount;
+                }
+            }
+
+            if ($direction === 'out' && $categoryCode === 'other') {
+                $report['other_expenses'] += $amount;
+            }
+
+            if ($entryType === 'correction') {
+                $report['corrections'] += $direction === 'out' ? -$amount : $amount;
+            }
+        }
+
+        if ($openingCash !== null) {
+            $report['ending_cash'] = $openingCash + $monthCashDelta;
+        }
+
+        $closure = $this->monthClosure($workspaceId, $year, $month);
+        if ($closure !== null) {
+            $report['is_closed'] = (int)$closure['is_closed'] === 1;
+            $report['comment'] = $closure['comment'] === null ? null : (string)$closure['comment'];
+            if ($closure['opening_balance'] !== null) {
+                $report['discrepancy_with_previous'] = $openingCash === null
+                    ? 0.0
+                    : (float)$closure['opening_balance'] - $openingCash;
+            }
+        }
+
+        return $report;
+    }
+
+    public function getCategoryMatrixReport(string $workspaceId, array $query, int $userId): array
+    {
+        $this->getWorkspace($workspaceId, $userId);
+        $year = $this->optionalInt($query, 'year', (int)date('Y'));
+        $months = array_fill_keys(array_map('strval', range(1, 12)), 0.0);
+        $rows = [];
+
+        foreach ($this->listCategories($workspaceId, $userId) as $category) {
+            $rows[$category['code']] = [
+                'category_code' => $category['code'],
+                'category_name' => $category['name'],
+                'direction' => $category['direction'],
+                'months' => $months,
+                'breakdown' => [],
+                'total' => 0.0,
+            ];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT
+                MONTH(e.date) AS report_month,
+                f.type AS flow_type,
+                e.direction,
+                c.code AS category_code,
+                COALESCE(SUM(e.amount), 0) AS total
+            FROM v2_entries e
+            INNER JOIN v2_flows f ON f.id = e.flow_id
+            INNER JOIN v2_categories c ON c.id = e.category_id
+            WHERE e.workspace_id = ?
+              AND e.archived_at IS NULL
+              AND YEAR(e.date) = ?
+              AND e.amount IS NOT NULL
+              AND e.status IN (" . $this->countedStatusSqlList() . ")
+            GROUP BY MONTH(e.date), f.type, e.direction, c.code
+            ORDER BY c.code ASC, report_month ASC, f.type ASC, e.direction ASC
+        ");
+        $stmt->execute([$workspaceId, $year]);
+
+        foreach ($stmt->fetchAll() as $row) {
+            $categoryCode = (string)$row['category_code'];
+            if (!isset($rows[$categoryCode])) {
+                continue;
+            }
+
+            $month = (string)(int)$row['report_month'];
+            $flowType = (string)$row['flow_type'];
+            $direction = (string)$row['direction'];
+            $total = (float)$row['total'];
+            $breakdownKey = "{$flowType}:{$direction}";
+
+            $rows[$categoryCode]['months'][$month] += $total;
+            $rows[$categoryCode]['total'] += $total;
+            $rows[$categoryCode]['breakdown'][$month][$breakdownKey] = $total;
+        }
+
+        return [
+            'workspace_id' => $workspaceId,
+            'year' => $year,
+            'months' => range(1, 12),
+            'rows' => array_values($rows),
+        ];
+    }
+
+    public function getOtherReviewReport(string $workspaceId, int $userId): array
+    {
+        $entries = $this->listOtherExpenseQueue($workspaceId, $userId);
+        $total = 0.0;
+        foreach ($entries as $entry) {
+            if ($entry['amount'] !== null) {
+                $total += (float)$entry['amount'];
+            }
+        }
+
+        return [
+            'workspace_id' => $workspaceId,
+            'count' => count($entries),
+            'total' => $total,
+            'entries' => $entries,
         ];
     }
 
@@ -623,6 +839,101 @@ final class FinDeskV2Repository
         }
     }
 
+    private function countedStatuses(): array
+    {
+        return ['recognized', 'other_review', 'imported', 'accepted', 'corrected'];
+    }
+
+    private function countedStatusSqlList(): string
+    {
+        return "'" . implode("', '", $this->countedStatuses()) . "'";
+    }
+
+    private function isCountedStatus(string $status): bool
+    {
+        return in_array($status, $this->countedStatuses(), true);
+    }
+
+    private function cashFlowForWorkspace(string $workspaceId, int $userId): ?array
+    {
+        foreach ($this->listFlows($workspaceId, $userId) as $flow) {
+            if ($flow['type'] === 'cash' && $flow['has_live_balance']) {
+                return $flow;
+            }
+        }
+
+        return null;
+    }
+
+    private function cashDeltaBefore(string $flowId, string $beforeDate): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT amount, direction, entry_type, status
+            FROM v2_entries
+            WHERE flow_id = ?
+              AND archived_at IS NULL
+              AND date < ?
+            ORDER BY date ASC, created_seq ASC
+        ");
+        $stmt->execute([$flowId, $beforeDate]);
+
+        $delta = 0.0;
+        foreach ($stmt->fetchAll() as $entry) {
+            $entryDelta = $this->cashBalanceDelta($entry);
+            if ($entryDelta !== null) {
+                $delta += $entryDelta;
+            }
+        }
+
+        return $delta;
+    }
+
+    private function monthClosure(string $workspaceId, int $year, int $month): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT *
+            FROM v2_monthly_closures
+            WHERE workspace_id = ? AND year = ? AND month = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$workspaceId, $year, $month]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    private function sourceFilesForMonth(string $workspaceId, string $monthStart, string $monthEnd): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT
+                s.id,
+                s.source_type,
+                s.file_name,
+                s.file_url,
+                s.file_id,
+                s.status,
+                s.include_decision
+            FROM v2_entries e
+            INNER JOIN v2_import_sources s ON s.id = e.source_id
+            WHERE e.workspace_id = ?
+              AND e.archived_at IS NULL
+              AND e.date >= ?
+              AND e.date < ?
+            ORDER BY s.file_name ASC, s.created_at ASC
+        ");
+        $stmt->execute([$workspaceId, $monthStart, $monthEnd]);
+
+        return array_map(static fn (array $row): array => [
+            'id' => (string)$row['id'],
+            'source_type' => (string)$row['source_type'],
+            'file_name' => $row['file_name'] === null ? null : (string)$row['file_name'],
+            'file_url' => $row['file_url'] === null ? null : (string)$row['file_url'],
+            'file_id' => $row['file_id'] === null ? null : (string)$row['file_id'],
+            'status' => (string)$row['status'],
+            'include_decision' => (string)$row['include_decision'],
+        ], $stmt->fetchAll());
+    }
+
     private function recalculateFlowBalance(string $flowId): void
     {
         $stmt = $this->db->prepare("SELECT * FROM v2_flows WHERE id = ? LIMIT 1");
@@ -666,7 +977,7 @@ final class FinDeskV2Repository
             return null;
         }
 
-        if (!in_array((string)$entry['status'], ['recognized', 'other_review', 'imported', 'accepted', 'corrected'], true)) {
+        if (!$this->isCountedStatus((string)$entry['status'])) {
             return null;
         }
 

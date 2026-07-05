@@ -19,6 +19,12 @@ function smokeAssert(bool $condition, string $message): void
     }
 }
 
+function smokeAssertAmount($actual, float $expected, string $message): void
+{
+    smokeAssert($actual !== null, "{$message}: expected {$expected}, got null");
+    smokeAssert(abs((float)$actual - $expected) < 0.001, "{$message}: expected {$expected}, got {$actual}");
+}
+
 function smokeDb(): PDO
 {
     $socket = (string)getenv('FINDESK_V2_HTTP_SOCKET');
@@ -37,10 +43,21 @@ function smokeCloseMonth(string $workspaceId, int $year, int $month): void
 {
     $stmt = smokeDb()->prepare("
         INSERT INTO v2_monthly_closures (id, workspace_id, year, month, is_closed, closed_by, closed_at)
-        VALUES ('00000000-0000-4000-8000-000000000409', ?, ?, ?, 1, 19001, NOW())
+        VALUES (UUID(), ?, ?, ?, 1, 19001, NOW())
         ON DUPLICATE KEY UPDATE is_closed = 1, closed_by = VALUES(closed_by), closed_at = VALUES(closed_at)
     ");
     $stmt->execute([$workspaceId, $year, $month]);
+}
+
+function smokeCloseMonthWithComment(string $workspaceId, int $year, int $month, string $comment): void
+{
+    smokeCloseMonth($workspaceId, $year, $month);
+    $stmt = smokeDb()->prepare("
+        UPDATE v2_monthly_closures
+        SET comment = ?
+        WHERE workspace_id = ? AND year = ? AND month = ?
+    ");
+    $stmt->execute([$comment, $workspaceId, $year, $month]);
 }
 
 function smokeAuditCount(string $action, string $entryId): int
@@ -76,7 +93,18 @@ function smokeRequest(string $method, string $route, ?array $body = null, bool $
         ],
     ]);
 
-    $raw = file_get_contents($base . '/v2-api.php?route=' . rawurlencode($route), false, $context);
+    $routePath = $route;
+    $routeQuery = '';
+    if (str_contains($route, '?')) {
+        [$routePath, $routeQuery] = explode('?', $route, 2);
+    }
+
+    $url = $base . '/v2-api.php?route=' . rawurlencode($routePath);
+    if ($routeQuery !== '') {
+        $url .= '&' . $routeQuery;
+    }
+
+    $raw = file_get_contents($url, false, $context);
     smokeAssert($raw !== false, "HTTP request failed: {$method} {$route}");
 
     $status = 0;
@@ -205,6 +233,125 @@ $rule = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/category-r
     'weight' => 20,
 ]), 'create category rule')['category_rule'];
 smokeAssert($rule['pattern'] === 'netflix', 'category rule pattern mismatch');
+
+$reportWorkspace = expectOk(smokeRequest('POST', '/api/workspaces', [
+    'name' => 'HTTP Smoke Report Workspace',
+    'type' => 'yacht',
+    'currency' => 'EUR',
+    'locale' => 'ru',
+    'opening_cash' => '1000.00',
+]), 'create report workspace')['workspace'];
+$reportWorkspaceId = (string)$reportWorkspace['id'];
+$reportFlows = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/flows"), 'list report flows')['flows'];
+$reportCashFlow = null;
+$reportCardFlow = null;
+foreach ($reportFlows as $flow) {
+    if (($flow['type'] ?? '') === 'cash') {
+        $reportCashFlow = $flow;
+    }
+    if (($flow['type'] ?? '') === 'card') {
+        $reportCardFlow = $flow;
+    }
+}
+smokeAssert(is_array($reportCashFlow), 'report cash flow missing');
+smokeAssert(is_array($reportCardFlow), 'report card flow missing');
+
+expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-06-30',
+    'raw_text' => '+200 prior month topup',
+]), 'create report prior month cash income');
+$reportExternal = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-07-01',
+    'raw_text' => '+300 private topup',
+]), 'create report external cash income')['entry'];
+$reportCommercial = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-07-02',
+    'raw_text' => '+5000 charter deposit',
+]), 'create report commercial income')['entry'];
+$reportFuel = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-07-03',
+    'raw_text' => '-200 fuel',
+]), 'create report fuel expense')['entry'];
+$reportOther = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-07-04',
+    'raw_text' => '-50 какая-то штука',
+]), 'create report other review')['entry'];
+$reportCardTopup = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCardFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-1000 снял с карты',
+    'category_code' => 'cash_topup_from_card',
+]), 'create report card topup side')['entry'];
+$reportCashTopup = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+1000 снял с карты',
+    'category_code' => 'cash_topup_from_card',
+]), 'create report cash topup side')['entry'];
+$reportCardMedia = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCardFlow['id'],
+    'date' => '2026-07-06',
+    'raw_text' => '-60 Netflix',
+]), 'create report card media expense')['entry'];
+$reportInvalid = expectOk(smokeRequest('POST', "/api/workspaces/{$reportWorkspaceId}/entries", [
+    'flow_id' => $reportCashFlow['id'],
+    'date' => '2026-07-07',
+    'raw_text' => '250 ignored no sign',
+    'amount' => '250.00',
+    'status' => 'recognized',
+]), 'create report invalid no-sign row')['entry'];
+
+smokeAssert($reportExternal['category_code'] === null, 'external cash income should not be commercial/topup category');
+smokeAssert($reportCommercial['category_code'] === 'commercial_income', 'commercial report category mismatch');
+smokeAssert($reportFuel['category_code'] === 'fuel', 'fuel report category mismatch');
+smokeAssert($reportOther['category_code'] === 'other' && $reportOther['status'] === 'other_review', 'other report row mismatch');
+smokeAssert($reportCardTopup['category_code'] === 'cash_topup_from_card', 'card topup category mismatch');
+smokeAssert($reportCashTopup['category_code'] === 'cash_topup_from_card', 'cash topup category mismatch');
+smokeAssert($reportCardMedia['category_code'] === 'media_comms', 'card media category mismatch');
+smokeAssert($reportInvalid['status'] === 'unrecognized' && $reportInvalid['amount'] === null, 'invalid no-sign row should not be counted');
+
+smokeCloseMonthWithComment($reportWorkspaceId, 2026, 7, 'report smoke closed month');
+$monthlyReport = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/reports/monthly?year=2026&month=7"), 'monthly report')['report'];
+smokeAssert($monthlyReport['month_key'] === '2026-07', 'monthly report key mismatch');
+smokeAssert($monthlyReport['is_closed'] === true, 'monthly report should expose closed month');
+smokeAssert($monthlyReport['comment'] === 'report smoke closed month', 'monthly report comment mismatch');
+smokeAssertAmount($monthlyReport['opening_cash'], 1200.0, 'monthly opening cash');
+smokeAssertAmount($monthlyReport['external_cash_income'], 300.0, 'monthly external cash income');
+smokeAssertAmount($monthlyReport['commercial_income'], 5000.0, 'monthly commercial income');
+smokeAssertAmount($monthlyReport['cash_expense'], 250.0, 'monthly cash expense');
+smokeAssertAmount($monthlyReport['card_expense'], 1060.0, 'monthly card expense');
+smokeAssertAmount($monthlyReport['cash_topup_from_card_card_side'], 1000.0, 'monthly card topup side');
+smokeAssertAmount($monthlyReport['cash_topup_from_card_cash_side'], 1000.0, 'monthly cash topup side');
+smokeAssertAmount($monthlyReport['other_expenses'], 50.0, 'monthly other expenses');
+smokeAssertAmount($monthlyReport['ending_cash'], 7250.0, 'monthly ending cash');
+smokeAssert(($monthlyReport['counts']['entries'] ?? null) === 8, 'monthly entries count mismatch');
+smokeAssert(($monthlyReport['counts']['counted'] ?? null) === 7, 'monthly counted count mismatch');
+smokeAssert(($monthlyReport['counts']['unrecognized'] ?? null) === 1, 'monthly unrecognized count mismatch');
+smokeAssert(($monthlyReport['counts']['other_review'] ?? null) === 1, 'monthly other_review count mismatch');
+
+$categoryMatrix = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/reports/category-matrix?year=2026"), 'category matrix report')['matrix'];
+$matrixRows = [];
+foreach ($categoryMatrix['rows'] as $row) {
+    $matrixRows[$row['category_code']] = $row;
+}
+smokeAssert(isset($matrixRows['fuel'], $matrixRows['commercial_income'], $matrixRows['cash_topup_from_card'], $matrixRows['other'], $matrixRows['media_comms']), 'category matrix missing required rows');
+smokeAssertAmount($matrixRows['fuel']['months']['7'], 200.0, 'matrix fuel July');
+smokeAssertAmount($matrixRows['commercial_income']['months']['7'], 5000.0, 'matrix commercial July');
+smokeAssertAmount($matrixRows['cash_topup_from_card']['months']['7'], 2000.0, 'matrix card-to-cash July');
+smokeAssertAmount($matrixRows['other']['months']['7'], 50.0, 'matrix other July');
+smokeAssertAmount($matrixRows['media_comms']['months']['7'], 60.0, 'matrix media July');
+smokeAssert(($matrixRows['cash_topup_from_card']['breakdown']['7']['card:out'] ?? null) !== null, 'matrix topup card side missing');
+smokeAssert(($matrixRows['cash_topup_from_card']['breakdown']['7']['cash:in'] ?? null) !== null, 'matrix topup cash side missing');
+
+$otherReviewReport = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/reports/other-review"), 'other review report')['report'];
+smokeAssert($otherReviewReport['count'] === 1, 'other review report count mismatch');
+smokeAssertAmount($otherReviewReport['total'], 50.0, 'other review report total');
+smokeAssert((string)$otherReviewReport['entries'][0]['id'] === (string)$reportOther['id'], 'other review report entry mismatch');
 
 expectOk(smokeRequest('DELETE', '/api/entries/' . $entry['id']), 'delete entry');
 $entriesAfterDelete = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after delete')['entries'];
