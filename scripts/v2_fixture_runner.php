@@ -416,11 +416,21 @@ runFixture($report, 'Fixture 5 - Commercial income', function () use ($repo, $wo
     return 'commercial_income can be explicitly assigned, totals 5750, and does not alter opening cash seed';
 });
 
-runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $workspace, $cashFlow, $userId): string {
+runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $workspace, $cashFlow, $cardFlow, $userId): string {
     $entry = $repo->createEntry($workspace['id'], [
         'flow_id' => $cashFlow['id'],
         'date' => '2026-07-05',
         'raw_text' => '-180 какая-то штука',
+    ], $userId);
+    $englishOther = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-19 other expense manual queue',
+    ], $userId);
+    $unknownOther = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-21 unknown_expense manual queue',
     ], $userId);
     $nonOtherCategory = $repo->createEntry($workspace['id'], [
         'flow_id' => $cashFlow['id'],
@@ -434,6 +444,21 @@ runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $works
         'category_code' => 'other',
         'status' => 'recognized',
     ], $userId);
+    $cashIncomeUnknown = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+19 unknown_expense income boundary',
+    ], $userId);
+    $cardOther = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cardFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-19 other expense card boundary',
+    ], $userId);
+    $noSignMisc = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '19 misc no sign boundary',
+    ], $userId);
     $archivedOther = $repo->createEntry($workspace['id'], [
         'flow_id' => $cashFlow['id'],
         'date' => '2026-07-05',
@@ -445,10 +470,22 @@ runFixture($report, 'Fixture 6 - Other expenses', function () use ($repo, $works
     assertSameValue($entry['status'], 'other_review', 'other expense status');
     assertSameValue($entry['entry_type'], 'cash_expense', 'other expense type');
     assertAmount($entry['amount'], 180.0, 'other expense amount');
+    assertSameValue($englishOther['category_code'], 'other', 'english other expense category');
+    assertSameValue($englishOther['status'], 'other_review', 'english other expense status');
+    assertSameValue($unknownOther['category_code'], 'other', 'unknown_expense category');
+    assertSameValue($unknownOther['status'], 'other_review', 'unknown_expense status');
+    fixtureAssert($cashIncomeUnknown['status'] !== 'other_review', 'cash + unknown_expense should not enter other_review');
+    fixtureAssert($cashIncomeUnknown['category_code'] !== 'other', 'cash + unknown_expense should not become other');
+    fixtureAssert($cardOther['status'] !== 'other_review', 'card other expense should not enter cash other_review');
+    fixtureAssert($cardOther['category_code'] !== 'other', 'card other expense should not become cash other');
+    assertSameValue($noSignMisc['status'], 'unrecognized', 'no-sign misc should remain unrecognized');
+    assertSameValue($noSignMisc['category_code'], null, 'no-sign misc should not become other');
     fixtureAssert(entryIsVisible($repo, $workspace['id'], $userId, $entry['id']), 'other expense row is not visible in feed');
     $queue = $repo->listOtherExpenseQueue($workspace['id'], $userId);
-    fixtureAssert(count($queue) === 1, 'other expense queue count mismatch');
-    assertSameValue($queue[0]['id'], $entry['id'], 'other expense queue entry mismatch');
+    fixtureAssert(count($queue) === 3, 'other expense queue count mismatch');
+    assertSameValue($queue[0]['id'], $entry['id'], 'other expense queue first entry mismatch');
+    assertSameValue($queue[1]['id'], $englishOther['id'], 'other expense queue english entry mismatch');
+    assertSameValue($queue[2]['id'], $unknownOther['id'], 'other expense queue unknown entry mismatch');
     fixtureAssert($nonOtherCategory['category_code'] !== 'other', 'negative fixture should not be other category');
     fixtureAssert($manualRecognizedOther['status'] === 'recognized', 'manual recognized other status mismatch');
 

@@ -359,10 +359,49 @@ $otherEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entr
 ]), 'create other expense')['entry'];
 smokeAssert($otherEntry['status'] === 'other_review', 'other expense status mismatch');
 smokeAssert($otherEntry['category_code'] === 'other', 'other expense category mismatch');
+$englishOtherEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-19 other expense manual queue',
+]), 'create english other expense')['entry'];
+smokeAssert($englishOtherEntry['status'] === 'other_review', 'english other expense status mismatch');
+smokeAssert($englishOtherEntry['category_code'] === 'other', 'english other expense category mismatch');
+$unknownOtherEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-21 unknown_expense manual queue',
+]), 'create unknown_expense other expense')['entry'];
+smokeAssert($unknownOtherEntry['status'] === 'other_review', 'unknown_expense other expense status mismatch');
+smokeAssert($unknownOtherEntry['category_code'] === 'other', 'unknown_expense other expense category mismatch');
+$cashIncomeUnknownEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '+19 unknown_expense income boundary',
+]), 'create cash income unknown_expense boundary')['entry'];
+smokeAssert($cashIncomeUnknownEntry['status'] !== 'other_review', 'cash + unknown_expense should not enter other_review');
+smokeAssert($cashIncomeUnknownEntry['category_code'] !== 'other', 'cash + unknown_expense should not become other');
+expectOk(smokeRequest('DELETE', '/api/entries/' . $cashIncomeUnknownEntry['id']), 'archive cash income unknown_expense boundary');
+$cardOtherEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cardFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-19 other expense card boundary',
+]), 'create card other expense boundary')['entry'];
+smokeAssert($cardOtherEntry['status'] !== 'other_review', 'card other expense should not enter cash other_review');
+smokeAssert($cardOtherEntry['category_code'] !== 'other', 'card other expense should not become cash other');
+expectOk(smokeRequest('DELETE', '/api/entries/' . $cardOtherEntry['id']), 'archive card other expense boundary');
+$noSignMiscEntry = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/entries", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '19 misc no sign boundary',
+]), 'create no-sign misc boundary')['entry'];
+smokeAssert($noSignMiscEntry['status'] === 'unrecognized', 'no-sign misc should remain unrecognized');
+smokeAssert($noSignMiscEntry['category_code'] === null, 'no-sign misc should not become other');
 
 $otherQueue = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/other-expenses"), 'other expenses queue')['entries'];
-smokeAssert(count($otherQueue) === 1, 'other expenses queue count mismatch');
+smokeAssert(count($otherQueue) === 3, 'other expenses queue count mismatch');
 smokeAssert((string)$otherQueue[0]['id'] === (string)$otherEntry['id'], 'other expenses queue entry mismatch');
+smokeAssert((string)$otherQueue[1]['id'] === (string)$englishOtherEntry['id'], 'other expenses queue english entry mismatch');
+smokeAssert((string)$otherQueue[2]['id'] === (string)$unknownOtherEntry['id'], 'other expenses queue unknown_expense entry mismatch');
 
 $resolvedOther = expectOk(smokeRequest('PATCH', '/api/entries/' . $otherEntry['id'] . '/category', [
     'category_code' => 'tech_parts',
@@ -370,8 +409,9 @@ $resolvedOther = expectOk(smokeRequest('PATCH', '/api/entries/' . $otherEntry['i
 smokeAssert($resolvedOther['category_code'] === 'tech_parts', 'resolved other category mismatch');
 smokeAssert($resolvedOther['status'] === 'recognized', 'resolved other status mismatch');
 $otherQueueAfterResolve = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/other-expenses"), 'other expenses queue after resolve')['entries'];
-smokeAssert(count($otherQueueAfterResolve) === 0, 'other expenses queue should be empty after category correction');
+smokeAssert(count($otherQueueAfterResolve) === 2, 'other expenses queue should keep unresolved other entries after one correction');
 
+$entriesBeforePreview = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries before preview')['entries'];
 $preview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
     'flow_id' => $cashFlow['id'],
     'date' => '2026-07-05',
@@ -381,7 +421,7 @@ smokeAssert($preview['will_save'] === false, 'preview must not save');
 smokeAssert($preview['entry_type'] === 'cash_income', 'preview entry type mismatch');
 
 $entriesAfterPreview = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/entries"), 'list entries after preview')['entries'];
-smokeAssert(count($entriesAfterPreview) === 3, 'parse preview persisted an entry');
+smokeAssert(count($entriesAfterPreview) === count($entriesBeforePreview), 'parse preview persisted an entry');
 
 $patched = expectOk(smokeRequest('PATCH', '/api/entries/' . $entry['id'] . '/category', [
     'category_code' => 'media_comms',

@@ -2247,7 +2247,11 @@ final class FinDeskV2Repository
         } elseif (preg_match('/аванс/u', $text) === 1 && $this->extractActorName($rawText) !== null && $sign === '-') {
             $categoryCode = 'crew';
             $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'actor_advance', 'category_code' => 'crew'];
-        } elseif (preg_match('/какая-то штука|kakaya/u', $text) === 1 && $flow['type'] === 'cash' && $sign === '-') {
+        } elseif (
+            preg_match('/какая-то штука|kakaya|\b(other|unknown|unclear|misc)(?:[_ -]?expense)?\b|проче|друго|неизвест/u', $text) === 1
+            && $flow['type'] === 'cash'
+            && $sign === '-'
+        ) {
             $categoryCode = 'other';
             $status = 'other_review';
             $matchedRules[] = ['source' => 'fixture_fallback', 'pattern' => 'unknown_expense', 'category_code' => 'other'];
