@@ -201,6 +201,39 @@ function matchedRuleHas(array $entry, string $key, string $value): bool
     return false;
 }
 
+function semanticMarkerHas(array $entry, string $marker, ?string $key = null, ?string $value = null): bool
+{
+    foreach ($entry['semantic_markers'] ?? [] as $item) {
+        if (!is_array($item) || ($item['marker'] ?? null) !== $marker) {
+            continue;
+        }
+        if ($key === null) {
+            return true;
+        }
+        if (($item[$key] ?? null) === $value) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function classificationSignalHas(array $entry, string $key, string $value): bool
+{
+    foreach ($entry['matched_signals'] ?? [] as $signal) {
+        if (is_array($signal) && ($signal[$key] ?? null) === $value) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function classificationBlockerHas(array $entry, string $blocker): bool
+{
+    return in_array($blocker, $entry['blockers'] ?? [], true);
+}
+
 function fixtureAuditCount(PDO $pdo, string $entityType, string $entityId, string $action): int
 {
     $stmt = $pdo->prepare("
@@ -211,6 +244,16 @@ function fixtureAuditCount(PDO $pdo, string $entityType, string $entityId, strin
     $stmt->execute([$entityType, $entityId, $action]);
 
     return (int)$stmt->fetchColumn();
+}
+
+function fixtureTableCounts(PDO $pdo, array $tables): array
+{
+    $counts = [];
+    foreach ($tables as $table) {
+        $counts[$table] = (int)$pdo->query("SELECT COUNT(*) FROM `{$table}`")->fetchColumn();
+    }
+
+    return $counts;
 }
 
 function addFixtureWorkspaceMember(PDO $pdo, string $workspaceId, int $memberUserId, string $role): void
@@ -279,7 +322,7 @@ $cashFlow = byFlowType($flows, 'cash');
 $cardFlow = byFlowType($flows, 'card');
 $categories = categoryCodes($repo->listCategories($workspace['id'], $userId));
 
-foreach (['commercial_income', 'media_comms', 'cash_topup_from_card', 'other', 'fuel', 'tech_parts'] as $categoryCode) {
+foreach (['commercial_income', 'non_commercial_income', 'media_comms', 'cash_topup_from_card', 'other', 'fuel', 'tech_parts', 'representation_expenses', 'current_boat_expenses', 'guest_trip_support', 'guest_cash_issued'] as $categoryCode) {
     assertCategoryExists($categories, $categoryCode);
 }
 
@@ -534,7 +577,165 @@ runFixture($report, 'Fixture 8 - Person is actor, not category', function () use
 
     return 'Вова is extracted as actor; category follows transaction context, not person name alone';
 });
-runFixture($report, 'Fixture 9 - Month insertion recalculation', function () use ($repo, $userId): string {
+
+runFixture($report, 'Fixture 9 - Semantic markers', function () use ($repo, $workspace, $cashFlow, $userId): string {
+    $safe = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+6000 из сейфа',
+    ], $userId);
+    $owner = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+5000 от Александра',
+    ], $userId);
+    $yachtRental = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+5525 ареда яхты',
+    ], $userId);
+    $carRental = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+100 аренда авто',
+    ], $userId);
+
+    fixtureAssert(semanticMarkerHas($safe, 'cash_location_safe'), 'safe cash marker missing');
+    fixtureAssert(semanticMarkerHas($safe, 'owner_funding'), 'safe income owner funding marker missing');
+    assertSameValue($safe['category_code'], 'non_commercial_income', 'safe income category');
+
+    fixtureAssert(semanticMarkerHas($owner, 'owner_funding', 'source_actor', 'Александр'), 'owner funding source actor missing');
+    assertSameValue($owner['category_code'], 'non_commercial_income', 'owner funding category');
+    assertSameValue($owner['review_reason'], null, 'owner funding review reason');
+    assertAmount($owner['confidence'], 0.92, 'owner funding confidence');
+
+    assertSameValue($yachtRental['category_code'], 'commercial_income', 'yacht rental category');
+    fixtureAssert(semanticMarkerHas($yachtRental, 'commercial_income_allowed'), 'commercial income marker missing');
+    fixtureAssert(!semanticMarkerHas($yachtRental, 'owner_funding'), 'commercial income also marked owner funding');
+    assertSameValue($yachtRental['review_reason'], null, 'yacht rental review reason');
+    assertAmount($yachtRental['confidence'], 0.92, 'yacht rental confidence');
+
+    fixtureAssert($carRental['category_code'] !== 'commercial_income', 'car rental became commercial');
+    assertSameValue($carRental['category_code'], 'non_commercial_income', 'car rental private income category');
+    fixtureAssert(semanticMarkerHas($carRental, 'owner_funding'), 'non-yacht income owner marker missing');
+
+    return 'semantic markers expose safe cash context, owner funding, and strict yacht commercial-income boundary with non-commercial income labeling';
+});
+
+runFixture($report, 'Fixture 10 - Lower accounting block', function () use ($repo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Lower Accounting Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '1000.00',
+    ], $userId);
+    $cashFlow = byFlowType($repo->listFlows($workspace['id'], $userId), 'cash');
+
+    $credit = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-1000 мой кредит',
+    ], $userId);
+    $debtGarage = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-250 долг за гараж',
+    ], $userId);
+    $returned = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+120 Вова вернул остаток',
+    ], $userId);
+    $accountable = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-300 Женя под отчет',
+    ], $userId);
+    $partialReturn = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+100 Женя вернул',
+    ], $userId);
+    $guestCash = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 передал ЛВ',
+    ], $userId);
+    $guestCashReturn = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+100 ЛВ вернул',
+    ], $userId);
+    $unassignedReturn = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '+50 вернул остаток',
+    ], $userId);
+    $garage = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 гараж',
+    ], $userId);
+    $gift = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 подарок Алине',
+    ], $userId);
+    $lawyer = $repo->createEntry($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 адвокат',
+    ], $userId);
+
+    foreach ([$credit, $debtGarage, $returned, $accountable, $partialReturn, $guestCashReturn, $unassignedReturn] as $entry) {
+        fixtureAssert(semanticMarkerHas($entry, 'debt_or_return'), 'lower accounting debt marker missing for ' . $entry['raw_text']);
+    }
+    foreach ([$credit, $accountable] as $entry) {
+        assertSameValue($entry['accounting_section'], 'lower_accounting', 'entry lower accounting section');
+    }
+    assertSameValue($guestCash['category_code'], 'guest_cash_issued', 'guest cash category');
+    assertSameValue($guestCash['accounting_section'], 'operational', 'guest cash remains operational for manual category correction');
+    assertSameValue($debtGarage['accounting_section'], 'operational', 'debt wording with concrete boat expense remains operational');
+    assertSameValue($returned['accounting_section'], 'operational', 'return wording without active issue remains operational');
+    assertSameValue($partialReturn['accounting_section'], 'operational', 'return row remains operational/non-commercial income');
+    assertSameValue($guestCashReturn['accounting_section'], 'operational', 'guest cash return remains operational/non-commercial income');
+    assertSameValue($unassignedReturn['accounting_section'], 'operational', 'unassigned return remains operational for review');
+    assertSameValue($garage['accounting_section'], 'operational', 'plain garage should remain operational');
+    assertSameValue($gift['accounting_section'], 'operational', 'gift should remain operational');
+    assertSameValue($lawyer['accounting_section'], 'operational', 'lawyer should remain operational');
+
+    $monthly = $repo->getMonthlyReport($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
+    assertAmount($monthly['cash_expense'], 1950.0, 'lower accounting physical cash expense must remain counted');
+    assertAmount($monthly['external_cash_income'], 370.0, 'lower accounting return must remain physical income');
+    assertAmount($monthly['ending_cash'], -580.0, 'lower accounting ending cash must remain physical balance');
+
+    $layer1 = $repo->getLayer1SummaryReport($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
+    assertSameValue($layer1['blocks']['lower_accounting']['count'], 2, 'lower accounting block count');
+    assertAmount($layer1['blocks']['lower_accounting']['total'], 1300.0, 'lower accounting block total');
+    foreach ([$credit, $accountable] as $entry) {
+        fixtureAssert(in_array($entry['id'], $layer1['blocks']['lower_accounting']['source_entry_ids'], true), 'lower accounting source missing ' . $entry['raw_text']);
+    }
+    $settlements = [];
+    foreach ($layer1['blocks']['lower_accounting']['settlements']['by_counterparty'] as $row) {
+        $settlements[$row['counterparty']] = $row;
+    }
+    assertSameValue($settlements['Женя']['status'] ?? null, 'open', 'Женя settlement status');
+    assertAmount($settlements['Женя']['open_amount'] ?? null, 300.0, 'Женя open amount');
+    assertSameValue($settlements['Unassigned']['status'] ?? null, 'needs_actor', 'unassigned settlement status');
+
+    $categoryRows = [];
+    foreach ($layer1['blocks']['categories']['rows'] as $row) {
+        $categoryRows[$row['category_code']] = $row;
+    }
+    assertAmount($categoryRows['berth']['cash_total'] ?? null, 350.0, 'debt garage should remain editable operational berth category');
+    assertAmount($categoryRows['guest_cash_issued']['cash_total'] ?? null, 100.0, 'guest cash issued operational category control');
+    assertAmount($categoryRows['representation_expenses']['cash_total'] ?? null, 100.0, 'representation category control');
+    assertAmount($categoryRows['admin_legal']['cash_total'] ?? null, 100.0, 'admin/legal category control');
+
+    return 'explicit credit/accountable rows form lower accounting block; contextual debt/return/guest-cash rows remain operational and editable';
+});
+runFixture($report, 'Fixture 10 - Month insertion recalculation', function () use ($repo, $userId): string {
     $workspace = $repo->createWorkspace([
         'name' => 'Balance Chain Fixture Workspace',
         'type' => 'yacht',
@@ -644,7 +845,29 @@ runFixture($report, 'Fixture 10 - Closed month protection', function () use ($re
     assertAmount($entriesById[$entry['id']]['balance_after'], 900.0, 'closed month balance should not silently recalculate');
     assertSameValue($entriesById[$openMonthEntry['id']]['date'], '2026-08-05', 'open-month entry should not move into closed month');
 
-    return 'closed month edit/category/delete and open-to-closed date moves are blocked without silent mutation';
+    $confirmedUpdate = $repo->updateEntry($entry['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-150 fuel confirmed',
+        'closed_month_decision' => 'recalculate_chain',
+    ], $userId);
+    assertSameValue($confirmedUpdate['raw_text'], '-150 fuel confirmed', 'confirmed closed month update should change raw text');
+    assertAmount($confirmedUpdate['balance_after'], 850.0, 'confirmed closed month update should recalculate closed row');
+    $afterConfirmedUpdate = [];
+    foreach ($repo->listEntries($workspace['id'], [], $userId) as $candidate) {
+        $afterConfirmedUpdate[$candidate['id']] = $candidate;
+    }
+    assertAmount($afterConfirmedUpdate[$openMonthEntry['id']]['balance_after'], 900.0, 'confirmed closed month update should recalculate later row');
+
+    $repo->deleteEntry($entry['id'], $userId, ['closed_month_decision' => 'recalculate_chain']);
+    $afterConfirmedDelete = [];
+    foreach ($repo->listEntries($workspace['id'], [], $userId) as $candidate) {
+        $afterConfirmedDelete[$candidate['id']] = $candidate;
+    }
+    fixtureAssert(!isset($afterConfirmedDelete[$entry['id']]), 'confirmed closed month delete should archive closed row');
+    assertAmount($afterConfirmedDelete[$openMonthEntry['id']]['balance_after'], 1050.0, 'confirmed closed month delete should recalculate later row');
+
+    return 'closed month edit/category/delete and open-to-closed date moves are blocked without decision; confirmed recalculate edits are explicit';
 });
 
 runFixture($report, 'Attachments base', function () use ($repo, $pdo, $userId): string {
@@ -848,6 +1071,139 @@ runFixture($report, 'Workspace writer roles', function () use ($repo, $pdo, $use
     return 'viewer can read workspace data but core mutations, imports, month close, and corrections require writer role';
 });
 
+runFixture($report, 'Dictionary training decisions', function () use ($repo, $pdo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Dictionary Training Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '0.00',
+    ], $userId);
+    $archive = $repo->createWorkspace([
+        'name' => 'Dictionary Training Fixture Workspace Archive Raw History',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '0.00',
+    ], $userId);
+    $viewerUserId = $userId + 902;
+    addFixtureWorkspaceMember($pdo, $workspace['id'], $viewerUserId, 'viewer');
+    addFixtureWorkspaceMember($pdo, $archive['id'], $viewerUserId, 'viewer');
+
+    $xlsx = fixtureCreateXlsx([
+        ['дата', 'Описание платежа', 'Приход КЕШ', 'Расход КЕШ', 'Исполнитель', 'Приход КАРТА', 'Расход КАРТА', 'Сводные данные'],
+        ['2026-07-01', 'агент', '', '50', '', '', '', ''],
+        ['2026-07-01', 'доставка фильтра', '', '15', '', '', '', ''],
+        ['2026-07-01', 'мой кредит', '', '1000', '', '', '', ''],
+        ['2026-07-01', 'brokerage', '100', '', '', '', '', ''],
+        ['2026-07-01', 'ареда яхты', '5525', '', '', '', '', ''],
+    ]);
+    $repo->createLegacyExcelImport($archive['id'], [
+        'file_name' => 'dictionary-training-fixture-2026-07-01.xlsx',
+        'content_base64' => base64_encode((string)file_get_contents($xlsx)),
+    ], $userId);
+    @unlink($xlsx);
+
+    $tables = ['v2_entries', 'v2_flows', 'v2_categories', 'v2_category_rules', 'v2_actors', 'v2_audit_log', 'v2_monthly_closures', 'v2_import_sources', 'v2_import_rows', 'v2_dictionary_training_decisions'];
+    $beforeQueueCounts = fixtureTableCounts($pdo, $tables);
+    $queue = $repo->getDictionaryReviewQueue($workspace['id'], ['limit' => 50, 'examples' => 10], $userId);
+    $afterQueueCounts = fixtureTableCounts($pdo, $tables);
+    assertSameValue($queue['workspace_id'], $archive['id'], 'dictionary training queue should route to raw archive');
+    assertSameValue($queue['source_workspace_id'], $workspace['id'], 'dictionary training queue source workspace');
+    assertSameValue($beforeQueueCounts, $afterQueueCounts, 'dictionary queue remains read-only before decisions');
+
+    $examples = [];
+    foreach ($queue['groups'] as $group) {
+        foreach ($group['examples'] as $example) {
+            $examples[mb_strtolower((string)$example['description'])] = $example;
+        }
+    }
+    foreach (['агент', 'доставка фильтра', 'мой кредит', 'brokerage', 'ареда яхты'] as $description) {
+        fixtureAssert(isset($examples[$description]), "missing dictionary training example {$description}");
+    }
+
+    $rulesBefore = fixtureTableCounts($pdo, ['v2_category_rules'])['v2_category_rules'];
+    $agentDecision = $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['агент']['source']['source_row_id'],
+        'decision_type' => 'approve_existing_guess_local',
+        'category_code' => 'current_boat_expenses',
+        'pattern' => 'агент',
+        'pattern_type' => 'keyword',
+        'language' => 'ru',
+        'weight' => 10,
+        'note' => 'fixture local approval',
+    ], $userId);
+    assertSameValue($agentDecision['decision_type'], 'approve_existing_guess_local', 'agent decision type');
+    assertSameValue($agentDecision['target_category_code'], 'current_boat_expenses', 'agent decision target category');
+    assertSameValue($agentDecision['review_reason'], 'weak_only', 'agent decision preserves review reason');
+    fixtureAssert(isset($agentDecision['category_rule']['id']), 'agent decision should create local category rule');
+    fixtureAssert(fixtureAuditCount($pdo, 'dictionary_training_decision', $agentDecision['id'], 'create') === 1, 'agent decision create audit missing');
+    fixtureAssert(fixtureAuditCount($pdo, 'category_rule', $agentDecision['category_rule_id'], 'create') === 1, 'agent category rule audit missing');
+
+    $duplicateAgentDecision = $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['агент']['source']['source_row_id'],
+        'decision_type' => 'approve_existing_guess_local',
+        'category_code' => 'current_boat_expenses',
+        'pattern' => 'агент',
+        'pattern_type' => 'keyword',
+        'language' => 'ru',
+        'weight' => 10,
+    ], $userId);
+    assertSameValue($duplicateAgentDecision['id'], $agentDecision['id'], 'duplicate source row should update existing decision');
+    assertSameValue($duplicateAgentDecision['category_rule_id'], $agentDecision['category_rule_id'], 'duplicate source row should reuse existing rule');
+    assertSameValue(fixtureTableCounts($pdo, ['v2_category_rules'])['v2_category_rules'], $rulesBefore + 1, 'duplicate source row should not create another category rule');
+    fixtureAssert(fixtureAuditCount($pdo, 'dictionary_training_decision', $agentDecision['id'], 'update') === 1, 'agent decision update audit missing');
+
+    $deliveryReject = $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['доставка фильтра']['source']['source_row_id'],
+        'decision_type' => 'reject_training',
+        'note' => 'fixture reject mixed context',
+    ], $userId);
+    assertSameValue($deliveryReject['decision_type'], 'reject_training', 'delivery reject decision type');
+    assertSameValue($deliveryReject['category_rule_id'], null, 'rejected decision must not create category rule');
+    assertSameValue(fixtureTableCounts($pdo, ['v2_category_rules'])['v2_category_rules'], $rulesBefore + 1, 'reject decision should not create category rule');
+
+    expectFixtureHttpError(static fn () => $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['мой кредит']['source']['source_row_id'],
+        'decision_type' => 'approve_existing_guess_local',
+        'category_code' => 'current_boat_expenses',
+        'pattern' => 'кредит',
+    ], $userId), 422, 'dictionary_training_blocked');
+    expectFixtureHttpError(static fn () => $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['brokerage']['source']['source_row_id'],
+        'decision_type' => 'approve_existing_guess_local',
+        'category_code' => 'commercial_income',
+        'pattern' => 'brokerage',
+    ], $userId), 422, 'dictionary_training_blocked');
+
+    $universalCandidate = $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['ареда яхты']['source']['source_row_id'],
+        'decision_type' => 'propose_universal_candidate',
+        'category_code' => 'commercial_income',
+        'pattern' => 'ареда яхты',
+        'note' => 'fixture candidate only',
+    ], $userId);
+    assertSameValue($universalCandidate['decision_type'], 'propose_universal_candidate', 'universal candidate decision type');
+    assertSameValue($universalCandidate['category_rule_id'], null, 'universal candidate must not create category rule');
+    expectFixtureHttpError(static fn () => $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['ареда яхты']['source']['source_row_id'],
+        'decision_type' => 'promote_universal',
+        'category_code' => 'commercial_income',
+        'pattern' => 'ареда яхты',
+    ], $userId), 422, 'universal_promotion_not_supported');
+
+    expectFixtureHttpError(static fn () => $repo->decideDictionaryTraining($workspace['id'], [
+        'source_row_id' => $examples['агент']['source']['source_row_id'],
+        'decision_type' => 'reject_training',
+    ], $viewerUserId), 403, 'workspace_read_only');
+
+    $decisions = $repo->listDictionaryTrainingDecisions($workspace['id'], ['limit' => 10], $userId);
+    fixtureAssert(count($decisions) === 3, 'dictionary training decision list count mismatch');
+    assertSameValue(fixtureTableCounts($pdo, ['v2_entries', 'v2_flows', 'v2_actors', 'v2_monthly_closures'])['v2_entries'], $beforeQueueCounts['v2_entries'], 'dictionary decisions must not create entries');
+
+    return 'dictionary training decisions are explicit, audited, local by approval only, and blocked rows cannot train rules';
+});
+
 runFixture($report, 'Card plus semantics', function () use ($repo, $workspace, $cardFlow, $userId): string {
     $manual = $repo->createEntry($workspace['id'], [
         'flow_id' => $cardFlow['id'],
@@ -893,7 +1249,273 @@ runFixture($report, 'Parse preview', function () use ($repo, $workspace, $cashFl
     assertAmount($preview['amount'], 1.0, 'preview amount');
     assertSameValue($after, $before, 'preview should not persist an entry');
 
-    return 'parse preview returns normalized output without saving';
+    $guestCash = $repo->previewEntryParse($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 передал ЛВ',
+    ], $userId);
+    assertSameValue($guestCash['category_code'], 'guest_cash_issued', 'guest cash issued preview category');
+
+    $acPart = $repo->previewEntryParse($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 контролька кондея',
+    ], $userId);
+    assertSameValue($acPart['category_code'], 'tech_parts', 'AC control preview category');
+
+    $iphone = $repo->previewEntryParse($workspace['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-07-05',
+        'raw_text' => '-100 айфон',
+    ], $userId);
+    assertSameValue($iphone['category_code'], 'guest_trip_support', 'iPhone preview category');
+    fixtureAssert($iphone['status'] !== 'other_review', 'iPhone preview should not stay other review');
+
+	    foreach ([
+	        ['-100 доп муринг с северной стороны', 'berth', 'mooring preview category'],
+	        ['-100 материалы по тику', 'tech_parts', 'teak materials preview category'],
+	        ['-100 Безопастность плавания сет', 'tech_parts', 'safety navigation set preview category'],
+	        ['-100 отправка таксы в траст компанию сша', 'admin_legal', 'trust company tax preview category'],
+	        ['-100 air serbia', 'transport_expenses', 'airline preview category'],
+	        ['-100 запрака авто', 'transport_expenses', 'car refuel preview category'],
+	        ['-100 заправка арендованной авто', 'transport_expenses', 'rental car refuel preview category'],
+	        ['-100 парковка сплит', 'transport_expenses', 'parking transport preview category'],
+	        ['-100 курьер подгорица', 'transport_expenses', 'courier transport preview category'],
+	        ['-100 шкампи', 'provisions', 'seafood preview category'],
+	        ['-100 лангустины', 'provisions', 'langoustines preview category'],
+	        ['-100 осминоги', 'provisions', 'octopus preview category'],
+	        ['-100 сиропы', 'provisions', 'syrups preview category'],
+	        ['-100 сладости', 'provisions', 'sweets preview category'],
+	        ['-100 вода', 'provisions', 'plain water provisions preview category'],
+	        ['-100 вода на лодку', 'provisions', 'boat water provisions preview category'],
+	        ['-100 кофемашина', 'interior', 'kitchen appliance preview category'],
+	        ['-100 блендер', 'interior', 'blender interior preview category'],
+	        ['-100 пледы', 'interior', 'blankets interior preview category'],
+	        ['-100 печка-микроволновка', 'interior', 'microwave oven preview category'],
+	        ['-100 продление сайта клаудии', 'media_comms', 'Claudia site renewal preview category'],
+	        ['-100 платный годовой прогноз погоды', 'media_comms', 'weather forecast subscription preview category'],
+	        ['-100 иви', 'media_comms', 'ivi media preview category'],
+	        ['-100 сувениры наталья', 'representation_expenses', 'souvenirs with actor preview category'],
+	        ['-100 подарки службам нг', 'representation_expenses', 'service gifts preview category'],
+	        ['-100 украшения др', 'representation_expenses', 'birthday decorations representation preview category'],
+	        ['-100 обед с агентом', 'representation_expenses', 'business meal with agent preview category'],
+	        ['-100 снасти, маска', 'guest_trip_support', 'fishing gear and mask guest support preview category'],
+	        ['-100 зарядка шефу', 'guest_trip_support', 'chef charger guest support preview category'],
+	        ['-100 продолжение тур регистрации Данил', 'admin_legal', 'tour registration with actor preview category'],
+	        ['-100 разрешение на вход в грецию', 'admin_legal', 'Greece entry permit preview category'],
+	        ['-100 обновление морских сертифиткатов', 'admin_legal', 'marine certificates typo preview category'],
+	        ['-100 печати лодки и фирмы', 'admin_legal', 'boat and company stamps preview category'],
+	        ['-100 просрочка нахождения в турции женя', 'admin_legal', 'overstay admin preview category'],
+	        ['-100 черные танки', 'service_water', 'black tanks service preview category'],
+	        ['-100 откачка грязных вод', 'service_water', 'dirty water pumpout preview category'],
+	        ['-100 токарь', 'service_water', 'turner service preview category'],
+	        ['-100 петля хододильник', 'tech_parts', 'fridge hinge typo preview category'],
+	        ['-100 сантехника', 'tech_parts', 'plumbing parts preview category'],
+	        ['-100 Батарея для старой рст', 'tech_parts', 'radio battery preview category'],
+	        ['-100 маркеры цепи', 'tech_parts', 'chain markers preview category'],
+	        ['-100 сикафлекс', 'tech_parts', 'sikaflex preview category'],
+	        ['-100 щетка для лодки', 'cleaning', 'boat brush cleaning preview category'],
+	        ['-100 моющее средство палуба', 'cleaning', 'deck detergent preview category'],
+	        ['-100 хоз товары', 'current_boat_expenses', 'household goods current boat preview category'],
+	        ['-100 инвентарь', 'current_boat_expenses', 'generic inventory current boat preview category'],
+	        ['-100 банковские проценты за переводы', 'current_boat_expenses', 'bank transfer fees preview category'],
+	        ['-100 принтер на лодку', 'current_boat_expenses', 'boat printer current boat preview category'],
+	        ['-100 шнуры телефон', 'media_comms', 'phone cords media preview category'],
+	        ['-100 работник в помощь', 'crew', 'temporary worker preview category'],
+	    ] as [$rawText, $categoryCode, $label]) {
+	        $case = $repo->previewEntryParse($workspace['id'], [
+	            'flow_id' => $cashFlow['id'],
+            'date' => '2026-07-05',
+            'raw_text' => $rawText,
+        ], $userId);
+	        assertSameValue($case['category_code'], $categoryCode, $label);
+	    }
+
+	    $actorCategory = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 продолжение тур регистрации Данил',
+	    ], $userId);
+	    assertSameValue($actorCategory['category_code'], 'admin_legal', 'actor context should keep transaction category');
+	    assertSameValue(semanticMarkerHas($actorCategory, 'actor_context'), true, 'actor context marker should stay visible');
+
+	    $agentMeal = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 обед с агентом',
+	    ], $userId);
+	    assertSameValue($agentMeal['category_code'], 'representation_expenses', 'agent meal should be representation expense');
+	    assertSameValue(semanticMarkerHas($agentMeal, 'weak_dictionary_context'), false, 'strong agent meal should not get weak marker');
+	    assertSameValue($agentMeal['review_reason'], null, 'strong agent meal should not need review');
+	    assertAmount($agentMeal['confidence'], 0.92, 'strong agent meal confidence');
+	    assertSameValue($agentMeal['blockers'], [], 'strong agent meal blockers');
+
+	    $nonYacht = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 Аудио система для РФ - задаток',
+	    ], $userId);
+	    assertSameValue($nonYacht['category_code'], null, 'non-yacht/personal context should not force yacht category');
+	    assertSameValue(semanticMarkerHas($nonYacht, 'non_yacht_or_personal'), true, 'non-yacht/personal marker should stay visible');
+	    assertSameValue($nonYacht['review_reason'], 'blocked_by_personal', 'non-yacht/personal review reason');
+	    assertAmount($nonYacht['confidence'], 0.20, 'non-yacht/personal confidence');
+	    assertSameValue(classificationBlockerHas($nonYacht, 'non_yacht_or_personal'), true, 'non-yacht/personal blocker');
+
+	    $mixedNonYacht = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 масло на лодку и для отправки в РФ',
+	    ], $userId);
+	    assertSameValue(semanticMarkerHas($mixedNonYacht, 'non_yacht_or_personal'), true, 'mixed Russia shipping marker should stay visible');
+
+	    $privateSettlement = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 оплатил свои нужды с карты, положил кеш',
+	    ], $userId);
+	    assertSameValue($privateSettlement['category_code'], null, 'private card/cash settlement should not force category');
+	    assertSameValue(semanticMarkerHas($privateSettlement, 'money_movement'), true, 'private settlement marker should stay visible');
+	    assertSameValue($privateSettlement['review_reason'], 'private_money_movement', 'private settlement review reason');
+	    assertAmount($privateSettlement['confidence'], 0.20, 'private settlement confidence');
+	    assertSameValue(classificationBlockerHas($privateSettlement, 'money_movement'), true, 'private settlement blocker');
+	    assertSameValue($privateSettlement['accounting_section'], 'lower_accounting', 'private settlement lower accounting section');
+	    assertSameValue($privateSettlement['settlement_counterparty'], 'Private/self settlement', 'private settlement counterparty');
+
+	    $weakAgent = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 агент',
+	    ], $userId);
+	    assertSameValue($weakAgent['category_code'], 'current_boat_expenses', 'weak agent category still suggested');
+	    assertSameValue(semanticMarkerHas($weakAgent, 'weak_dictionary_context'), true, 'weak agent marker should stay visible');
+	    assertSameValue($weakAgent['review_reason'], 'weak_only', 'weak agent review reason');
+	    assertAmount($weakAgent['confidence'], 0.48, 'weak agent confidence');
+	    assertSameValue(classificationSignalHas($weakAgent, 'marker', 'weak_dictionary_context'), true, 'weak agent matched signal');
+	    assertSameValue($weakAgent['blockers'], [], 'weak agent blockers');
+
+	    $deliveryPart = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 доставка фильтра',
+	    ], $userId);
+	    assertSameValue($deliveryPart['category_code'], 'tech_parts', 'part noun should dominate delivery context');
+	    assertSameValue(semanticMarkerHas($deliveryPart, 'mixed_dictionary_context'), true, 'mixed delivery part marker should stay visible');
+	    assertSameValue($deliveryPart['review_reason'], 'mixed_context', 'mixed delivery part review reason');
+	    assertAmount($deliveryPart['confidence'], 0.64, 'mixed delivery part confidence');
+	    assertSameValue(classificationSignalHas($deliveryPart, 'marker', 'mixed_dictionary_context'), true, 'mixed delivery part matched signal');
+	    assertSameValue($deliveryPart['blockers'], [], 'mixed delivery part blockers');
+
+	    $deliverySpareParts = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 доставка запчастей',
+	    ], $userId);
+	    assertSameValue($deliverySpareParts['category_code'], 'tech_parts', 'spare parts noun should dominate delivery context');
+
+	    $personalFuel = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 Порше топливо',
+	    ], $userId);
+	    assertSameValue(semanticMarkerHas($personalFuel, 'non_yacht_or_personal'), true, 'personal fuel marker should stay visible');
+	    assertSameValue($personalFuel['review_reason'], 'blocked_by_personal', 'personal fuel review reason');
+	    assertAmount($personalFuel['confidence'], 0.20, 'personal fuel confidence');
+	    assertSameValue(classificationBlockerHas($personalFuel, 'non_yacht_or_personal'), true, 'personal fuel blocker');
+
+	    $debtGarage = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-250 долг за гараж',
+	    ], $userId);
+	    assertSameValue(semanticMarkerHas($debtGarage, 'debt_or_return'), true, 'debt garage marker should stay visible');
+	    assertSameValue($debtGarage['review_reason'], 'blocked_by_debt', 'debt garage review reason');
+	    assertAmount($debtGarage['confidence'], 0.20, 'debt garage confidence');
+	    assertSameValue(classificationBlockerHas($debtGarage, 'debt_or_return'), true, 'debt garage blocker');
+	    assertSameValue($debtGarage['accounting_section'], 'operational', 'debt garage should remain operational when it has concrete boat-expense context');
+
+	    $unclearCommercial = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '+750 агентские',
+	    ], $userId);
+	    assertSameValue($unclearCommercial['category_code'], null, 'unclear commercial wording should not become commercial income');
+	    assertSameValue($unclearCommercial['review_reason'], 'commercial_income_unclear', 'unclear commercial review reason');
+	    assertAmount($unclearCommercial['confidence'], 0.30, 'unclear commercial confidence');
+	    assertSameValue(classificationBlockerHas($unclearCommercial, 'missing_yacht_charter_phrase'), true, 'unclear commercial blocker');
+
+	    $charterIncome = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '+5525 ареда яхты',
+	    ], $userId);
+	    assertSameValue($charterIncome['category_code'], 'commercial_income', 'yacht rental should be commercial income');
+	    assertSameValue($charterIncome['review_reason'], null, 'yacht rental should not need review');
+	    assertAmount($charterIncome['confidence'], 0.92, 'yacht rental confidence');
+	    assertSameValue($charterIncome['blockers'], [], 'yacht rental blockers');
+
+	    $accountTransfer = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 превод со счета на карту',
+	    ], $userId);
+	    assertSameValue($accountTransfer['category_code'], null, 'account-to-card transfer should not force category');
+	    assertSameValue(semanticMarkerHas($accountTransfer, 'money_movement'), true, 'account-to-card transfer marker should stay visible');
+
+	    $accountableTypo = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-100 володя пот отчет',
+	    ], $userId);
+	    assertSameValue(semanticMarkerHas($accountableTypo, 'debt_or_return'), true, 'accountable cash typo marker should stay visible');
+
+	    return 'parse preview returns normalized output and new Claudia Z rules without saving';
+	});
+
+runFixture($report, 'Quick notes Smith migration', function () use ($repo, $workspace, $cashFlow, $userId): string {
+    $before = count($repo->listEntries($workspace['id'], [], $userId));
+    $note = $repo->createQuickNote($workspace['id'], [
+        'note_date' => '2026-08-13',
+        'raw_text' => "Заметка от 13.08.26\n-89 Старлинк\n-27 продукты",
+    ], $userId);
+    assertSameValue($note['status'], 'draft', 'quick note starts as draft');
+
+    $preview = $repo->previewQuickNoteConversion($workspace['id'], $note['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-08-13',
+    ], $userId);
+    assertSameValue(count($preview['items']), 2, 'quick note preview item count');
+    assertSameValue($preview['items'][0]['preview']['category_code'], 'media_comms', 'Smith quick note Starlink category');
+    assertAmount($preview['items'][0]['preview']['amount'], 89.0, 'Smith quick note Starlink amount');
+    assertSameValue($preview['items'][0]['duplicate_candidates'], [], 'first quick note should not have duplicates');
+
+    $converted = $repo->convertQuickNote($workspace['id'], $note['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-08-13',
+        'items' => [
+            ['line_index' => 0, 'enabled' => true],
+            ['line_index' => 1, 'enabled' => false],
+        ],
+    ], $userId);
+    assertSameValue($converted['note']['status'], 'converted', 'quick note converted status');
+    assertSameValue(count($converted['entries']), 1, 'quick note selected entries count');
+    assertSameValue($converted['entries'][0]['raw_text'], '-89 Старлинк', 'quick note converted raw text');
+    assertSameValue($converted['entries'][0]['source_type'], 'assistant', 'quick note source type');
+    assertSameValue($converted['entries'][0]['source_id'], $note['id'], 'quick note source id');
+
+    $after = count($repo->listEntries($workspace['id'], [], $userId));
+    assertSameValue($after, $before + 1, 'disabled quick note line should not create entry');
+
+    $duplicateNote = $repo->createQuickNote($workspace['id'], [
+        'note_date' => '2026-08-13',
+        'raw_text' => '-89 Старлинк',
+    ], $userId);
+    $duplicatePreview = $repo->previewQuickNoteConversion($workspace['id'], $duplicateNote['id'], [
+        'flow_id' => $cashFlow['id'],
+        'date' => '2026-08-13',
+    ], $userId);
+    fixtureAssert(count($duplicatePreview['items'][0]['duplicate_candidates']) >= 1, 'duplicate quick note candidate missing');
+
+    return 'quick notes can be parsed by Smith, selectively migrated, linked to source note, and duplicate candidates are exposed';
 });
 
 runFixture($report, 'Generated monthly reports', function () use ($repo, $userId): string {
@@ -984,6 +1606,7 @@ runFixture($report, 'Generated monthly reports', function () use ($repo, $userId
 
     assertAmount($rows['fuel']['months']['7'], 200.0, 'category matrix fuel July');
     assertAmount($rows['commercial_income']['months']['7'], 5000.0, 'category matrix commercial July');
+    assertAmount($rows['non_commercial_income']['months']['7'], 300.0, 'category matrix non-commercial income July');
     assertAmount($rows['cash_topup_from_card']['months']['7'], 2000.0, 'category matrix topup July');
     assertAmount($rows['other']['months']['7'], 50.0, 'category matrix other July');
     assertAmount($rows['media_comms']['months']['7'], 60.0, 'category matrix media July');
@@ -1095,6 +1718,48 @@ runFixture($report, 'One-file legacy Excel import', function () use ($repo, $use
     assertSameValue($excluded['rows_scanned'], 0, 'excluded import should not scan rows');
 
     return 'one xlsx import preserves traceability, review totals, duplicate suspects, exclusion markers, and generated reports';
+});
+
+runFixture($report, 'Chronology legacy Excel import', function () use ($repo, $userId): string {
+    $workspace = $repo->createWorkspace([
+        'name' => 'Chronology Import Fixture Workspace',
+        'type' => 'yacht',
+        'currency' => 'EUR',
+        'locale' => 'ru',
+        'opening_cash' => '0.00',
+    ], $userId);
+    $xlsx = fixtureCreateXlsx([
+        ['Финансовый отчет — хронология', '', '', '', '', ''],
+        ['', '', '', '', '', ''],
+        ['№', 'Дата', 'Описание', 'Приход', 'Расход', 'Остаток'],
+        ['1', '', 'переходящий остаток', '4205', '', '4205'],
+        ['2', '', 'Netflix hipo apple', '', '20', '4185'],
+        ['3', '', 'информационная строка, не считается', '', '', ''],
+        ['4', '2026-06-03', 'от Данила', '5000', '', '9185'],
+        ['5', '', 'заправка 1541 л', '', '2622', '6563'],
+        ['', '', 'Итоговый остаток', '', '', '6563'],
+    ]);
+
+    $import = $repo->createLegacyExcelImport($workspace['id'], [
+        'file_name' => '15.06.2026.xlsx',
+        'file_id' => 'fixture-chronology-001',
+        'content_base64' => base64_encode((string)file_get_contents($xlsx)),
+    ], $userId);
+    @unlink($xlsx);
+
+    assertSameValue($import['include_decision'], 'included', 'chronology import include decision');
+    assertSameValue($import['rows_scanned'], 6, 'chronology rows scanned');
+    assertSameValue($import['rows_parsed'], 3, 'chronology rows parsed');
+    assertAmount($import['normalized_totals']['cash_income'], 5000.0, 'chronology preview cash income');
+    assertAmount($import['normalized_totals']['cash_expense'], 2642.0, 'chronology preview cash expense');
+    fixtureAssert(in_array('2026-06', $import['months_covered'], true), 'chronology filename date month missing');
+
+    $accepted = $repo->acceptLegacyImport($workspace['id'], $import['import_id'], ['decision' => 'accept'], $userId);
+    assertSameValue($accepted['entries_created'], 3, 'chronology accepted entries created');
+    assertAmount($accepted['normalized_totals']['cash_income'], 5000.0, 'chronology accepted cash income');
+    assertAmount($accepted['normalized_totals']['cash_expense'], 2642.0, 'chronology accepted cash expense');
+
+    return 'chronology-style xlsx skips report title rows, maps generic income/expense, ignores opening/info rows, and parses dd.mm.yyyy filename dates';
 });
 
 $report->print();

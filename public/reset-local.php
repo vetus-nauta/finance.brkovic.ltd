@@ -66,7 +66,7 @@ header('Pragma: no-cache');
         localStorage.removeItem('findesk-language-prompt-closed');
       } catch (error) {}
 
-      window.location.replace('/app.php?fresh=' + Date.now());
+      window.location.replace('/?fresh=' + Date.now());
     }
 
     document.getElementById('resetBtn').addEventListener('click', resetAndOpen);

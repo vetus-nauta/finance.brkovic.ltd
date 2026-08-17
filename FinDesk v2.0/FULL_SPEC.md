@@ -204,9 +204,14 @@ tech_parts
 tender
 fuel
 provisions
+guest_trip_support
+guest_cash_issued
+representation_expenses
 interior
 cleaning
 media_comms
+transport_expenses
+current_boat_expenses
 admin_legal
 cash_topup_from_card
 other

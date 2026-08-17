@@ -130,34 +130,6 @@ function ql_db(): PDO
 }
 PHP
 
-cat > "${HARNESS}/app/ledger.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/groups.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/messages.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/business.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/on_the_go.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/advances.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/findesk_phase2.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/yacht_provisioning.php" <<'PHP'
-<?php
-PHP
-cat > "${HARNESS}/app/yacht_prices.php" <<'PHP'
-<?php
-PHP
-
 PORT="$(php -r '$s = stream_socket_server("tcp://127.0.0.1:0", $errno, $errstr); if (!$s) { fwrite(STDERR, $errstr); exit(1); } $name = stream_socket_get_name($s, false); fclose($s); echo substr(strrchr($name, ":"), 1);')"
 
 FINDESK_V2_AUTH_SOCKET="${SOCKET}" \

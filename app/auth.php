@@ -142,7 +142,7 @@ function ql_send_auth_email(string $email, string $code): array
     $subject = 'Your FinDesk sign-in code: ' . $code;
     $message = "Your FinDesk sign-in code is: {$code}\n\n" .
         "Enter this 6-digit code in the FinDesk sign-in form.\n" .
-        "The code expires in 10 minutes.\n\n" .
+        "The code expires in 30 minutes. If email delivery is slow, any unexpired code from this session will work.\n\n" .
         "If you did not request this code, you can ignore this email.\n";
 
     try {
@@ -356,13 +356,16 @@ function ql_issue_code(string $email): array
 
     $stmt = $db->prepare("
         INSERT INTO auth_codes (email, code_hash, purpose, expires_at)
-        VALUES (?, ?, 'login', DATE_ADD(NOW(), INTERVAL 10 MINUTE))
+        VALUES (?, ?, 'login', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
     ");
     $stmt->execute([$email, $hash]);
+    $codeId = (int)$db->lastInsertId();
 
     $send = ql_send_auth_email($email, $code);
 
     if (!$send['ok']) {
+        $expireFailed = $db->prepare("UPDATE auth_codes SET used_at = NOW(), expires_at = NOW() WHERE id = ?");
+        $expireFailed->execute([$codeId]);
         return [
             'ok' => false,
             'error' => 'email_send_failed',
@@ -375,6 +378,7 @@ function ql_issue_code(string $email): array
         'ok' => true,
         'email_sent' => true,
         'mail_method' => $send['method'] ?? 'unknown',
+        'expires_in_minutes' => 30,
     ];
 
     if (($send['method'] ?? '') === 'log' && ql_should_log_auth_codes()) {
@@ -410,22 +414,35 @@ function ql_verify_code(string $email, string $code): array
           AND used_at IS NULL
           AND expires_at > NOW()
         ORDER BY id DESC
-        LIMIT 1
+        LIMIT 10
     ");
     $stmt->execute([$email]);
-    $row = $stmt->fetch();
+    $rows = $stmt->fetchAll();
 
-    if (!$row) {
+    if ($rows === []) {
         return ['ok' => false, 'error' => 'code_not_found_or_expired'];
     }
 
-    if ((int)$row['attempts'] >= 5) {
-        return ['ok' => false, 'error' => 'too_many_attempts'];
+    $row = null;
+    $attemptRows = [];
+    foreach ($rows as $candidate) {
+        if ((int)$candidate['attempts'] >= 5) {
+            continue;
+        }
+        $attemptRows[] = (int)$candidate['id'];
+        if (password_verify($code, $candidate['code_hash'])) {
+            $row = $candidate;
+            break;
+        }
     }
 
-    if (!password_verify($code, $row['code_hash'])) {
-        $upd = $db->prepare("UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ?");
-        $upd->execute([$row['id']]);
+    if ($row === null) {
+        if ($attemptRows === []) {
+            return ['ok' => false, 'error' => 'too_many_attempts'];
+        }
+        $placeholders = implode(', ', array_fill(0, count($attemptRows), '?'));
+        $upd = $db->prepare("UPDATE auth_codes SET attempts = attempts + 1 WHERE id IN ({$placeholders})");
+        $upd->execute($attemptRows);
         return ['ok' => false, 'error' => 'wrong_code'];
     }
 
@@ -488,7 +505,8 @@ function ql_verify_code(string $email, string $code): array
         return ['ok' => true, 'user' => ql_current_user_by_id($userId)];
     } catch (Throwable $e) {
         $db->rollBack();
-        return ['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()];
+        error_log('FinDesk auth completion failed: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'server_error'];
     }
 }
 

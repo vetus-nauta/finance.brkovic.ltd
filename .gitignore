@@ -4,6 +4,8 @@ storage/
 backups/
 zip-archives/
 test-results/
+tmp/
+scripts/__pycache__/
 cgi-bin/
 .well-known/
 error_log

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'findesk-20260609-cash-layout-discipline-routes44';
+const CACHE_NAME = 'findesk-v2-20260814-iphone-safe-area-c';
 self.addEventListener('install', event => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys()

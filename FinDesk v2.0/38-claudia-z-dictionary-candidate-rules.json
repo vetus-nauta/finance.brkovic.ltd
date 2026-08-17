@@ -1,0 +1,709 @@
+{
+  "document": "Claudia Z dictionary candidate rules",
+  "status": "draft_for_review_not_auto_applied",
+  "source_workspace": "Claudia Z Archive Raw History",
+  "principles": [
+    "Do not inflate categories.",
+    "Actor is not category.",
+    "Private/external money movement is not commercial_income.",
+    "Safe/сейф is cash context, not a separate category or flow.",
+    "Income is owner funding unless the description explicitly says commercial yacht revenue such as аренда, сдача яхты, чартер, booking, charter, or rental.",
+    "Archive raw history trains dictionaries only; it does not create operational entries.",
+    "Weak words and mixed rows stay in review."
+    ,
+    "Unsortable rows can map to other only with review, not as silently recognized expenses."
+  ],
+  "category_groups": {
+    "money_balance": [
+      "commercial_income",
+      "cash_topup_from_card"
+    ],
+    "crew": [
+      "crew"
+    ],
+    "voyage_operations": [
+      "fuel",
+      "marina_ports",
+      "berth"
+    ],
+    "maintenance": [
+      "service_water",
+      "tech_parts",
+      "dry_dock",
+      "tender"
+    ],
+    "household_guests": [
+      "provisions",
+      "guest_trip_support",
+      "guest_cash_issued",
+      "representation_expenses",
+      "cleaning",
+      "interior"
+    ],
+    "overhead": [
+      "media_comms",
+      "transport_expenses",
+      "admin_legal",
+      "current_boat_expenses"
+    ],
+    "review": [
+      "other"
+    ]
+  },
+  "candidate_category_rules": [
+    {
+      "category_code": "cash_topup_from_card",
+      "language": "multi",
+      "patterns": [
+        "снял кеш",
+        "снял с карты",
+        "снятие с карты",
+        "банкомат",
+        "atm",
+        "cash withdrawal",
+        "card to cash"
+      ],
+      "warnings": [
+        "This is a movement category, not income or expense."
+      ]
+    },
+    {
+      "category_code": "marina_ports",
+      "language": "multi",
+      "patterns": [
+        "марин",
+        "причал",
+        "порт",
+        "паром",
+        "выход в море",
+        "переход коринф",
+        "проход через коринф",
+        "tepai",
+        "такса по входу",
+        "porto",
+        "рипосто",
+        "котор",
+        "ластово",
+        "цавтат",
+        "полиньяно",
+        "портороса"
+      ],
+      "warnings": [
+        "Do not use single word вода here unless paired with electricity/marina/port context."
+      ]
+    },
+    {
+      "category_code": "berth",
+      "language": "multi",
+      "patterns": [
+        "стоянк",
+        "зимовк",
+        "склад",
+        "гараж",
+        "электричество",
+        "вода электричество",
+        "муринг",
+        "mooring",
+        "berth",
+        "vez"
+      ],
+      "warnings": [
+        "Use for berth/storage/garage/standing context. Port fees, Corinth passage, and TEPAI stay marina_ports."
+      ]
+    },
+    {
+      "category_code": "dry_dock",
+      "language": "multi",
+      "patterns": [
+        "сухой док",
+        "антифоулинг",
+        "подъем",
+        "подъём",
+        "подьем",
+        "спуск",
+        "haul out",
+        "launch"
+      ],
+      "warnings": [
+        "Use only for haul-out/launch/dry-dock context, not every lifting or delivery row."
+      ]
+    },
+    {
+      "category_code": "service_water",
+      "language": "multi",
+      "patterns": [
+        "сервис",
+        "ремонт",
+        "обслуж",
+        "то генератор",
+        "то опресн",
+        "диагност",
+        "мастер",
+        "консервац",
+        "опресн",
+        "спас плот",
+        "пересертифик",
+        "дайвер",
+        "водолаз",
+        "электрик",
+        "откачка серых вод",
+        "замена",
+        "монтаж",
+        "варка",
+        "генератор",
+        "консервация",
+        "тест систем",
+        "огнетушители",
+        "miele",
+        "стиралк",
+        "холодильник",
+        "лебедк"
+      ],
+      "warnings": [
+        "Generic ремонт can be broad; prefer service when paired with equipment or work."
+      ]
+    },
+    {
+      "category_code": "tech_parts",
+      "language": "multi",
+      "patterns": [
+        "запчаст",
+        "расходник",
+        "материал",
+        "кабел",
+        "анод",
+        "болт",
+        "шуруп",
+        "фильтр",
+        "аккум",
+        "клей",
+        "реле",
+        "датчик",
+        "проклад",
+        "переходник",
+        "шланг",
+        "навигац",
+        "шлиф",
+        "машинк",
+        "пылесос",
+        "расходники тик",
+        "расходники по тику",
+        "пропитка тика",
+        "материалы по тику",
+        "пропитка тик",
+        "тик силер",
+        "тиксилер",
+        "тиквандер",
+        "средство для тика",
+        "очиститель тика",
+        "пятновыводитель тик",
+        "дезинфектор тик",
+        "обработка тика",
+        "трюмн",
+        "помп",
+        "подрульк",
+        "пордрульк",
+        "лебедк",
+        "компрессор",
+        "диммер",
+        "гелькоут",
+        "кранц",
+        "кранец",
+        "швартов",
+        "регулятор давления",
+        "контролька",
+        "кондея",
+        "блок управления туалетом",
+        "петля холодильник",
+        "люки для доступа к танкам",
+        "ролики цепи",
+        "подстаканники"
+      ],
+      "warnings": [
+        "Do not classify by расходники alone when the line is mixed or unclear."
+      ]
+    },
+    {
+      "category_code": "tender",
+      "language": "multi",
+      "patterns": [
+        "тузик",
+        "тендер",
+        "dinghy",
+        "tender",
+        "williams",
+        "outboard",
+        "seabob",
+        "сибоб"
+      ],
+      "warnings": [
+        "Use for tender/water-toy context. Fuel lines can keep fuel as primary category with tender_related marker."
+      ]
+    },
+    {
+      "category_code": "fuel",
+      "language": "multi",
+      "patterns": [
+        "заправ",
+        "дозаправ",
+        "топливо",
+        "бензин",
+        "дизел",
+        "fuel",
+        "diesel",
+        "petrol",
+        "gorivo",
+        "nafta"
+      ],
+      "exclude_patterns": [
+        "топливная система"
+      ],
+      "secondary_markers": [
+        "tender_related when text contains тузик/тендер/tender/dinghy"
+      ]
+    },
+    {
+      "category_code": "crew",
+      "language": "multi",
+      "patterns": [
+        "зп",
+        "зарплат",
+        "аванс.*зп",
+        "остаток.*зп",
+        "под отчет",
+        "подотчет",
+        "экипаж",
+        "капитан",
+        "хостесс",
+        "помощник",
+        "повар",
+        "чаевые",
+        "работник в помощь"
+      ],
+      "actor_markers": [
+        "Вова",
+        "Володя",
+        "Женя",
+        "Евгения",
+        "Наталья",
+        "Гурко",
+        "Леха"
+      ],
+      "warnings": [
+        "Names alone are actor markers, not category rules."
+      ]
+    },
+    {
+      "category_code": "transport_expenses",
+      "language": "multi",
+      "patterns": [
+        "такси",
+        "трансфер",
+        "аренда авто",
+        "рентакар",
+        "билет",
+        "билеты",
+        "перелет",
+        "перелёт",
+        "авиа",
+        "поезд",
+        "автобус",
+        "air serbia",
+        "логистика",
+        "забрал гостей",
+        "доставка",
+        "перевозка гидроцикла",
+        "taxi",
+        "transfer",
+        "car rental",
+        "tickets",
+        "delivery"
+      ],
+      "warnings": [
+        "Transport expenses are one broad owner-approved category. Car rental must never imply commercial income."
+      ]
+    },
+    {
+      "category_code": "current_boat_expenses",
+      "language": "multi",
+      "patterns": [
+        "брендирование",
+        "брендир",
+        "форма",
+        "спецодежда",
+        "спец одежда",
+        "агент",
+        "магазин",
+        "комиссии банков",
+        "банковская комиссия",
+        "забрал свои",
+        "bank fee",
+        "bank commission"
+      ],
+      "warnings": [
+        "Use for routine boat overhead that is not repair, parts, documents, guest hospitality, or money movement."
+      ]
+    },
+    {
+      "category_code": "admin_legal",
+      "language": "multi",
+      "patterns": [
+        "адвокат",
+        "тур регистрац",
+        "тур. регистрац",
+        "тамож",
+        "растамож",
+        "дьюти фри",
+        "дьютифри",
+        "документ",
+        "печать",
+        "ламинир",
+        "виза",
+        "виньет",
+        "радио лиценз",
+        "радиолиценз",
+        "transit log",
+        "транзитлог",
+        "такса",
+        "границ"
+      ],
+      "warnings": [
+        "Агент can be admin/legal only with border/customs/document context."
+      ]
+    },
+    {
+      "category_code": "guest_trip_support",
+      "language": "multi",
+      "patterns": [
+        "самокат",
+        "скутер",
+        "параплан",
+        "музыкант"
+      ],
+      "warnings": [
+        "Use for guest support and activity costs during a trip; food and drinks stay provisions."
+      ]
+    },
+    {
+      "category_code": "guest_cash_issued",
+      "language": "ru",
+      "patterns": [
+        "ЛВ",
+        "Леонид Владимирович",
+        "Расходы ЛВ",
+        "общая потраченная сумма ЛВ",
+        "игра ЛВ",
+        "передал ЛВ",
+        "отдал ЛВ",
+        "дал ЛВ",
+        "передал Арик",
+        "отдал Арик",
+        "выдал гостям"
+      ],
+      "warnings": [
+        "Use for issued/spent cash for guests on expense-side rows.",
+        "Do not use for clear incoming owner/source funding."
+      ]
+    },
+    {
+      "category_code": "representation_expenses",
+      "language": "multi",
+      "patterns": [
+        "представительские",
+        "подарок",
+        "презент",
+        "розы",
+        "деловой обед",
+        "деловой ужин",
+        "обед с",
+        "ужин с",
+        "встреча с",
+        "hospitality",
+        "business lunch",
+        "business dinner",
+        "lunch with",
+        "dinner with"
+      ],
+      "warnings": [
+        "Plain food, restaurant, and flowers stay provisions unless gift/business-hospitality wording is explicit.",
+        "Debt/return/accountable wording stays review even when a representation keyword is present."
+      ]
+    },
+    {
+      "category_code": "provisions",
+      "language": "multi",
+      "patterns": [
+        "продукт",
+        "еда",
+        "обед",
+        "рыб",
+        "морепродукт",
+        "фрукт",
+        "овощ",
+        "хлеб",
+        "мяс",
+        "стейк",
+        "вино",
+        "пиво",
+        "напит",
+        "устриц",
+        "скамп",
+        "шкамп",
+        "краб",
+        "тунец",
+        "салмон",
+        "морож",
+        "яйц",
+        "рынок",
+        "алкоголь",
+        "виски",
+        "водка",
+        "шампанское",
+        "грей гус",
+        "moet",
+        "моет",
+        "вдова клико",
+        "аберлоу",
+        "клубник",
+        "монтефиш",
+        "аптека",
+        "лекарства",
+        "отель",
+        "отели",
+        "гостиница",
+        "докупка необходимого в поход",
+        "закупки в поход",
+        "косметика",
+        "шампуни",
+        "аптечка морская",
+        "спрей подводные маски",
+        "маски ласты"
+      ],
+      "warnings": [
+        "Single word вода is not enough: water/electricity belongs to marina utility context."
+      ]
+    },
+    {
+      "category_code": "interior",
+      "language": "multi",
+      "patterns": [
+        "ковр",
+        "текстил",
+        "полотен",
+        "обувь",
+        "судоч",
+        "нож",
+        "посуд",
+        "матрас",
+        "кухонные принадлежности",
+        "кухонные расходы",
+        "утварь кухня",
+        "для кухни и интерьера",
+        "перешив подушек",
+        "подушки",
+        "чехлы",
+        "скатерть",
+        "нарды",
+        "шезлонг",
+        "кофемашина",
+        "соковыжималка",
+        "кухня обновление"
+      ],
+      "warnings": [
+        "Kitchen equipment and table objects are interior/household; food itself remains provisions."
+      ]
+    },
+    {
+      "category_code": "cleaning",
+      "language": "multi",
+      "patterns": [
+        "химчист",
+        "уборк",
+        "cleaning",
+        "laundry",
+        "мойк",
+        "тряпк",
+        "салф",
+        "detergent",
+        "прачк",
+        "прачеч",
+        "полирол",
+        "пенообразователь",
+        "керхер",
+        "мусор",
+        "вывоз мусора"
+      ],
+      "warnings": [
+        "Химия can be cleaning or teak/service; keep mixed chemistry/tool lines in review."
+      ]
+    },
+    {
+      "category_code": "media_comms",
+      "language": "multi",
+      "patterns": [
+        "netflix",
+        "apple",
+        "ivi",
+        "старлинк",
+        "starlink",
+        "hipo",
+        "сим",
+        "интернет",
+        "инет",
+        "wifi",
+        "telekom",
+        "картина тв",
+        "тв",
+        "телевиз",
+        "sonos",
+        "сонос",
+        "модем"
+      ],
+      "warnings": [
+        "Mixed rows with food or personal expenses require review."
+      ]
+    }
+  ],
+  "semantic_markers_not_categories": [
+    {
+      "marker": "cash_location_safe",
+      "patterns": [
+        "сейф",
+        "сеф",
+        "из сейфа",
+        "из сефа",
+        "в сейф",
+        "в сеф",
+        "взял из сейфа",
+        "забрал из сейфа",
+        "получено из сейфа",
+        "получил из сейфа",
+        "принял из сейфа",
+        "убрал в сейф",
+        "положил в сейф",
+        "принял сейфы"
+      ],
+      "rule": "Treat safe/сейф as cash source/location context. It is not a category, not commercial_income, and not a separate MVP flow."
+    },
+    {
+      "marker": "owner_funding",
+      "patterns": [
+        "от Александра",
+        "Александр",
+        "александр",
+        "от Саши",
+        "Саша",
+        "принял",
+        "Наталия",
+        "от Наталии",
+        "Арик",
+        "от Арика",
+        "от Данила",
+        "получил от Данилы",
+        "из Германии",
+        "из крипты",
+        "через крипту",
+        "Пришло из крипты",
+        "usdt",
+        "усдт",
+        "приход из рф",
+        "пополнение служебной карты",
+        "пришли на банк ерсте",
+        "Я внес свои"
+      ],
+      "rule": "Treat as owner/source funding income with source actor from description where possible. Do not map to commercial_income."
+    },
+    {
+      "marker": "commercial_income_allowed",
+      "patterns": [
+        "аренда яхты",
+        "ареда яхты",
+        "яхта аренда",
+        "сдача яхты",
+        "чартер",
+        "оплата чартера",
+        "charter",
+        "yacht rental",
+        "yacht booking"
+      ],
+      "rule": "Only income rows with explicit yacht/charter commercial wording can map to commercial_income. Generic аренда авто/тендера is not enough."
+    },
+    {
+      "marker": "money_movement",
+      "patterns": [
+        "остаток",
+        "переход",
+        "пополнение карты",
+        "пополнение служебной карты",
+        "вернул в кеш кассу",
+        "остались на карте. сдал",
+        "оплатил с карты для себя",
+        "сдал",
+        "снял кеш с карты",
+        "кеш с карты"
+      ],
+      "rule": "Use as semantic-only money movement / private settlement context, not as expense category. Keep out of commercial_income unless commercial_income_allowed also matches."
+    },
+    {
+      "marker": "debt_or_return",
+      "patterns": [
+        "долг",
+        "мой долг",
+        "возврат",
+        "вернул",
+        "кредит",
+        "займ",
+        "заем",
+        "рассрочка",
+        "под отчет",
+        "подотчет"
+      ],
+      "rule": "Use as a separate lower accounting block / semantic marker; do not create an expense category from loan, debt, credit, return, or accountable wording alone."
+    },
+    {
+      "marker": "non_yacht_or_personal",
+      "patterns": [
+        "Порше",
+        "porsche",
+        "для РФ",
+        "катер РФ",
+        "аудио система для РФ",
+        "музыка на катер РФ",
+        "мото навигатор"
+      ],
+      "rule": "Use as semantic-only personal/non-yacht context. Do not train Claudia Z yacht operational categories from these rows."
+    },
+    {
+      "marker": "actor_context",
+      "patterns": [
+        "Вова",
+        "Володя",
+        "Женя",
+        "Евгения",
+        "Наталья",
+        "Александр",
+        "Алексей",
+        "Данил",
+        "Гурко"
+      ],
+      "rule": "Actor/source names alone are context markers. Expense-side ЛВ/guest cash wording belongs to guest_cash_issued."
+    }
+  ],
+  "keep_review_examples": [
+    "цветы долг",
+    "Porsche / колодки порше",
+    "Новый приход / заправка",
+    "сим-карта и фрукты",
+    "долг таможне дьюти фри",
+    "тендер остаток за зиму и сервис",
+    "цоги мар",
+    "цогимар",
+    "cogimar",
+    "айфон",
+    "планшет",
+    "обезналич",
+    "консьерж",
+    "книжка моряка",
+    "подставка под динги"
+  ]
+}

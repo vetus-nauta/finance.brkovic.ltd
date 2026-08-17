@@ -1,0 +1,9 @@
+Options -Indexes
+
+<Files "reset-local.php">
+    Require all denied
+</Files>
+
+<FilesMatch ".*-preview\.html$">
+    Require all denied
+</FilesMatch>

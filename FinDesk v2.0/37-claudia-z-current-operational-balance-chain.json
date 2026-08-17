@@ -1,0 +1,79 @@
+{
+  "document": "Claudia Z current operational balance chain",
+  "status": "history_chain_split_committed_local",
+  "generated_from": "local Google Drive Claudia Z accounting reports",
+  "purpose": [
+    "Separate current operational balance from archive/raw history.",
+    "Provide a repeatable chain for rebuilding the Claudia Z working window.",
+    "Prevent historical closed reports from being merged into the live operational balance.",
+    "Preserve the current Claudia Z cash balance as the operational truth after adding earlier history."
+  ],
+  "workspace": {
+    "current_operational": "Claudia Z",
+    "archive_raw_history": "Claudia Z Archive Raw History"
+  },
+  "rules": [
+    "Only current_operational.files are allowed to create live operational entries for the Claudia Z working window.",
+    "Archive/raw history is for dictionary training, categorization review, and future learning only.",
+    "Opening cash is a flow opening balance, not an operational entry.",
+    "Fact and forecast remain separate; this file defines fact-side current operational opening and source chain only.",
+    "Do not use full historical closed reports as the current live balance ledger.",
+    "After SPRINT-59R, current cash opening is a bridge value that keeps the accepted current cash balance unchanged."
+  ],
+  "current_operational": {
+    "opening_cash": 2870.00,
+    "flow_opening_cash_after_history_bridge": 8015.00,
+    "current_cash_truth_after_history_bridge": 3913.00,
+    "history_bridge_note": "SPRINT-59R added 24 net-new January-April 2026 entries with cash net -5145.00 before the existing accepted current feed. The flow opening balance was adjusted from 2870.00 to 8015.00 so the current cash truth remains 3913.00.",
+    "expected_final_cash_balance": 15262.00,
+    "files": [
+      {
+        "file_name": "14.05.26+сервис.xlsx",
+        "report_date": "2026-05-14",
+        "opening_cash": 2870.00,
+        "income": 50520.00,
+        "expense": 39676.00,
+        "net": 10844.00,
+        "closing_cash": 13714.00
+      },
+      {
+        "file_name": "06.06.xlsm",
+        "report_date": "2026-06-06",
+        "opening_cash": 13714.00,
+        "income": 5000.00,
+        "expense": 14509.00,
+        "net": -9509.00,
+        "closing_cash": 4205.00
+      },
+      {
+        "file_name": "15.06.2026.xlsx",
+        "report_date": "2026-06-15",
+        "opening_cash": 4205.00,
+        "source_income_including_opening": 28605.00,
+        "operational_income": 24400.00,
+        "expense": 13343.00,
+        "operational_net": 11057.00,
+        "closing_cash": 15262.00,
+        "note": "The source report income includes the 4205.00 opening/carry amount. Do not import that opening row as operational income."
+      }
+    ]
+  },
+  "archive_raw_history": {
+    "import_mode": "raw_plus_historical_operational_entries",
+    "creates_operational_entries": true,
+    "opening_cash": 0.00,
+    "historical_operational_entries_after_sprint_59r": 1237,
+    "historical_operational_date_range_after_sprint_59r": {
+      "first": "2022-02-07",
+      "last": "2025-12-11"
+    },
+    "sprint_59r_commit_artifact": "storage/imports/claudia-z-history-split/apply-commit-20260812-204116.json",
+    "use_for": [
+      "historical operational report reconstruction",
+      "boat household vocabulary",
+      "cash/card/category dictionary training",
+      "ambiguous category review",
+      "future import learning"
+    ]
+  }
+}

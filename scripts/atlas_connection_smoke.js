@@ -68,13 +68,24 @@ async function main() {
   const result = {
     checked_at: new Date().toISOString(),
     uri: info,
+    diagnosis: null,
     srv: [],
     tls: [],
     mongo_ping: null,
   };
 
   if (info.scheme === 'mongodb+srv' && info.host) {
-    result.srv = await dns.resolveSrv(`_mongodb._tcp.${info.host}`);
+    try {
+      result.srv = await dns.resolveSrv(`_mongodb._tcp.${info.host}`);
+    } catch (error) {
+      result.diagnosis = {
+        layer: 'dns',
+        code: error.code || error.name,
+        message: `Atlas SRV record was not found for ${info.host}. Update the MongoDB Atlas connection string in ${URI_FILE} or FINDESK_MONGO_URI.`,
+      };
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(1);
+    }
     for (const record of result.srv) {
       result.tls.push(await tlsProbe(record.name, record.port));
     }

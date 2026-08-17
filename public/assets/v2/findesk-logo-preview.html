@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinDesk Logo Preview</title>
+  <link rel="icon" href="./findesk-mark.svg">
+  <style>
+    :root {
+      color-scheme: light;
+      --blue: #1769e0;
+      --ink: #111827;
+      --muted: #667085;
+      --line: #d8e0ea;
+      --soft: #f6f8fb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.4 Inter, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--soft);
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 18px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+    }
+    p {
+      margin: 5px 0 0;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+    }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .mark-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .mark {
+      width: 96px;
+      height: 96px;
+    }
+    .mark.small { width: 48px; height: 48px; }
+    .mark.tiny { width: 24px; height: 24px; }
+    .logo {
+      width: min(100%, 420px);
+      height: auto;
+      display: block;
+    }
+    .dark {
+      background: #111827;
+    }
+    .dark h2 { color: #b9c4d4; }
+    .report-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .report-head img {
+      width: 36px;
+      height: 36px;
+    }
+    .report-head strong {
+      display: block;
+      font-size: 18px;
+    }
+    .report-head span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .metric strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 18px;
+    }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      header { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>FinDesk logo draft</h1>
+        <p>Первый векторный вариант: деловой app-знак, wordmark и пример в отчете.</p>
+      </div>
+      <img src="./findesk-mark.svg" alt="FinDesk" class="mark small">
+    </header>
+    <section class="grid">
+      <article class="panel">
+        <h2>Wordmark</h2>
+        <img src="./findesk-logo.svg" alt="FinDesk logo" class="logo">
+      </article>
+      <article class="panel">
+        <h2>App icon sizes</h2>
+        <div class="mark-row">
+          <img src="./findesk-mark.svg" alt="" class="mark">
+          <img src="./findesk-mark.svg" alt="" class="mark small">
+          <img src="./findesk-mark.svg" alt="" class="mark tiny">
+        </div>
+      </article>
+      <article class="panel dark">
+        <h2>On dark surface</h2>
+        <img src="./findesk-logo-white.svg" alt="FinDesk logo" class="logo">
+      </article>
+      <article class="panel">
+        <h2>Report header mock</h2>
+        <div class="report-head">
+          <img src="./findesk-mark.svg" alt="">
+          <div>
+            <strong>Отчет от 12.08.2026</strong>
+            <span>Claudia Z · период 2026-06-16 - 2026-08-10</span>
+          </div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>Поступления</span><strong>248,00 EUR</strong></div>
+          <div class="metric"><span>Расход</span><strong>5 591,00 EUR</strong></div>
+          <div class="metric"><span>Остаток</span><strong>3 913,00 EUR</strong></div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

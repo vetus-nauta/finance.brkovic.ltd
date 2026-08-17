@@ -13,6 +13,9 @@ DB_NAME="findesk_v2_http_smoke"
 COOKIE_NAME="findesk_v2_http_smoke_session"
 TOKEN="findesk-v2-http-smoke-token"
 VIEWER_TOKEN="findesk-v2-http-viewer-token"
+EMPLOYEE_TOKEN="findesk-v2-http-employee-token"
+INVITEE_TOKEN="findesk-v2-http-invitee-token"
+WRONG_INVITEE_TOKEN="findesk-v2-http-wrong-invitee-token"
 
 cleanup() {
     if [[ -f "${SERVER_PID_FILE}" ]]; then
@@ -99,27 +102,44 @@ mariadb --no-defaults --socket="${SOCKET}" -uroot "${DB_NAME}" \
 
 TOKEN_HASH="$(TOKEN="${TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
 VIEWER_TOKEN_HASH="$(TOKEN="${VIEWER_TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
+EMPLOYEE_TOKEN_HASH="$(TOKEN="${EMPLOYEE_TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
+INVITEE_TOKEN_HASH="$(TOKEN="${INVITEE_TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
+WRONG_INVITEE_TOKEN_HASH="$(TOKEN="${WRONG_INVITEE_TOKEN}" php -r 'echo hash("sha256", getenv("TOKEN"));')"
 mariadb --no-defaults --socket="${SOCKET}" -uroot "${DB_NAME}" <<SQL
 INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
 VALUES (19001, 'v2-http-smoke@example.test', 'V2 HTTP Smoke', 'en', 'UTC', 'active', NOW());
 INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
 VALUES (19002, 'v2-http-viewer@example.test', 'V2 HTTP Viewer', 'en', 'UTC', 'active', NOW());
+INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
+VALUES (19003, 'v2-http-employee@example.test', 'V2 HTTP Employee', 'en', 'UTC', 'active', NOW());
+INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
+VALUES (19004, 'v2-http-invitee@example.test', 'V2 HTTP Invitee', 'en', 'UTC', 'active', NOW());
+INSERT INTO users (id, email, display_name, preferred_language, timezone, status, last_login_at)
+VALUES (19005, 'v2-http-wrong-invitee@example.test', 'V2 HTTP Wrong Invitee', 'en', 'UTC', 'active', NOW());
 
 INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
 VALUES (19001, '${TOKEN_HASH}', 'http-smoke', '127.0.0.1', 'FinDesk v2 HTTP smoke', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
 INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
 VALUES (19002, '${VIEWER_TOKEN_HASH}', 'http-smoke-viewer', '127.0.0.1', 'FinDesk v2 HTTP smoke viewer', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
+INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
+VALUES (19003, '${EMPLOYEE_TOKEN_HASH}', 'http-smoke-employee', '127.0.0.1', 'FinDesk v2 HTTP smoke employee', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
+INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
+VALUES (19004, '${INVITEE_TOKEN_HASH}', 'http-smoke-invitee', '127.0.0.1', 'FinDesk v2 HTTP smoke invitee', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
+INSERT INTO sessions (user_id, session_token_hash, device_label, ip_address, user_agent, expires_at, last_seen_at)
+VALUES (19005, '${WRONG_INVITEE_TOKEN_HASH}', 'http-smoke-wrong-invitee', '127.0.0.1', 'FinDesk v2 HTTP smoke wrong invitee', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW());
 SQL
 
 HARNESS="${TMP_DIR}/harness"
 mkdir -p "${HARNESS}/app/v2" "${HARNESS}/public" "${HARNESS}/storage/logs"
 cp "${ROOT}/app/auth.php" "${HARNESS}/app/auth.php"
 cp "${ROOT}/app/v2/Support.php" "${HARNESS}/app/v2/Support.php"
+cp "${ROOT}/app/v2/InternetReferenceProvider.php" "${HARNESS}/app/v2/InternetReferenceProvider.php"
 cp "${ROOT}/app/v2/LegacyExcelImporter.php" "${HARNESS}/app/v2/LegacyExcelImporter.php"
 cp "${ROOT}/app/v2/Database.php" "${HARNESS}/app/v2/Database.php"
 cp "${ROOT}/app/v2/Repository.php" "${HARNESS}/app/v2/Repository.php"
 cp "${ROOT}/app/v2/Api.php" "${HARNESS}/app/v2/Api.php"
 cp "${ROOT}/public/v2-api.php" "${HARNESS}/public/v2-api.php"
+cp "${ROOT}/public/v2-report.php" "${HARNESS}/public/v2-report.php"
 
 cat > "${HARNESS}/app/db.php" <<PHP
 <?php
@@ -184,6 +204,9 @@ FINDESK_V2_HTTP_BASE="http://127.0.0.1:${PORT}" \
 FINDESK_V2_HTTP_COOKIE="${COOKIE_NAME}" \
 FINDESK_V2_HTTP_TOKEN="${TOKEN}" \
 FINDESK_V2_HTTP_VIEWER_TOKEN="${VIEWER_TOKEN}" \
+FINDESK_V2_HTTP_EMPLOYEE_TOKEN="${EMPLOYEE_TOKEN}" \
+FINDESK_V2_HTTP_INVITEE_TOKEN="${INVITEE_TOKEN}" \
+FINDESK_V2_HTTP_WRONG_INVITEE_TOKEN="${WRONG_INVITEE_TOKEN}" \
 FINDESK_V2_HTTP_SOCKET="${SOCKET}" \
 FINDESK_V2_HTTP_DB="${DB_NAME}" \
 FINDESK_V2_HTTP_HARNESS="${HARNESS}" \
