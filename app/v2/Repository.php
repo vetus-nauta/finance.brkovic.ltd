@@ -207,7 +207,7 @@ final class FinDeskV2Repository
             SELECT *
             FROM v2_workspace_invites
             WHERE workspace_id = ?
-            ORDER BY start_date ASC, end_date ASC, created_at ASC
+            ORDER BY created_at ASC
             LIMIT 100
         ");
         $stmt->execute([$workspaceId]);
@@ -2172,7 +2172,7 @@ final class FinDeskV2Repository
         $cashFlow = $this->cashFlowForWorkspace($workspaceId, $userId);
         $openingCash = $cashFlow === null
             ? null
-            : (float)$cashFlow['opening_balance'] + $this->cashDeltaBefore($cashFlow['id'], $monthStart);
+            : $this->cashBalanceBeforeDate((string)$cashFlow['id'], $monthStart);
 
         $report = [
             'workspace_id' => $workspaceId,
@@ -2291,8 +2291,8 @@ final class FinDeskV2Repository
             }
         }
 
-        if ($openingCash !== null) {
-            $report['ending_cash'] = $openingCash + $monthCashDelta;
+        if ($cashFlow !== null) {
+            $report['ending_cash'] = $this->cashBalanceBeforeDate((string)$cashFlow['id'], $monthEnd);
         }
 
         $closure = $this->monthClosure($workspaceId, $year, $month);
@@ -9935,6 +9935,30 @@ final class FinDeskV2Repository
         if ($previous !== false) {
             return (float)$previous;
         }
+        $flow = $this->db->prepare("SELECT opening_balance FROM v2_flows WHERE id = ? LIMIT 1");
+        $flow->execute([$flowId]);
+
+        return (float)$flow->fetchColumn();
+    }
+
+    private function cashBalanceBeforeDate(string $flowId, string $beforeDate): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT balance_after
+            FROM v2_entries
+            WHERE flow_id = ?
+              AND archived_at IS NULL
+              AND balance_after IS NOT NULL
+              AND date < ?
+            ORDER BY date DESC, created_seq DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$flowId, $beforeDate]);
+        $previous = $stmt->fetchColumn();
+        if ($previous !== false) {
+            return (float)$previous;
+        }
+
         $flow = $this->db->prepare("SELECT opening_balance FROM v2_flows WHERE id = ? LIMIT 1");
         $flow->execute([$flowId]);
 
