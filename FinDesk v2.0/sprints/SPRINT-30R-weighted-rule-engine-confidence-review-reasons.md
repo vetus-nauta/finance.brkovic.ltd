@@ -100,7 +100,8 @@ Confidence/review behavior:
 -15 доставка фильтра -> tech_parts, mixed_context, 0.64
 -50 обед с агентом -> representation_expenses, no review, 0.92
 -100 Порше топливо -> blocked_by_personal, 0.20
--250 долг за гараж -> blocked_by_debt, lower_accounting, 0.20
+-250 долг за гараж -> berth, operational, no review, 0.92
+-150 долг таможне дьюти -> admin_legal, operational, no review, 0.92
 +750 агентские -> commercial_income_unclear, missing_yacht_charter_phrase, 0.30
 +5525 ареда яхты -> commercial_income, no review, 0.92
 ```

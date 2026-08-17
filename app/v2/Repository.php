@@ -43,10 +43,10 @@ final class FinDeskV2Repository
         'representation_expenses' => '/представительск|подарок|подарк[а-я]* служб|презент|розы|сувенир|украшен[а-я]* др|делов\p{L}*[^,.;]*(обед|ужин|встреч)|(?:обед|ужин|ланч|встреча)[^,.;]*(?:\sс\s|\sдля\s)[\p{L}]|hospitality|business lunch|business dinner|lunch with|dinner with/u',
         'provisions' => '/продукт|продуукт|рыб|стейк|мяс|баранин|хлеб|фрукт|овощ|напит|вино|пиво|кола|сок|сироп|сладост|коктел|коктейл|устриц|скамп|шкамп|краб|кальмар|лангустин|осминог|лосось|тунец|салмон|сыр|морож|инжир|яйц|орех|мед|соус|острог|перекус|еда|ресторан|цветы|алкоголь|виски|водк|шампан|грей.?гус|моет|moet|вдова клико|аберлоу|ликер|кофе(?![\\s-]?машин)|холодн[а-я]* чай|рынок|клубник|монтефиш|обед|кафе|докупк[а-я]* необходим[а-я]* в поход|закупк[а-я]* в поход|косметик|гигиен|шампун|аптечк|аптек|лекарств|(?:^|\s)вода(?!\s+электричеств)(?:\s|$)|вода (?:на|в) лодк/u',
         'interior' => '/ковр|текстил|полотен|обувь|судоч|нож|посуд|матрас|игрушк|linen|towels|кухонн[^,.;]*принадлежн|кухонн[а-я]* расход|инвентарь по кухне|кухн[а-я]*.*интерьер|кухн[а-я]*.*обновлен|утварь.*кухн|перешив.*подуш|подушк|чехл|скатерт|нарды|шезлонг|кофе[\\s-]?машин|кофемашин|блендер|соковыжималк|микроволновк|печка|капучинатор|графин|пепельниц|жалюзи|одеял|наволочк|плед|комплект постельн|мешк[иа]|контейнер|замк[иа] на дверц|на кухню/u',
-        'cleaning' => '/хим|мойк|моющ[а-я]* средств[а-я]*|салф|тряпк|пена|полиров|уборк|химчист|clean|laundry|detergent|прачк|прачеч|полирол|пенообразователь|керхер|мусор|вывоз мусора|отбеливател|плесен|грибк|распылител|щетк[а-я]*(?: для лодк)?/u',
+        'cleaning' => '/хим|мойк|моющ[а-я]* средств[а-я]*|чистящ[а-я]* средств[а-я]*|шампун[^,.;]*(?:чистящ|моющ)|(?:чистящ|моющ)[^,.;]*шампун|душев[а-я]* принадлежн|салф|тряпк|пена|полиров|уборк|химчист|clean|laundry|detergent|прачк|прачеч|полирол|пенообразователь|керхер|мусор|вывоз мусора|отбеливател|плесен|грибк|распылител|щетк[а-я]*(?: для лодк)?/u',
         'media_comms' => '/netflix|нетфликс|apple|ivi|иви|старлинк|starlink|hipo|сим.?карт|интернет|инет|интенрнет|wifi|связ|telekom|картина.?тв|\bтв\b|телевиз|sonos|сонос|модем|роуминг|сайт[а-я]* клауди|домен|хостинг|платн[а-я]* погод|прогноз погод|прогнох погод|обновлен[а-я]* карт|hdmi|шнур[а-я]* телефон|чехол телефон/u',
         'current_boat_expenses' => '/брендир|(?:^|[\s-])форм[а-я]*|одежд[аы]? экипаж|спец.?одеж|спецодеж|агент|магазин|хоз.?товар|принтер|(?:^|\s)инвентарь(?!\s+по\s+кухне)(?:\s|$)|банковск[а-я]* перевод|комисси[яи] банк|банковск[а-я]* комисс|банковск[а-я]* процент[а-я]*.*перевод|забрал свои|bank fee|bank commission/u',
-        'transport_expenses' => '/такси|трансфер|аренда авто|арендованн[а-я]* авто|рентакар|билеты?|перел[её]т|авиа|поезд|автобус|самол[её]т|air serbia|логистик|забрал гостей|дорожн[а-я]* расход|запра[вк][а-я]* авто|парковк|курьер|доставк|почт[а-я]* в сербию|велосипед[а-я]* млет|перевозк[а-я]* гидроцикл|taxi|transfer|car rental|tickets|delivery/u',
+        'transport_expenses' => '/такси|трансфер|аренда авто|арендованн[а-я]* авто|рентакар|билеты?|багаж|мест[ао][^,.;]*(?:самол|рейс|билет)|перел[её]т|авиа|поезд|автобус|самол[её]т|air serbia|логистик|забрал гостей|дорожн[а-я]* расход|запра[вк][а-я]* авто|парковк|курьер|доставк|почт[а-я]* в сербию|велосипед[а-я]* млет|перевозк[а-я]* гидроцикл|taxi|transfer|car rental|tickets|delivery/u',
         'admin_legal' => '/тур.?регистрац|тамож|дьюти|документ|печат[ьи]|налог|ндс|страхов|регистрац|юрист|адвокат|license|insurance|customs|виньет|лиценз|леценз|sanada|такса|такс[аы] банк перевод|траст компани|внж|крулист|crew.?list|виза|судебн[а-я]* перевод|открытие счета|обеспечение счета|берегов[а-я]* служб|морск[а-я]* сертиф[а-я]*|сертифиткат|разрешен[а-я]* на вход|флаг[а-я]* итали|флаг[а-я]* кайман|границ|просрочк[а-я]* нахождения/u',
         'crew' => '/\bзп\b|зарплат|аванс|капитан|хостесс|помощник|экипаж|работник в помощь|sailor|crew|salary|повар|чаев/u',
         'other' => '/планшет|обезналич|консьерж|книжк[а-я]* моряка|подставк[а-я]* под динги/u',
@@ -3656,15 +3656,9 @@ final class FinDeskV2Repository
             LEFT JOIN v2_actors a ON a.id = e.actor_id
             WHERE e.workspace_id = ?
               AND e.archived_at IS NULL
-              AND (
-                (e.status = 'other_review' AND e.entry_type = 'cash_expense' AND c.code = 'other')
-                OR (
-                  e.category_id IS NULL
-                  AND e.amount IS NOT NULL
-                  AND e.entry_type <> 'correction'
-                  AND e.status IN (" . $this->countedStatusSqlList() . ")
-                )
-              )
+              AND e.status = 'other_review'
+              AND e.entry_type = 'cash_expense'
+              AND c.code = 'other'
             ORDER BY e.date ASC, e.created_seq ASC
         ");
         $stmt->execute([$workspaceId]);
@@ -4611,7 +4605,10 @@ final class FinDeskV2Repository
             'card_expense' => $this->legacyAmount($raw['расход карта'] ?? $raw['расход карты'] ?? $raw['card expense'] ?? null),
         ];
         $nonZero = array_filter($amounts, static fn (?float $amount): bool => $amount !== null && abs($amount) > 0.0001);
-        $isSummary = str_contains($text, 'свод') || str_contains($text, 'summary') || isset($raw['сводные данные']);
+        $isSummary = str_contains($text, 'свод')
+            || str_contains($text, 'summary')
+            || preg_match('/(^|\s)(итого|итог|total|общий приход|общий расход|общая сумма|финальная сумма)(\s|$)/u', $text) === 1
+            || isset($raw['сводные данные']);
         $isInfo = str_contains($text, 'информационная') || str_contains($text, 'не считается') || str_contains($text, 'comment') || str_contains($text, 'info');
         $isOpening = str_contains($text, 'остаток') || str_contains($text, 'переход') || str_contains($text, 'opening balance') || str_contains($text, 'balance brought forward');
 
@@ -7860,10 +7857,10 @@ final class FinDeskV2Repository
         } elseif (preg_match('/брендир|(?:^|[\s-])форм[а-я]*|одежд[аы]? экипаж|спец.?одеж|спецодеж|агент|магазин|хоз.?товар|принтер|(?:^|\s)инвентарь(?!\s+по\s+кухне)(?:\s|$)|банковск[а-я]* перевод|комисси[яи] банк|банковск[а-я]* комисс|банковск[а-я]* процент[а-я]*.*перевод|забрал свои|bank fee|bank commission/u', $text) === 1 && $sign === '-') {
             $categoryCode = 'current_boat_expenses';
             $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'current_boat_expenses', 'category_code' => 'current_boat_expenses'];
-        } elseif (preg_match('/хим|мойк|моющ[а-я]* средств[а-я]*|салф|тряпк|пена|полиров|уборк|химчист|clean|laundry|detergent|прачк|прачеч|полирол|пенообразователь|керхер|мусор|вывоз мусора|отбеливател|плесен|грибк|распылител|щетк[а-я]*(?: для лодк)?/u', $text) === 1 && $sign === '-') {
+        } elseif (preg_match('/хим|мойк|моющ[а-я]* средств[а-я]*|чистящ[а-я]* средств[а-я]*|шампун[^,.;]*(?:чистящ|моющ)|(?:чистящ|моющ)[^,.;]*шампун|душев[а-я]* принадлежн|салф|тряпк|пена|полиров|уборк|химчист|clean|laundry|detergent|прачк|прачеч|полирол|пенообразователь|керхер|мусор|вывоз мусора|отбеливател|плесен|грибк|распылител|щетк[а-я]*(?: для лодк)?/u', $text) === 1 && $sign === '-') {
             $categoryCode = 'cleaning';
             $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'cleaning', 'category_code' => 'cleaning'];
-        } elseif (preg_match('/такси|трансфер|аренда авто|арендованн[а-я]* авто|рентакар|билеты?|перел[её]т|авиа|поезд|автобус|самол[её]т|air serbia|логистик|забрал гостей|дорожн[а-я]* расход|запра[вк][а-я]* авто|парковк|курьер|доставк|почт[а-я]* в сербию|велосипед[а-я]* млет|перевозк[а-я]* гидроцикл|taxi|transfer|car rental|tickets|delivery/u', $text) === 1 && $sign === '-') {
+        } elseif (preg_match('/такси|трансфер|аренда авто|арендованн[а-я]* авто|рентакар|билеты?|багаж|мест[ао][^,.;]*(?:самол|рейс|билет)|перел[её]т|авиа|поезд|автобус|самол[её]т|air serbia|логистик|забрал гостей|дорожн[а-я]* расход|запра[вк][а-я]* авто|парковк|курьер|доставк|почт[а-я]* в сербию|велосипед[а-я]* млет|перевозк[а-я]* гидроцикл|taxi|transfer|car rental|tickets|delivery/u', $text) === 1 && $sign === '-') {
             $categoryCode = 'transport_expenses';
             $matchedRules[] = ['source' => 'fixture_keyword', 'pattern' => 'transport_expenses', 'category_code' => 'transport_expenses'];
         } elseif (preg_match('/продукт|продуукт|рыб|стейк|мяс|баранин|хлеб|фрукт|овощ|напит|вино|пиво|кола|сок|сироп|сладост|коктел|коктейл|устриц|скамп|шкамп|краб|кальмар|лангустин|осминог|лосось|тунец|салмон|сыр|морож|инжир|яйц|орех|мед|соус|острог|перекус|еда|ресторан|кафе|алкоголь|виски|водк|шампан|грей.?гус|моет|moet|вдова клико|аберлоу|ликер|кофе(?![\\s-]?машин)|холодн[а-я]* чай|рынок|клубник|монтефиш|обед|докупк[а-я]* необходим[а-я]* в поход|закупк[а-я]* в поход|косметик|гигиен|шампун|аптечк|аптек|лекарств|(?:^|\s)вода(?!\s+электричеств)(?:\s|$)|вода (?:на|в) лодк/u', $text) === 1 && $sign === '-') {
@@ -7922,7 +7919,7 @@ final class FinDeskV2Repository
             $blockers[] = 'non_yacht_or_personal';
             $reviewReason = 'blocked_by_personal';
             $confidence = 0.20;
-        } elseif (isset($markerNames['debt_or_return'])) {
+        } elseif (isset($markerNames['debt_or_return']) && $this->debtOrReturnMarkerRequiresLowerAccounting($categoryCode, $rawText)) {
             $blockers[] = 'debt_or_return';
             $reviewReason = 'blocked_by_debt';
             $confidence = 0.20;
@@ -10821,14 +10818,6 @@ final class FinDeskV2Repository
             return true;
         }
 
-        foreach ($semanticMarkers as $marker) {
-            if (($marker['marker'] ?? null) === 'non_yacht_or_personal'
-                && preg_match('/порше|porsche|мото навигатор|для рф|катер рф/u', $text) === 1
-            ) {
-                return true;
-            }
-        }
-
         return false;
     }
 
@@ -10886,24 +10875,8 @@ final class FinDeskV2Repository
     private function adminDebtSummary(string $workspaceId, string $periodStart, string $periodEnd, array $entries): array
     {
         $openings = $this->adminDebtOpeningRows($workspaceId);
-        if ($openings === []) {
-            return [
-                'count' => 0,
-                'opening_total' => 0.0,
-                'basis_breakdown' => null,
-                'increased_total' => 0.0,
-                'returned_total' => 0.0,
-                'net_change' => 0.0,
-                'total' => 0.0,
-                'entries' => [],
-                'source_entry_ids' => [],
-                'basis_rows' => [],
-                'basis_source_ids' => [],
-            ];
-        }
-
         $basisBreakdown = $this->adminDebtBasisBreakdown($openings);
-        $basisStart = (string)$openings[0]['basis_date'];
+        $basisStart = $openings === [] ? $periodStart : (string)$openings[0]['basis_date'];
         $openingAtStart = 0.0;
         $basisInsidePeriod = 0.0;
         $basisRows = [];

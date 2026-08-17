@@ -691,9 +691,10 @@ runFixture($report, 'Fixture 10 - Lower accounting block', function () use ($rep
     foreach ([$credit, $debtGarage, $returned, $accountable, $partialReturn, $guestCashReturn, $unassignedReturn] as $entry) {
         fixtureAssert(semanticMarkerHas($entry, 'debt_or_return'), 'lower accounting debt marker missing for ' . $entry['raw_text']);
     }
-    foreach ([$credit, $accountable] as $entry) {
+    foreach ([$accountable] as $entry) {
         assertSameValue($entry['accounting_section'], 'lower_accounting', 'entry lower accounting section');
     }
+    assertSameValue($credit['accounting_section'], 'admin_debt', 'personal credit belongs to administrator debt');
     assertSameValue($guestCash['category_code'], 'guest_cash_issued', 'guest cash category');
     assertSameValue($guestCash['accounting_section'], 'operational', 'guest cash remains operational for manual category correction');
     assertSameValue($debtGarage['accounting_section'], 'operational', 'debt wording with concrete boat expense remains operational');
@@ -711,18 +712,18 @@ runFixture($report, 'Fixture 10 - Lower accounting block', function () use ($rep
     assertAmount($monthly['ending_cash'], -580.0, 'lower accounting ending cash must remain physical balance');
 
     $layer1 = $repo->getLayer1SummaryReport($workspace['id'], ['year' => 2026, 'month' => 7], $userId);
-    assertSameValue($layer1['blocks']['lower_accounting']['count'], 2, 'lower accounting block count');
-    assertAmount($layer1['blocks']['lower_accounting']['total'], 1300.0, 'lower accounting block total');
-    foreach ([$credit, $accountable] as $entry) {
+    assertSameValue($layer1['blocks']['lower_accounting']['count'], 1, 'lower accounting block count');
+    assertAmount($layer1['blocks']['lower_accounting']['total'], 300.0, 'lower accounting block total');
+    foreach ([$accountable] as $entry) {
         fixtureAssert(in_array($entry['id'], $layer1['blocks']['lower_accounting']['source_entry_ids'], true), 'lower accounting source missing ' . $entry['raw_text']);
     }
+    fixtureAssert(in_array($credit['id'], $layer1['blocks']['admin_debt']['source_entry_ids'], true), 'admin debt source missing personal credit');
     $settlements = [];
     foreach ($layer1['blocks']['lower_accounting']['settlements']['by_counterparty'] as $row) {
         $settlements[$row['counterparty']] = $row;
     }
     assertSameValue($settlements['Женя']['status'] ?? null, 'open', 'Женя settlement status');
     assertAmount($settlements['Женя']['open_amount'] ?? null, 300.0, 'Женя open amount');
-    assertSameValue($settlements['Unassigned']['status'] ?? null, 'needs_actor', 'unassigned settlement status');
 
     $categoryRows = [];
     foreach ($layer1['blocks']['categories']['rows'] as $row) {
@@ -733,7 +734,7 @@ runFixture($report, 'Fixture 10 - Lower accounting block', function () use ($rep
     assertAmount($categoryRows['representation_expenses']['cash_total'] ?? null, 100.0, 'representation category control');
     assertAmount($categoryRows['admin_legal']['cash_total'] ?? null, 100.0, 'admin/legal category control');
 
-    return 'explicit credit/accountable rows form lower accounting block; contextual debt/return/guest-cash rows remain operational and editable';
+    return 'accountable rows form lower accounting; personal credit forms administrator debt; contextual debt/return/guest-cash rows remain operational and editable';
 });
 runFixture($report, 'Fixture 10 - Month insertion recalculation', function () use ($repo, $userId): string {
     $workspace = $repo->createWorkspace([
@@ -1320,6 +1321,8 @@ runFixture($report, 'Parse preview', function () use ($repo, $workspace, $cashFl
 	        ['-100 инвентарь', 'current_boat_expenses', 'generic inventory current boat preview category'],
 	        ['-100 банковские проценты за переводы', 'current_boat_expenses', 'bank transfer fees preview category'],
 	        ['-100 принтер на лодку', 'current_boat_expenses', 'boat printer current boat preview category'],
+	        ['-100 александр места в самолете', 'transport_expenses', 'flight seat selection should be transport expense'],
+	        ['-100 шампуни и чистящие средства', 'cleaning', 'cleaning shampoo wording should be cleaning expense'],
 	        ['-100 шнуры телефон', 'media_comms', 'phone cords media preview category'],
 	        ['-100 работник в помощь', 'crew', 'temporary worker preview category'],
 	    ] as [$rawText, $categoryCode, $label]) {
@@ -1428,10 +1431,19 @@ runFixture($report, 'Parse preview', function () use ($repo, $workspace, $cashFl
 	        'raw_text' => '-250 долг за гараж',
 	    ], $userId);
 	    assertSameValue(semanticMarkerHas($debtGarage, 'debt_or_return'), true, 'debt garage marker should stay visible');
-	    assertSameValue($debtGarage['review_reason'], 'blocked_by_debt', 'debt garage review reason');
-	    assertAmount($debtGarage['confidence'], 0.20, 'debt garage confidence');
-	    assertSameValue(classificationBlockerHas($debtGarage, 'debt_or_return'), true, 'debt garage blocker');
+	    assertSameValue($debtGarage['review_reason'], null, 'debt garage should not need review when berth context is clear');
+	    assertAmount($debtGarage['confidence'], 0.92, 'debt garage confidence');
+	    assertSameValue(classificationBlockerHas($debtGarage, 'debt_or_return'), false, 'debt garage should not be blocked when berth context is clear');
 	    assertSameValue($debtGarage['accounting_section'], 'operational', 'debt garage should remain operational when it has concrete boat-expense context');
+
+	    $customsDebt = $repo->previewEntryParse($workspace['id'], [
+	        'flow_id' => $cashFlow['id'],
+	        'date' => '2026-07-05',
+	        'raw_text' => '-150 долг таможне дьюти',
+	    ], $userId);
+	    assertSameValue($customsDebt['category_code'], 'admin_legal', 'customs debt should stay admin/legal operational category');
+	    assertSameValue($customsDebt['review_reason'], null, 'customs debt should not need lower-accounting review');
+	    assertSameValue($customsDebt['accounting_section'], 'operational', 'customs debt should remain operational');
 
 	    $unclearCommercial = $repo->previewEntryParse($workspace['id'], [
 	        'flow_id' => $cashFlow['id'],

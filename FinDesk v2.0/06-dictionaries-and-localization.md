@@ -174,7 +174,7 @@ Crew tips / `чаевые` belong to `crew`.
 
 `Остались на карте. Сдал`, `Оплатил с карты для себя`, `Вернул в кеш кассу`, and similar settlement rows are semantic-only money movement / private settlement context, not expense categories.
 
-Debt, loan, credit, return, and accountable-cash wording such as `долг`, `кредит`, `займ`, `вернул`, `возврат`, `под отчет`, and `подотчет` belongs to a separate lower accounting block. It must not become an expense category by itself, even when another category word is present.
+Debt, loan, credit, return, and accountable-cash wording such as `долг`, `кредит`, `займ`, `вернул`, `возврат`, `под отчет`, and `подотчет` is a semantic marker, not an expense category by itself. Explicit accountable wording (`под отчет`, `подотчет`) and clear loan/debt wording without a concrete operational category belong to the lower accounting block. If the same row has a clear yacht operational context such as `долг за гараж` or `долг таможне`, the operational category stays editable and the row must not be blocked by lower accounting.
 
 Administrator-personal debt wording is stricter and overrides lower accounting: `мой кредит`, `моя часть кредита`, `кредит себе`, `последний кредит`, `мой долг`, `для себя`, `себе`, `домой`, `с тему`, `temu`, and `мото навигатор` belong to `admin_debt`. This block is a liability/reporting block, not an operational expense category and not employee/guest accountable money.
 

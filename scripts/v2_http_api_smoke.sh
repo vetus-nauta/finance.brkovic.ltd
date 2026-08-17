@@ -18,6 +18,11 @@ INVITEE_TOKEN="findesk-v2-http-invitee-token"
 WRONG_INVITEE_TOKEN="findesk-v2-http-wrong-invitee-token"
 
 cleanup() {
+    if [[ "${FINDESK_V2_HTTP_KEEP_TMP:-0}" == "1" ]]; then
+        echo "FinDesk v2 HTTP API smoke: kept ${TMP_DIR}" >&2
+        return
+    fi
+
     if [[ -f "${SERVER_PID_FILE}" ]]; then
         kill "$(cat "${SERVER_PID_FILE}")" >/dev/null 2>&1 || true
     fi
@@ -135,6 +140,7 @@ cp "${ROOT}/app/auth.php" "${HARNESS}/app/auth.php"
 cp "${ROOT}/app/v2/Support.php" "${HARNESS}/app/v2/Support.php"
 cp "${ROOT}/app/v2/InternetReferenceProvider.php" "${HARNESS}/app/v2/InternetReferenceProvider.php"
 cp "${ROOT}/app/v2/LegacyExcelImporter.php" "${HARNESS}/app/v2/LegacyExcelImporter.php"
+cp "${ROOT}/app/v2/ReportSpreadsheetExporter.php" "${HARNESS}/app/v2/ReportSpreadsheetExporter.php"
 cp "${ROOT}/app/v2/Database.php" "${HARNESS}/app/v2/Database.php"
 cp "${ROOT}/app/v2/Repository.php" "${HARNESS}/app/v2/Repository.php"
 cp "${ROOT}/app/v2/Api.php" "${HARNESS}/app/v2/Api.php"

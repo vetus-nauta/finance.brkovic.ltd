@@ -884,7 +884,12 @@ smokeAssert($noSignMiscEntry['status'] === 'unrecognized', 'no-sign misc should 
 smokeAssert($noSignMiscEntry['category_code'] === null, 'no-sign misc should not become other');
 
 $otherQueue = expectOk(smokeRequest('GET', "/api/workspaces/{$workspaceId}/other-expenses"), 'other expenses queue')['entries'];
-smokeAssert(count($otherQueue) === 3, 'other expenses queue count mismatch');
+smokeAssert(count($otherQueue) === 3, 'other expenses queue count mismatch: ' . json_encode(array_map(static fn (array $entry): array => [
+    'raw_text' => $entry['raw_text'] ?? null,
+    'entry_type' => $entry['entry_type'] ?? null,
+    'status' => $entry['status'] ?? null,
+    'category_code' => $entry['category_code'] ?? null,
+], $otherQueue), JSON_UNESCAPED_UNICODE));
 smokeAssert((string)$otherQueue[0]['id'] === (string)$otherEntry['id'], 'other expenses queue entry mismatch');
 smokeAssert((string)$otherQueue[1]['id'] === (string)$englishOtherEntry['id'], 'other expenses queue english entry mismatch');
 smokeAssert((string)$otherQueue[2]['id'] === (string)$unknownOtherEntry['id'], 'other expenses queue unknown_expense entry mismatch');
@@ -1055,9 +1060,8 @@ $creditPreview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/p
     'raw_text' => '-1000 мой кредит',
 ]), 'credit parse preview')['preview'];
 smokeAssert(smokeSemanticMarkerHas($creditPreview, 'debt_or_return'), 'credit preview should expose debt/loan/credit marker');
-smokeAssert(($creditPreview['accounting_section'] ?? null) === 'lower_accounting', 'credit preview should route to lower accounting');
-smokeAssert(($creditPreview['review_reason'] ?? null) === 'blocked_by_debt', 'credit preview review reason');
-smokeAssert(smokeBlockerHas($creditPreview, 'debt_or_return'), 'credit preview debt blocker');
+smokeAssert(($creditPreview['accounting_section'] ?? null) === 'admin_debt', 'personal credit should route to administrator debt');
+smokeAssert(($creditPreview['review_reason'] ?? null) === null, 'administrator debt preview review reason');
 $personalFuelPreview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
     'flow_id' => $cashFlow['id'],
     'date' => '2026-07-05',
@@ -1072,10 +1076,18 @@ $debtGaragePreview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceI
     'date' => '2026-07-05',
     'raw_text' => '-250 долг за гараж',
 ]), 'debt garage parse preview')['preview'];
-smokeAssert(($debtGaragePreview['review_reason'] ?? null) === 'blocked_by_debt', 'debt garage review reason');
-smokeAssertAmount($debtGaragePreview['confidence'] ?? null, 0.20, 'debt garage confidence');
-smokeAssert(smokeBlockerHas($debtGaragePreview, 'debt_or_return'), 'debt garage blocker');
+smokeAssert(($debtGaragePreview['review_reason'] ?? null) === null, 'debt garage should not need review when berth context is clear');
+smokeAssertAmount($debtGaragePreview['confidence'] ?? null, 0.92, 'debt garage confidence');
+smokeAssert(!smokeBlockerHas($debtGaragePreview, 'debt_or_return'), 'debt garage should not be blocked when berth context is clear');
 smokeAssert(($debtGaragePreview['accounting_section'] ?? null) === 'operational', 'debt garage should remain operational when it has concrete boat-expense context');
+$customsDebtPreview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
+    'flow_id' => $cashFlow['id'],
+    'date' => '2026-07-05',
+    'raw_text' => '-150 долг таможне дьюти',
+]), 'customs debt parse preview')['preview'];
+smokeAssert(($customsDebtPreview['category_code'] ?? null) === 'admin_legal', 'customs debt should stay admin/legal operational category');
+smokeAssert(($customsDebtPreview['review_reason'] ?? null) === null, 'customs debt should not need lower-accounting review');
+smokeAssert(($customsDebtPreview['accounting_section'] ?? null) === 'operational', 'customs debt should remain operational');
 $unclearCommercialPreview = expectOk(smokeRequest('POST', "/api/workspaces/{$workspaceId}/parse-preview", [
     'flow_id' => $cashFlow['id'],
     'date' => '2026-07-05',
@@ -1570,9 +1582,10 @@ $lowerCable = expectOk(smokeRequest('POST', "/api/workspaces/{$lowerWorkspaceId}
     'raw_text' => '-80 Вова купил кабель',
 ]), 'create operational Vova cable row')['entry'];
 
-foreach ([$lowerCredit, $lowerVovaIssue, $lowerAccountable, $lowerDanilIssue] as $lowerEntry) {
+foreach ([$lowerVovaIssue, $lowerAccountable, $lowerDanilIssue] as $lowerEntry) {
     smokeAssert(($lowerEntry['accounting_section'] ?? null) === 'lower_accounting', 'lower entry section mismatch: ' . ($lowerEntry['raw_text'] ?? ''));
 }
+smokeAssert(($lowerCredit['accounting_section'] ?? null) === 'admin_debt', 'personal credit should route to administrator debt');
 foreach ([$lowerDebtGarage, $lowerVovaReturn, $lowerDanilReturn, $lowerGuestCash, $lowerGarage, $lowerGift, $lowerLawyer, $lowerCable] as $operationalEntry) {
     smokeAssert(($operationalEntry['accounting_section'] ?? null) === 'operational', 'operational control section mismatch: ' . ($operationalEntry['raw_text'] ?? ''));
 }
@@ -1583,11 +1596,13 @@ smokeAssertAmount($lowerMonthly['external_cash_income'], 170.0, 'lower monthly p
 smokeAssertAmount($lowerMonthly['ending_cash'], -1180.0, 'lower monthly ending cash');
 
 $lowerLayer1 = expectOk(smokeRequest('GET', "/api/workspaces/{$lowerWorkspaceId}/reports/layer1-summary?year=2026&month=7"), 'lower layer1 summary')['report'];
-smokeAssert(($lowerLayer1['blocks']['lower_accounting']['count'] ?? null) === 4, 'lower layer1 block count');
-smokeAssertAmount($lowerLayer1['blocks']['lower_accounting']['total'] ?? null, 1620.0, 'lower layer1 block total');
-foreach ([$lowerCredit, $lowerVovaIssue, $lowerAccountable, $lowerDanilIssue] as $lowerEntry) {
+smokeAssert(($lowerLayer1['blocks']['lower_accounting']['count'] ?? null) === 3, 'lower layer1 block count');
+smokeAssertAmount($lowerLayer1['blocks']['lower_accounting']['total'] ?? null, 620.0, 'lower layer1 block total');
+foreach ([$lowerVovaIssue, $lowerAccountable, $lowerDanilIssue] as $lowerEntry) {
     smokeAssertEntryId($lowerLayer1['blocks']['lower_accounting']['source_entry_ids'] ?? [], (string)$lowerEntry['id'], 'lower layer1 source missing ' . ($lowerEntry['raw_text'] ?? ''));
 }
+smokeAssertAmount($lowerLayer1['blocks']['admin_debt']['total'] ?? null, 1000.0, 'admin debt total should include personal credit');
+smokeAssertEntryId($lowerLayer1['blocks']['admin_debt']['source_entry_ids'] ?? [], (string)$lowerCredit['id'], 'admin debt source missing personal credit row');
 $lowerCategoryRows = [];
 foreach ($lowerLayer1['blocks']['categories']['rows'] as $row) {
     $lowerCategoryRows[$row['category_code']] = $row;
@@ -1597,7 +1612,8 @@ smokeAssertAmount($lowerCategoryRows['representation_expenses']['cash_total'] ??
 smokeAssertAmount($lowerCategoryRows['admin_legal']['cash_total'] ?? null, 100.0, 'lower layer1 admin control');
 smokeAssertAmount($lowerCategoryRows['tech_parts']['cash_total'] ?? null, 80.0, 'lower layer1 tech parts control should keep Vova cable operational');
 smokeAssertAmount($lowerCategoryRows['guest_cash_issued']['cash_total'] ?? null, 100.0, 'lower layer1 guest cash should remain operational category row');
-smokeAssertEntryId($lowerLayer1['source_trace']['totals']['lower_accounting_total'] ?? [], (string)$lowerCredit['id'], 'lower source trace missing credit row');
+smokeAssertNoEntryId($lowerLayer1['source_trace']['totals']['lower_accounting_total'] ?? [], (string)$lowerCredit['id'], 'lower source trace should not include personal credit row');
+smokeAssertEntryId($lowerLayer1['source_trace']['totals']['admin_debt_total'] ?? [], (string)$lowerCredit['id'], 'admin debt source trace missing personal credit row');
 $lowerSettlements = [];
 foreach (($lowerLayer1['blocks']['lower_accounting']['settlements']['by_counterparty'] ?? []) as $settlementRow) {
     $lowerSettlements[(string)$settlementRow['counterparty']] = $settlementRow;
@@ -1611,7 +1627,6 @@ smokeAssert(($lowerSettlements['Женя']['status'] ?? null) === 'open', 'Jenya
 smokeAssertAmount($lowerSettlements['Женя']['open_amount'] ?? null, 300.0, 'Jenya settlement open amount');
 smokeAssert(($lowerSettlements['Данил']['status'] ?? null) === 'open', 'Danil settlement should be open until return is explicitly linked');
 smokeAssertAmount($lowerSettlements['Данил']['open_amount'] ?? null, 120.0, 'Danil settlement open amount');
-smokeAssert(($lowerSettlements['Unassigned']['status'] ?? null) === 'needs_actor', 'unassigned lower accounting should need actor');
 $vovaSettlementIds = implode(',', array_map('strval', $lowerSettlements['Вова']['source_entry_ids'] ?? []));
 $vovaSettlementSource = expectOk(smokeRequest('GET', "/api/workspaces/{$lowerWorkspaceId}/reports/layer1-source-entries?ids={$vovaSettlementIds}"), 'Vova settlement source entries');
 smokeAssert(count($vovaSettlementSource['entries'] ?? []) === 1, 'Vova settlement source entries count');
@@ -1678,7 +1693,7 @@ smokeAssert(!empty($operationalPackage['items'][0]['html_snapshot']['id'] ?? nul
 $operationalPackages = expectOk(smokeRequest('GET', "/api/workspaces/{$reportWorkspaceId}/reports/operational-packages"), 'list operational packages')['packages'];
 smokeAssert((string)($operationalPackages[0]['id'] ?? '') === (string)$operationalPackage['id'], 'operational package list latest mismatch');
 $operationalPackageHtml = smokePageRequest('/v2-report.php?type=package&id=' . rawurlencode((string)$operationalPackage['id']));
-smokeAssert($operationalPackageHtml->status === 200, "operational package html expected HTTP 200, got {$operationalPackageHtml->status}");
+smokeAssert($operationalPackageHtml->status === 200, "operational package html expected HTTP 200, got {$operationalPackageHtml->status}: " . substr($operationalPackageHtml->raw, 0, 1000));
 smokeAssert(str_contains($operationalPackageHtml->raw, 'Smoke operational package'), 'operational package html missing title');
 smokeAssert(str_contains($operationalPackageHtml->raw, 'Категории'), 'operational package html missing categories');
 smokeAssert(str_contains($operationalPackageHtml->raw, 'Фрагменты'), 'operational package html missing fragments');

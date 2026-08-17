@@ -247,7 +247,8 @@ Examples:
 -50 агент => current_boat_expenses, confidence 0.48, review_reason weak_only
 -15 доставка фильтра => tech_parts, confidence 0.64, review_reason mixed_context
 -100 Порше топливо => blocker non_yacht_or_personal, confidence 0.20
--250 долг за гараж => lower_accounting marker, blocker debt_or_return, confidence 0.20
+-250 долг за гараж => berth, debt_or_return marker visible, operational, confidence 0.92
+-150 долг таможне дьюти => admin_legal, debt_or_return marker visible, operational, confidence 0.92
 -87 я заказал с тему => admin_debt marker, personal administrator liability
 +750 агентские => not commercial_income, blocker missing_yacht_charter_phrase, confidence 0.30
 +5525 ареда яхты => commercial_income, confidence 0.92
