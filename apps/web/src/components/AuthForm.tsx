@@ -1,9 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getPublicEnv, hasSupabasePublicEnv } from "@/lib/env";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/browser";
+
+const OTP_RESEND_SECONDS = 60;
+
+function cooldownKey(email: string) {
+  return `findesk:auth:next-code-request:${email.trim().toLowerCase()}`;
+}
+
+function authErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const lower = message.toLowerCase();
+
+  if (lower.includes("security") || lower.includes("rate") || lower.includes("limit")) {
+    return "Код уже запрошен слишком часто. Подождите немного и используйте последнее письмо.";
+  }
+
+  return message || "Не удалось отправить код.";
+}
 
 export function AuthForm() {
   const env = getPublicEnv();
@@ -11,10 +28,37 @@ export function AuthForm() {
   const [email, setEmail] = useState("vetus.nauta@gmail.com");
   const [code, setCode] = useState("");
   const [isCodeSent, setIsCodeSent] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [status, setStatus] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const resendSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  const canRequestCode = ready && !isSubmitting && resendSeconds === 0;
+  const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(cooldownKey(normalizedEmail));
+    setCooldownUntil(stored ? Number(stored) || 0 : 0);
+  }, [normalizedEmail]);
+
+  function startCooldown(seconds = OTP_RESEND_SECONDS) {
+    const until = Date.now() + seconds * 1000;
+    window.localStorage.setItem(cooldownKey(normalizedEmail), String(until));
+    setCooldownUntil(until);
+    setNow(Date.now());
+  }
 
   async function sendOtpRequest() {
+    if (!canRequestCode) {
+      setStatus(`Код уже запрошен. Повторная отправка через ${resendSeconds} сек.`);
+      return;
+    }
+
     setIsSubmitting(true);
     setStatus("");
 
@@ -28,14 +72,17 @@ export function AuthForm() {
       });
 
       if (error) {
-        setStatus(error.message);
+        startCooldown();
+        setStatus(authErrorMessage(error));
         return;
       }
 
+      startCooldown();
       setIsCodeSent(true);
       setStatus("Код отправлен. Введите 8 цифр из письма, чтобы открыть FinDesk.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Не удалось отправить код.");
+      startCooldown();
+      setStatus(authErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -94,12 +141,14 @@ export function AuthForm() {
         <button
           type={isCodeSent ? "button" : "submit"}
           onClick={isCodeSent ? sendOtpRequest : undefined}
-          disabled={!ready || isSubmitting}
+          disabled={!canRequestCode}
         >
           {isSubmitting && !isCodeSent
             ? "Отправляем"
             : isCodeSent
-              ? "Отправить заново"
+              ? resendSeconds > 0
+                ? `Повторить через ${resendSeconds}`
+                : "Отправить заново"
               : "Получить код"}
         </button>
       </div>

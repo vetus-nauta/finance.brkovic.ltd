@@ -84,6 +84,10 @@ Dashboard setup:
 5. Paste the HTML from `supabase/auth-email-templates/magic-link-otp.html`.
 6. Save and test the sign-in form.
 
+Supabase default OTP throttling allows a new OTP request for the same user roughly once per
+60 seconds, and project/email hourly limits may also apply. The UI must keep a resend cooldown
+instead of letting users repeatedly request codes.
+
 Optional fallback link template, if a link is needed later:
 
 ```html
