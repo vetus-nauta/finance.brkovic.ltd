@@ -92,6 +92,20 @@ SUPABASE_ACCESS_TOKEN=... \
 node scripts/supabase_apply_auth_otp_template.cjs
 ```
 
+If the project is on the Supabase Free tier with the default email provider, template updates are
+blocked. Configure custom SMTP first. When the production SMTP config exists locally in
+`storage/secrets/prod-config.local.php`, use:
+
+```bash
+SUPABASE_PROJECT_REF=suebhgyqvzcrigfdplot \
+SUPABASE_ACCESS_TOKEN=... \
+npm run setup:supabase:auth-email
+```
+
+This script reads SMTP settings from the local secrets file at runtime, enables Supabase custom SMTP,
+and then applies the numeric-code Magic Link email template. It must not print or commit SMTP
+passwords or Supabase access tokens.
+
 Supabase default OTP throttling allows a new OTP request for the same user roughly once per
 60 seconds, and project/email hourly limits may also apply. The UI must keep a resend cooldown
 instead of letting users repeatedly request codes.

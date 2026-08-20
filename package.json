@@ -24,6 +24,7 @@
     "commit:v2:atlas": "node scripts/v2_atlas_commit_payload.js",
     "check:foundation:sql": "python3 scripts/check_foundation_sql.py",
     "smoke:foundation:rls": "node scripts/foundation_rls_smoke.cjs",
+    "setup:supabase:auth-email": "node scripts/supabase_configure_auth_smtp_and_otp.cjs",
     "drop:v2:atlas-legacy": "node scripts/v2_atlas_drop_legacy_collections.js",
     "smoke:v2:atlas-runtime": "node scripts/v2_atlas_runtime_smoke.js",
     "smoke:v2:atlas-proxy": "bash scripts/v2_atlas_php_proxy_smoke.sh",
