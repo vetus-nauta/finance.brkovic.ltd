@@ -28,7 +28,6 @@
       "berth"
     ],
     "maintenance": [
-      "service_water",
       "tech_parts",
       "dry_dock",
       "tender"
@@ -132,7 +131,7 @@
       ]
     },
     {
-      "category_code": "service_water",
+      "category_code": "tech_parts",
       "language": "multi",
       "patterns": [
         "сервис",
@@ -163,8 +162,8 @@
         "лебедк"
       ],
       "warnings": [
-        "Generic ремонт can be broad; prefer service when paired with equipment or work.",
-        "Purchase verbs such as купил, покупка, заказал, приобрел are not service work by themselves; if paired with a technical object, classify as tech_parts or review."
+        "This visible category is Запчасти и сервис. Legacy code service_water is merged into tech_parts.",
+        "Generic ремонт can be broad; prefer this category when paired with equipment, work, parts, or maintenance context."
       ]
     },
     {

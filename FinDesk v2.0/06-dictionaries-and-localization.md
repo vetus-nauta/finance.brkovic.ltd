@@ -130,7 +130,6 @@ commercial_income
 dry_dock
 berth
 marina_ports
-service_water
 tech_parts
 tender
 fuel
@@ -160,7 +159,7 @@ other
 
 Crew tips / `чаевые` belong to `crew`.
 
-`service_water` is displayed as "Сервисные работы" and covers work verbs such as replacement, mounting, welding, conservation, system tests, fire-extinguisher service, black-tank / `черные танки` service context, and similar service work. Purchase verbs such as `купил`, `покупка`, `заказал`, and `приобрел` are not service work by themselves; when paired with a technical object, they belong to `tech_parts` or review. Parts/equipment words such as winch, thruster, compressor, dimmer, gelcoat, fenders, mooring lines, pressure regulator, `контролька кондея`, teak materials/sealers/cleaners, toilet control blocks, fridge hinges including misspellings such as `петля хододильник`, tank access hatches, chain rollers, and cup holders belong to `tech_parts` when the row is about the part/material rather than the work.
+`tech_parts` is displayed as "Запчасти и сервис" and covers the normal maintenance surface: technical purchases, parts, materials, diagnostics, maintenance, service work, replacement, mounting, welding, conservation, system tests, fire-extinguisher service, black-tank / `черные танки` service context, and similar boat upkeep. Legacy `service_water` is merged into `tech_parts` and should not be shown as a separate user category. Dry dock and tender-specific work remain separate categories.
 
 `provisions` also covers trip shopping, seafood, plain water purchases, cosmetics, shampoos, marine pharmacy, mask/flipper rows, mask spray, and plain alcohol rows such as champagne, vodka, Grey Goose, Moet, Veuve Clicquot, and Aberlour unless gift/business-hospitality wording is explicit. Kitchen/interior utensils, kitchen appliances, cushion rework, covers, cushions, and sunbeds belong to `interior`.
 
@@ -199,8 +198,7 @@ non_commercial_income — Некоммерческие поступления
 dry_dock — Сухой док
 berth — Стоянка
 marina_ports — Марины и портовые
-service_water — Сервисные работы
-tech_parts — Техчасть и запчасти
+tech_parts — Запчасти и сервис
 tender — Тендер / тузик
 fuel — Топливо
 provisions — Продукты и гости
