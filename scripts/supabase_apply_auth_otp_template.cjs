@@ -22,7 +22,8 @@ if (!accessToken) {
 const template = fs.readFileSync(templatePath, "utf8");
 const payload = JSON.stringify({
   mailer_subjects_magic_link: "Код входа в FinDesk: {{ .Token }}",
-  mailer_templates_magic_link_content: template
+  mailer_templates_magic_link_content: template,
+  mailer_otp_length: 6
 });
 
 const request = https.request(
@@ -44,7 +45,7 @@ const request = https.request(
     });
     response.on("end", () => {
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        console.log("Supabase magic-link email template now sends OTP code.");
+        console.log("Supabase magic-link email template now sends a 6-digit OTP code.");
         return;
       }
 

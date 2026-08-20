@@ -174,3 +174,44 @@ FINDESK_MONGO_URI='<new atlas uri>' npm run set:atlas-uri
 ```
 
 Never paste the real URI into committed files, logs, issue text, or chat transcripts.
+
+## 2026-08-20 Supabase + Vercel Foundation Addendum
+
+The new `brkovic.app` foundation app uses Supabase as the platform database/auth
+layer and Vercel as the web deployment layer.
+
+Current non-secret facts:
+
+- Supabase project ref: `suebhgyqvzcrigfdplot`
+- Supabase project URL: `https://suebhgyqvzcrigfdplot.supabase.co`
+- Vercel integration: Supabase is connected to Vercel.
+- GitHub branch under active development: `foundation-brkovic-app-architecture`
+- App workspace package: `apps/web`
+- Product domain target: `brkovic.app`
+
+Required Vercel environment variables:
+
+```text
+NEXT_PUBLIC_APP_ENV=production
+NEXT_PUBLIC_APP_DOMAIN=https://brkovic.app
+NEXT_PUBLIC_SUPABASE_URL=https://suebhgyqvzcrigfdplot.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<from Supabase API settings / Vercel integration>
+FINDESK_DEV_LOGIN_ENABLED=0
+```
+
+Do not set production `FINDESK_DEV_LOGIN_ENABLED=1`.
+
+Do not expose `SUPABASE_SERVICE_ROLE_KEY` to browser runtime. It is allowed only
+for server-only administrative scripts or local development tools that explicitly
+need it.
+
+Current production gate rule:
+
+- GitHub, local code, Supabase migrations, and Vercel build settings must be in
+  sync before real Claudia Z data, employee invitations, and accountable-money
+  workflows are re-attached.
+- Supabase schema changes must be committed migrations and visible in Supabase
+  migration history.
+- Legacy PHP/MySQL/Atlas runtime is not the product truth for the new
+  foundation app. It remains historical/import reference only until audited
+  migration steps are accepted.

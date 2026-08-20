@@ -22,6 +22,8 @@ apps/*/next-env.d.ts
 *.tsbuildinfo
 .env
 .env.*
+!.env*.example
+!apps/**/.env*.example
 .agents/
 skills-lock.json
 supabase/.temp/
