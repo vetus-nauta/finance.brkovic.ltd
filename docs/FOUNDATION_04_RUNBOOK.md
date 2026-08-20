@@ -137,11 +137,34 @@ The current Next UI is deliberately a foundation shell:
 
 - email auth entry
 - hall
-- workspace shell
+- hall workspace list from real Supabase memberships
+- selected workspace shell at `/workspaces/{workspaceId}`
 - clean Russian labels
 - responsive safe-area layout
 
 It does not pretend that the migrated financial product is already complete.
+
+## First Workspace Bootstrap
+
+The hall only shows real accepted memberships. After the first owner signs in once, provision the
+first workspace with:
+
+```bash
+npm run bootstrap:foundation:workspace -- \
+  --owner-email vetus.nauta@gmail.com \
+  --organization-name "Vetus Nauta" \
+  --workspace-name "Claudia Z"
+```
+
+The command is idempotent. It creates or repairs:
+
+- owner profile
+- organization
+- yacht workspace
+- owner membership
+- `Кеш` and `Карта` accounts
+
+Do not restore static workspace cards in the hall as a visual shortcut.
 
 ## Acceptance Checks
 
