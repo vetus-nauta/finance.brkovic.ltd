@@ -5,7 +5,8 @@ import { getPublicEnv, hasSupabasePublicEnv } from "@/lib/env";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/browser";
 
-const OTP_RESEND_SECONDS = 60;
+const OTP_RESEND_SECONDS = 75;
+const OTP_RATE_LIMIT_SECONDS = 300;
 const OTP_CODE_LENGTH = 6;
 
 function cooldownKey(email: string) {
@@ -16,7 +17,7 @@ function authErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
 
   if (isRateLimitError(error)) {
-    return "Код уже запрошен слишком часто. Введите код из последнего письма ниже.";
+    return "Код запрошен слишком часто. Подождите несколько минут и используйте последнее письмо.";
   }
 
   return message || "Не удалось отправить код.";
@@ -75,12 +76,13 @@ export function AuthForm() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}${routes.authCallback}`
+          emailRedirectTo: `${window.location.origin}${routes.authCallback}`,
+          shouldCreateUser: false
         }
       });
 
       if (error) {
-        startCooldown();
+        startCooldown(isRateLimitError(error) ? OTP_RATE_LIMIT_SECONDS : OTP_RESEND_SECONDS);
         if (isRateLimitError(error)) {
           setIsCodeSent(true);
         }
@@ -88,11 +90,11 @@ export function AuthForm() {
         return;
       }
 
-      startCooldown();
+      startCooldown(OTP_RESEND_SECONDS);
       setIsCodeSent(true);
       setStatus("Код отправлен. Введите 6 цифр из письма, чтобы открыть FinDesk.");
     } catch (error) {
-      startCooldown();
+      startCooldown(isRateLimitError(error) ? OTP_RATE_LIMIT_SECONDS : OTP_RESEND_SECONDS);
       if (isRateLimitError(error)) {
         setIsCodeSent(true);
       }
