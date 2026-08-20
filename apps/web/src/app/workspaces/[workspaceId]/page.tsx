@@ -52,10 +52,14 @@ function workspaceStatusText(status?: string) {
       return "Заметка сохранена в черновиках.";
     case "note-submitted":
       return "Заметка отправлена на проверку Смиту.";
+    case "note-converted":
+      return "Смит перенес заметку в оперативный журнал.";
     case "note-deleted":
       return "Заметка убрана из истории.";
     case "note-empty":
       return "Напишите заметку перед сохранением.";
+    case "note-date":
+      return "Выберите дату для переноса заметки.";
     case "note-missing":
       return "Заметка не выбрана.";
     case "note-save":
@@ -72,7 +76,7 @@ function workspaceStatusText(status?: string) {
 }
 
 function isWorkspaceStatusSuccess(status?: string) {
-  return status === "note-saved" || status === "note-submitted" || status === "note-deleted";
+  return status === "note-saved" || status === "note-submitted" || status === "note-converted" || status === "note-deleted";
 }
 
 function quickNoteStatusText(status: string) {
@@ -208,13 +212,25 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             <div className="mode-title">
               <div>
                 <h2>Быстрые заметки</h2>
-                <p>Черновик для коротких записей. Смит разберет их перед переносом в журнал.</p>
+                <p>Короткий блокнот. Смит перенесет строки в журнал, спорное оставит на проверке.</p>
               </div>
               <small>{workspace.quickNotes.length} в истории</small>
             </div>
             <form className="quick-note-form" action={saveNoteAction}>
               <input type="hidden" name="account" value={workspace.activeAccountCode} />
-              <input type="hidden" name="noteId" value={selectedQuickNote?.status === "draft" ? selectedQuickNote.id : ""} />
+              <input
+                type="hidden"
+                name="noteId"
+                value={
+                  selectedQuickNote?.status === "draft" || selectedQuickNote?.status === "submitted_to_smith"
+                    ? selectedQuickNote.id
+                    : ""
+                }
+              />
+              <label>
+                <span>Дата переноса</span>
+                <input type="date" name="occurredOn" defaultValue={today} required />
+              </label>
               <label>
                 <span>Текущая заметка</span>
                 <textarea
@@ -230,7 +246,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </Link>
                 <button type="submit">Сохранить черновик</button>
                 <button className="primary-action" formAction={submitNoteAction} type="submit">
-                  Отправить Смиту
+                  Проверить и перенести
                 </button>
               </div>
             </form>
@@ -248,7 +264,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             ) : null}
             <div className="note-history-head">
               <h3>История заметок</h3>
-              <small>Последние сохраненные quick notes</small>
+              <small>Последние сохраненные заметки</small>
             </div>
             <div className="note-history" aria-label="История заметок">
               {workspace.quickNotes.length > 0 ? (
@@ -260,6 +276,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                   >
                     <div>
                       <span className="status-pill">{quickNoteStatusText(note.status)}</span>
+                      {note.convertedCount > 0 ? <span className="status-pill">{note.convertedCount} строк</span> : null}
                       <small>{formatDateTime(note.updatedAt)}</small>
                     </div>
                     <p>{note.body}</p>

@@ -24,6 +24,13 @@ type CreateOperationalEntryResult = {
   review_status: string | null;
 };
 
+type ConvertQuickNoteResult = {
+  quick_note_id: string;
+  transaction_ids: string[];
+  converted_count: number;
+  review_count: number;
+};
+
 type SupabaseRpcClient = {
   rpc: (
     functionName: string,
@@ -204,9 +211,14 @@ export async function submitQuickNoteToSmith(workspaceId: string, formData: Form
   const accountCode = String(formData.get("account") || "cash").trim() || "cash";
   const noteId = String(formData.get("noteId") || "").trim();
   const body = String(formData.get("body") || "").trim();
+  const occurredOn = String(formData.get("occurredOn") || "").trim();
 
   if (!body) {
     redirectToMode(workspaceId, "notes", "note-empty", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  if (!occurredOn) {
+    redirectToMode(workspaceId, "notes", "note-date", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
   }
 
   const { supabase, userId, workspace } = await getWritableWorkspace(workspaceId);
@@ -218,6 +230,8 @@ export async function submitQuickNoteToSmith(workspaceId: string, formData: Form
   if (!workspace) {
     redirectToMode(workspaceId, "notes", "workspace", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
   }
+
+  let quickNoteId = noteId;
 
   if (noteId) {
     const { data: existingNote, error: existingError } = await supabase
@@ -234,33 +248,57 @@ export async function submitQuickNoteToSmith(workspaceId: string, formData: Form
     if (existingNote?.status === "draft") {
       const { error: updateError } = await supabase
         .from("quick_notes")
-        .update({ body, status: "submitted_to_smith" })
+        .update({ body, status: "draft" })
         .eq("id", noteId)
         .eq("workspace_id", workspaceId);
 
       if (updateError) {
         redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
       }
-
-      revalidateWorkspace(workspaceId);
-      redirectToMode(workspaceId, "notes", "note-submitted", { account: accountCode });
+    } else if (existingNote?.status !== "submitted_to_smith") {
+      redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
     }
   }
 
-  const { error } = await supabase.from("quick_notes").insert({
-    organization_id: workspace.organization_id,
-    workspace_id: workspace.id,
-    author_user_id: userId,
-    body,
-    status: "submitted_to_smith"
-  });
+  if (!quickNoteId) {
+    const { data: insertedNote, error: insertError } = await supabase
+      .from("quick_notes")
+      .insert({
+        organization_id: workspace.organization_id,
+        workspace_id: workspace.id,
+        author_user_id: userId,
+        body,
+        status: "draft"
+      })
+      .select("id")
+      .single<{ id: string }>();
 
-  if (error) {
-    redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+    if (insertError || !insertedNote) {
+      redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode });
+    }
+
+    quickNoteId = insertedNote.id;
+  }
+
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("convert_quick_note_to_operational_entries", {
+      p_note_id: quickNoteId,
+      p_account_code: accountCode,
+      p_occurred_on: occurredOn,
+      p_source_language: "ru"
+    })
+    .returns<ConvertQuickNoteResult[]>();
+
+  if (error || !data?.[0]) {
+    redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: quickNoteId });
   }
 
   revalidateWorkspace(workspaceId);
-  redirectToMode(workspaceId, "notes", "note-submitted", { account: accountCode });
+  redirectToMode(workspaceId, "notes", "note-converted", {
+    account: accountCode,
+    lines: String(data[0].converted_count),
+    review: String(data[0].review_count)
+  });
 }
 
 export async function deleteQuickNote(workspaceId: string, formData: FormData) {

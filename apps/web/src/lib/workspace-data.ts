@@ -54,6 +54,7 @@ export type QuickNoteSummary = {
   id: string;
   body: string;
   status: string;
+  convertedCount: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -88,6 +89,7 @@ type QuickNoteRow = {
   id: string;
   body: string;
   status: string;
+  converted_transaction_ids: string[];
   created_at: string;
   updated_at: string;
 };
@@ -250,7 +252,7 @@ export async function getWorkspaceDetails(
       .eq("status", "needs_review"),
     supabase
       .from("quick_notes")
-      .select("id, body, status, created_at, updated_at")
+      .select("id, body, status, converted_transaction_ids, created_at, updated_at")
       .eq("workspace_id", workspaceId)
       .neq("status", "void")
       .order("updated_at", { ascending: false })
@@ -372,6 +374,7 @@ export async function getWorkspaceDetails(
       id: note.id,
       body: note.body,
       status: note.status,
+      convertedCount: note.converted_transaction_ids?.length ?? 0,
       createdAt: note.created_at,
       updatedAt: note.updated_at
     })),
