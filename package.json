@@ -14,6 +14,7 @@
     "payload:v2:atlas": "php scripts/v2_build_atlas_payload.php",
     "backup:v2:atlas": "node scripts/v2_atlas_backup_export.js",
     "commit:v2:atlas": "node scripts/v2_atlas_commit_payload.js",
+    "check:foundation:sql": "python3 scripts/check_foundation_sql.py",
     "drop:v2:atlas-legacy": "node scripts/v2_atlas_drop_legacy_collections.js",
     "smoke:v2:atlas-runtime": "node scripts/v2_atlas_runtime_smoke.js",
     "smoke:v2:atlas-proxy": "bash scripts/v2_atlas_php_proxy_smoke.sh",

@@ -5,6 +5,7 @@ Date: 2026-08-20
 Start here:
 
 - `FOUNDATION_DIRECTOR_OPENING.md`
+- `FOUNDATION_02_RUNBOOK.md`
 - `SOURCE_OF_TRUTH.md`
 - `CURRENT_STATE_AUDIT.md`
 - `ARCHITECTURE.md`
@@ -22,10 +23,12 @@ Core foundation:
 Migration and operations:
 
 - `MIGRATION_MAP.md`
+- `MIGRATION_DRY_RUN_PLAN.md`
 - `DEPLOYMENT.md`
 - `BACKUP_RESTORE.md`
 - `CUTOVER_PLAN.md`
 - `ROLLBACK_PLAN.md`
+- `RLS_TEST_PLAN.md`
 
 Infrastructure:
 

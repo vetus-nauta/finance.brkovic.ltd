@@ -38,6 +38,9 @@ Finance:
 - `corrections`
 - `report_definitions`
 - `report_snapshots`
+- `report_packages`
+- `report_package_items`
+- `quick_notes`
 
 Accountable money:
 

@@ -94,7 +94,7 @@ Foundation-01 is acceptable only when:
 
 ## Next Sprint Candidate
 
-Foundation-02: Supabase Project Bootstrap And PostgreSQL Schema Draft
+Foundation-02: Supabase Bootstrap, RLS Skeleton, Migration Dry Run Plan
 
 Expected outputs:
 
