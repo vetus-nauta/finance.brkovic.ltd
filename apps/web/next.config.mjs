@@ -2,7 +2,8 @@
 const nextConfig = {
   agentRules: false,
   reactStrictMode: true,
-  poweredByHeader: false
+  poweredByHeader: false,
+  typedRoutes: false
 };
 
 export default nextConfig;
