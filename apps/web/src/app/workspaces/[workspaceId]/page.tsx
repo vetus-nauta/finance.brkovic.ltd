@@ -122,30 +122,45 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           </div>
           <div className="synced-table" role="table">
             <div className="synced-row synced-head" role="row">
-              <span>№</span>
-              <span>Описание</span>
-              <span>Сумма</span>
-              <span>№</span>
-              <span>Дата</span>
-              <span>Проверка</span>
+              <div className="journal-cells">
+                <span>№</span>
+                <span>Описание</span>
+                <span>Сумма</span>
+              </div>
+              <div className="check-cells">
+                <span>№</span>
+                <span>Дата</span>
+                <span>Проверка</span>
+              </div>
             </div>
             {workspace.entries.length > 0 ? (
               workspace.entries.map((entry) => (
                 <div className="synced-row" role="row" key={entry.id}>
-                  <span>{entry.rowNo}</span>
-                  <strong>{entry.rawText}</strong>
-                  <span className={entry.direction === "income" ? "amount-income" : "amount-expense"}>
-                    {formatAmount(entry.amount, entry.direction)}
-                  </span>
-                  <span>{entry.rowNo}</span>
-                  <span>{entry.occurredOn}</span>
-                  <span className={entry.reviewStatus === "review" ? "status-pill attention" : "status-pill"}>
-                    {reviewStatusText(entry.reviewStatus)}
-                  </span>
+                  <div className="journal-cells">
+                    <span>{entry.rowNo}</span>
+                    <strong>{entry.rawText}</strong>
+                    <span className={entry.direction === "income" ? "amount-income" : "amount-expense"}>
+                      {formatAmount(entry.amount, entry.direction)}
+                    </span>
+                  </div>
+                  <div className="check-cells">
+                    <span>{entry.rowNo}</span>
+                    <span>{entry.occurredOn}</span>
+                    <span className={entry.reviewStatus === "review" ? "status-pill attention" : "status-pill"}>
+                      {reviewStatusText(entry.reviewStatus)}
+                    </span>
+                  </div>
                 </div>
               ))
             ) : (
-              <div className="ledger-empty">Пока нет записей по выбранному счету.</div>
+              <div className="synced-row empty-synced-row" role="row">
+                <div className="journal-cells">
+                  <div className="ledger-empty">Пока нет записей по выбранному счету.</div>
+                </div>
+                <div className="check-cells">
+                  <div className="ledger-empty">Проверка появится вместе с первой записью.</div>
+                </div>
+              </div>
             )}
           </div>
         </section>
