@@ -137,6 +137,26 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatMoney(value: number, currency: string) {
+  return new Intl.NumberFormat("ru-RU", {
+    currency,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: "currency"
+  }).format(value);
+}
+
+function directionText(direction: string) {
+  switch (direction) {
+    case "income":
+      return "Приход";
+    case "expense":
+      return "Расход";
+    default:
+      return "Учет";
+  }
+}
+
 function reviewReasonText(reason: string | null) {
   switch (reason) {
     case "accepted":
@@ -205,6 +225,28 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
     workspace.quickNotes.find((note) => note.status === "draft") ??
     null;
   const pendingProposals = selectedQuickNote?.proposals.filter((proposal) => proposal.status === "pending") ?? [];
+  const summarySections = [
+    {
+      title: "Категории",
+      hint: "Рабочие доходы и расходы",
+      rows: workspace.categorySummary.operational
+    },
+    {
+      title: "Учетные блоки",
+      hint: "Долги, подотчет и деньги на руках",
+      rows: workspace.categorySummary.accountingBlocks
+    },
+    {
+      title: "Перемещения денег",
+      hint: "Не прибыль и не расход",
+      rows: workspace.categorySummary.moneyMovements
+    },
+    {
+      title: "Без категории",
+      hint: "Нужно разобрать вручную",
+      rows: workspace.categorySummary.uncategorized
+    }
+  ].filter((section) => section.rows.length > 0);
 
   return (
     <main className="page compact-page">
@@ -414,9 +456,55 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             <div className="mode-title">
               <div>
                 <h2>Отчеты</h2>
-                <p>Здесь будут лежать созданные сводки и версии для отправки.</p>
+                <p>Сводка читает категории из оперативной ленты. Факт и учетные блоки не смешиваются.</p>
               </div>
               <small>{workspace.reportSnapshots.length} отчетов</small>
+            </div>
+            <div className="category-summary" aria-label="Сводка по категориям">
+              {summarySections.length > 0 ? (
+                summarySections.map((section) => (
+                  <section className="category-summary-section" key={section.title}>
+                    <div className="note-history-head">
+                      <h3>{section.title}</h3>
+                      <small>{section.hint}</small>
+                    </div>
+                    <div className="category-summary-table" role="table" aria-label={section.title}>
+                      <div className="category-summary-row category-summary-head" role="row">
+                        <span role="columnheader">Категория</span>
+                        <span role="columnheader">Тип</span>
+                        <span role="columnheader">Сумма</span>
+                        <span role="columnheader">Строк</span>
+                        <span role="columnheader">Проверка</span>
+                      </div>
+                      {section.rows.map((row) => (
+                        <div className="category-summary-row" role="row" key={row.code}>
+                          <strong role="cell">{row.label}</strong>
+                          <span role="cell">{directionText(row.direction)}</span>
+                          <span
+                            className={
+                              row.direction === "income"
+                                ? "amount-income"
+                                : row.direction === "expense"
+                                  ? "amount-expense"
+                                  : undefined
+                            }
+                            role="cell"
+                          >
+                            {formatMoney(row.total, workspace.currency)}
+                          </span>
+                          <span role="cell">{row.count}</span>
+                          <span role="cell">{row.reviewCount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))
+              ) : (
+                <div className="empty-state inline-empty">
+                  <h2>Категорий пока нет</h2>
+                  <p>После переноса заметок через Смита здесь появится сводка по реальным категориям.</p>
+                </div>
+              )}
             </div>
             <div className="report-list">
               {workspace.reportSnapshots.length > 0 ? (

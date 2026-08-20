@@ -96,12 +96,45 @@ type TransactionRow = {
   account_id: string | null;
 };
 
+type SummaryTransactionRow = {
+  id: string;
+  status: string;
+};
+
 type LedgerRow = {
   transaction_id: string;
   account_id: string | null;
+  category_id: string | null;
   direction: "income" | "expense" | "neutral";
   amount: number | string;
   review_status: string;
+  metadata: Record<string, unknown> | null;
+};
+
+type CategoryRow = {
+  id: string;
+  code: string;
+  direction: "income" | "expense" | "neutral";
+  label: Record<string, string> | null;
+  metadata: Record<string, unknown> | null;
+  is_active: boolean;
+};
+
+export type CategorySummaryRow = {
+  code: string;
+  label: string;
+  direction: "income" | "expense" | "neutral";
+  kind: "operational" | "accounting_block" | "money_movement" | "uncategorized";
+  total: number;
+  count: number;
+  reviewCount: number;
+};
+
+export type WorkspaceCategorySummary = {
+  operational: CategorySummaryRow[];
+  accountingBlocks: CategorySummaryRow[];
+  moneyMovements: CategorySummaryRow[];
+  uncategorized: CategorySummaryRow[];
 };
 
 type QuickNoteRow = {
@@ -149,6 +182,7 @@ export type WorkspaceDetails = WorkspaceSummary & {
   entries: OperationalEntry[];
   quickNotes: QuickNoteSummary[];
   reportSnapshots: ReportSnapshotSummary[];
+  categorySummary: WorkspaceCategorySummary;
 };
 
 export const roleLabels: Record<string, string> = {
@@ -162,6 +196,75 @@ export const roleLabels: Record<string, string> = {
 
 export function workspacePath(workspaceId: string) {
   return `${routes.workspaces}/${workspaceId}`;
+}
+
+function categoryLabel(category: Pick<CategoryRow, "code" | "label">) {
+  return category.label?.ru ?? category.label?.en ?? category.code;
+}
+
+function categoryKind(category: Pick<CategoryRow, "metadata"> | null): CategorySummaryRow["kind"] {
+  const kind = category?.metadata?.category_kind;
+
+  if (kind === "accounting_block" || kind === "money_movement") {
+    return kind;
+  }
+
+  return "operational";
+}
+
+function buildCategorySummary(ledgerRows: LedgerRow[], categories: CategoryRow[]): WorkspaceCategorySummary {
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const categoriesByCode = new Map(categories.map((category) => [category.code, category]));
+  const summaryByCode = new Map<string, CategorySummaryRow>();
+
+  for (const ledger of ledgerRows) {
+    const metadataCategoryCode =
+      typeof ledger.metadata?.category_code === "string" ? ledger.metadata.category_code : null;
+    const category = ledger.category_id
+      ? categoriesById.get(ledger.category_id) ?? null
+      : metadataCategoryCode
+        ? categoriesByCode.get(metadataCategoryCode) ?? null
+        : null;
+    const code = category?.code ?? "uncategorized";
+    const existing = summaryByCode.get(code);
+    const row =
+      existing ??
+      ({
+        code,
+        label: category ? categoryLabel(category) : "Без категории",
+        direction: category?.direction ?? ledger.direction,
+        kind: category ? categoryKind(category) : "uncategorized",
+        total: 0,
+        count: 0,
+        reviewCount: 0
+      } satisfies CategorySummaryRow);
+
+    row.total += Number(ledger.amount);
+    row.count += 1;
+
+    if (ledger.review_status === "review" || ledger.review_status === "blocked") {
+      row.reviewCount += 1;
+    }
+
+    summaryByCode.set(code, row);
+  }
+
+  const sortRows = (rows: CategorySummaryRow[]) =>
+    rows.sort((left, right) => {
+      if (left.direction !== right.direction) {
+        return left.direction === "income" ? -1 : right.direction === "income" ? 1 : 0;
+      }
+
+      return Math.abs(right.total) - Math.abs(left.total) || left.label.localeCompare(right.label, "ru");
+    });
+  const rows = [...summaryByCode.values()];
+
+  return {
+    operational: sortRows(rows.filter((row) => row.kind === "operational")),
+    accountingBlocks: sortRows(rows.filter((row) => row.kind === "accounting_block")),
+    moneyMovements: sortRows(rows.filter((row) => row.kind === "money_movement")),
+    uncategorized: sortRows(rows.filter((row) => row.kind === "uncategorized"))
+  };
 }
 
 export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -268,7 +371,10 @@ export async function getWorkspaceDetails(
     ledgerReviews,
     transactionReviews,
     quickNotes,
-    reportSnapshots
+    reportSnapshots,
+    categories,
+    summaryTransactions,
+    ledgerSummary
   ] = await Promise.all([
     supabase
       .from("accounts")
@@ -303,7 +409,23 @@ export async function getWorkspaceDetails(
       .neq("status", "void")
       .order("period_end", { ascending: false })
       .limit(20)
-      .returns<ReportSnapshotRow[]>()
+      .returns<ReportSnapshotRow[]>(),
+    supabase
+      .from("categories")
+      .select("id, code, direction, label, metadata, is_active")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true)
+      .returns<CategoryRow[]>(),
+    supabase
+      .from("transactions")
+      .select("id, status")
+      .eq("workspace_id", workspaceId)
+      .returns<SummaryTransactionRow[]>(),
+    supabase
+      .from("ledger_entries")
+      .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
+      .eq("workspace_id", workspaceId)
+      .returns<LedgerRow[]>()
   ]);
 
   if (accountsError) {
@@ -328,6 +450,18 @@ export async function getWorkspaceDetails(
 
   if (reportSnapshots.error) {
     throw new Error(reportSnapshots.error.message);
+  }
+
+  if (categories.error) {
+    throw new Error(categories.error.message);
+  }
+
+  if (summaryTransactions.error) {
+    throw new Error(summaryTransactions.error.message);
+  }
+
+  if (ledgerSummary.error) {
+    throw new Error(ledgerSummary.error.message);
   }
 
   const normalizedAccounts = [...(accounts ?? [])].sort((left, right) => {
@@ -367,7 +501,7 @@ export async function getWorkspaceDetails(
     transactionIds.length > 0
       ? await supabase
           .from("ledger_entries")
-          .select("transaction_id, account_id, direction, amount, review_status")
+          .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
           .in("transaction_id", transactionIds)
           .returns<LedgerRow[]>()
       : { data: [], error: null };
@@ -377,6 +511,10 @@ export async function getWorkspaceDetails(
   }
 
   const ledgerByTransactionId = new Map((ledgerRows ?? []).map((row) => [row.transaction_id, row]));
+  const liveTransactionIds = new Set(
+    (summaryTransactions.data ?? []).filter((row) => row.status !== "void").map((row) => row.id)
+  );
+  const liveLedgerSummaryRows = (ledgerSummary.data ?? []).filter((row) => liveTransactionIds.has(row.transaction_id));
   const entries = transactionRows
     .map((row) => {
       const ledger = ledgerByTransactionId.get(row.id);
@@ -465,6 +603,7 @@ export async function getWorkspaceDetails(
       periodEnd: report.period_end,
       status: report.status,
       createdAt: report.created_at
-    }))
+    })),
+    categorySummary: buildCategorySummary(liveLedgerSummaryRows, categories.data ?? [])
   };
 }

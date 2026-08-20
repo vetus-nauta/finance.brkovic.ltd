@@ -461,6 +461,56 @@ button {
   overflow: auto;
 }
 
+.category-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.category-summary-section {
+  display: grid;
+  gap: 8px;
+}
+
+.category-summary-table {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  overflow: hidden;
+}
+
+.category-summary-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) 92px 140px 64px 76px;
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.category-summary-row:last-child {
+  border-bottom: 0;
+}
+
+.category-summary-row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-summary-row > :nth-child(n + 3) {
+  text-align: right;
+}
+
+.category-summary-head {
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 34px;
+}
+
 .note-history-head {
   align-items: baseline;
   display: flex;
@@ -1032,6 +1082,15 @@ button {
   .report-card {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .category-summary-table {
+    overflow-x: auto;
+  }
+
+  .category-summary-row {
+    grid-template-columns: minmax(180px, 1fr) 76px 118px 54px 64px;
+    min-width: 540px;
   }
 
   .smith-proposal {
