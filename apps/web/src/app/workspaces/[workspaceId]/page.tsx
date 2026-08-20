@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createOperationalEntry } from "./actions";
+import { SyncedLedgerTable } from "./SyncedLedgerTable";
 import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
 
 type WorkspacePageProps = {
@@ -12,19 +13,6 @@ type WorkspacePageProps = {
     entry?: string;
   }>;
 };
-
-function formatAmount(amount: number | null, direction: string | null) {
-  if (amount === null) {
-    return "—";
-  }
-
-  const value = new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount);
-
-  return `${direction === "income" ? "+" : "-"}${value} €`;
-}
 
 function entryStatusText(status?: string) {
   switch (status) {
@@ -43,10 +31,6 @@ function entryStatusText(status?: string) {
     default:
       return "";
   }
-}
-
-function reviewStatusText(status: string | null) {
-  return status === "review" ? "проверить" : "принято";
 }
 
 export default async function WorkspacePage({ params, searchParams }: WorkspacePageProps) {
@@ -110,52 +94,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           <span>Отчеты</span>
         </aside>
         <section className="operational-workspace" aria-label="Оперативный журнал и структурная проверка">
-          <div className={workspace.entries.length === 0 ? "synced-table is-empty" : "synced-table"} role="table">
-            <div className="synced-row zone-head" role="row">
-              <h2>
-                Оперативный журнал
-                <small>{workspace.entries.length} записей</small>
-              </h2>
-              <h2>
-                Структурная проверка
-                <small>та же строка</small>
-              </h2>
-            </div>
-            <div className="synced-row synced-head" role="row">
-              <span>№</span>
-              <span>Описание</span>
-              <span>Сумма</span>
-              <span>№</span>
-              <span>Дата</span>
-              <span>Проверка</span>
-            </div>
-            {workspace.entries.length > 0 ? (
-              workspace.entries.map((entry) => (
-                <div className="synced-row" role="row" key={entry.id}>
-                  <span>{entry.rowNo}</span>
-                  <strong>{entry.rawText}</strong>
-                  <span className={entry.direction === "income" ? "amount-income" : "amount-expense"}>
-                    {formatAmount(entry.amount, entry.direction)}
-                  </span>
-                  <span>{entry.rowNo}</span>
-                  <span>{entry.occurredOn}</span>
-                  <span className={entry.reviewStatus === "review" ? "status-pill attention" : "status-pill"}>
-                    {reviewStatusText(entry.reviewStatus)}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="synced-row empty-synced-row" role="row">
-                <span />
-                <span className="ledger-empty">Пока нет записей по выбранному счету.</span>
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-            )}
-          </div>
+          <SyncedLedgerTable entries={workspace.entries} />
         </section>
       </section>
 

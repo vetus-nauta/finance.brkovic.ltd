@@ -390,10 +390,18 @@ button {
   border-bottom: 1px solid var(--line);
   display: grid;
   gap: 10px;
-  grid-template-columns: 52px minmax(180px, 1.35fr) 132px 52px 110px minmax(96px, 0.65fr);
   height: var(--ledger-row-height);
   min-height: var(--ledger-row-height);
   padding: 0 12px;
+  transition: grid-template-columns 160ms ease;
+}
+
+.synced-table.journal-active .synced-row {
+  grid-template-columns: 48px minmax(280px, 1.7fr) 130px 44px 96px minmax(76px, 0.45fr);
+}
+
+.synced-table.structure-active .synced-row {
+  grid-template-columns: 42px minmax(140px, 0.6fr) 112px 48px 118px minmax(180px, 1.45fr);
 }
 
 .synced-row:last-child {
@@ -428,27 +436,39 @@ button {
   z-index: 2;
 }
 
-.zone-head h2 {
+.zone-title {
   align-items: baseline;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
   display: flex;
   font-size: 18px;
   gap: 12px;
+  height: auto;
   line-height: 1.15;
   margin: 0;
+  min-height: 0;
   min-width: 0;
+  padding: 0;
+  text-align: left;
 }
 
-.zone-head h2:first-child {
+.zone-title:first-child {
   grid-column: 1 / 4;
 }
 
-.zone-head h2:last-child {
+.zone-title:last-child {
   grid-column: 4 / 7;
   border-left: 1px solid var(--line-strong);
   padding-left: 12px;
 }
 
-.zone-head small {
+.zone-title:not([aria-pressed="true"]) {
+  color: var(--muted);
+}
+
+.zone-title small {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -463,6 +483,16 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.synced-row > :nth-child(-n + 3),
+.zone-title:first-child {
+  cursor: pointer;
+}
+
+.synced-row > :nth-child(n + 4),
+.zone-title:last-child {
+  cursor: pointer;
 }
 
 .synced-row > :nth-child(3) {
@@ -658,16 +688,23 @@ button {
   }
 
   .synced-row {
-    grid-template-columns: 44px minmax(190px, 1fr) 112px 44px 104px 96px;
-    min-width: 702px;
+    min-width: 760px;
     padding: 0 10px;
   }
 
-  .zone-head h2:first-child {
+  .synced-table.journal-active .synced-row {
+    grid-template-columns: 44px minmax(280px, 1fr) 112px 40px 96px 84px;
+  }
+
+  .synced-table.structure-active .synced-row {
+    grid-template-columns: 40px minmax(140px, 0.6fr) 104px 44px 112px minmax(180px, 1fr);
+  }
+
+  .zone-title:first-child {
     grid-column: 1 / 4;
   }
 
-  .zone-head h2:last-child {
+  .zone-title:last-child {
     grid-column: 4 / 7;
   }
 
