@@ -47,7 +47,8 @@ a {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -340,6 +341,13 @@ button {
   color: #086d61;
 }
 
+.side-tabs .side-tabs-divider {
+  background: transparent;
+  border: 0;
+  min-height: 4px;
+  padding: 0;
+}
+
 .workspace-main {
   display: grid;
   gap: 12px;
@@ -349,6 +357,160 @@ button {
 .operational-workspace {
   display: grid;
   min-width: 0;
+}
+
+.workspace-mode-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  min-height: min(560px, calc(100dvh - 300px));
+  min-width: 0;
+  padding: 16px;
+}
+
+.mode-title {
+  align-items: end;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.mode-title h2,
+.report-card h3 {
+  font-size: 18px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.mode-title p,
+.note-card p,
+.report-card p {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.mode-title small,
+.note-card small {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quick-note-form {
+  display: grid;
+  gap: 10px;
+}
+
+.quick-note-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.quick-note-form label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-note-form textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 150px;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.mode-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.mode-actions a {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.note-history,
+.report-list {
+  display: grid;
+  gap: 8px;
+  max-height: 34dvh;
+  min-height: 0;
+  overflow: auto;
+}
+
+.note-history-head {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.note-history-head h3 {
+  font-size: 16px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.note-history-head small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.note-card,
+.report-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.note-card.active {
+  background: #e8f7f4;
+  border-color: #1b9587;
+}
+
+.note-card > div,
+.report-card {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.note-card p {
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.note-delete-form {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.note-delete-form button {
+  color: var(--danger);
+}
+
+.inline-empty {
+  box-shadow: none;
+  max-width: none;
+  padding: 16px;
 }
 
 .table-title {
@@ -686,6 +848,10 @@ button {
     padding-bottom: 2px;
   }
 
+  .side-tabs-divider {
+    display: none;
+  }
+
   .side-tabs button,
   .side-tabs a,
   .side-tabs span {
@@ -723,6 +889,21 @@ button {
 
   .entry-bar {
     grid-template-columns: 1fr;
+  }
+
+  .mode-title,
+  .mode-actions,
+  .note-card > div,
+  .report-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mode-actions a,
+  .mode-actions button,
+  .note-delete-form button {
+    justify-content: center;
+    width: 100%;
   }
 }
 

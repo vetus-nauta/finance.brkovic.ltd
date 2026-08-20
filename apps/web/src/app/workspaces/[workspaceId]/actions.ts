@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { workspacePath } from "@/lib/workspace-data";
 
@@ -14,6 +15,16 @@ type AccountForEntry = {
 
 type LatestRow = {
   row_no: number | null;
+};
+
+type WorkspaceForWrite = {
+  id: string;
+  organization_id: string;
+};
+
+type QuickNoteForWrite = {
+  id: string;
+  status: string;
 };
 
 function parseEntry(rawText: string) {
@@ -38,6 +49,43 @@ function parseEntry(rawText: string) {
 
 function redirectWithStatus(workspaceId: string, accountCode: string, status: string): never {
   redirect(`${workspacePath(workspaceId)}?account=${encodeURIComponent(accountCode)}&entry=${encodeURIComponent(status)}`);
+}
+
+function redirectToMode(workspaceId: string, mode: string, status: string, extraParams: Record<string, string> = {}): never {
+  const params = new URLSearchParams({
+    mode,
+    status,
+    ...extraParams
+  });
+
+  redirect(`${workspacePath(workspaceId)}?${params.toString()}`);
+}
+
+function revalidateWorkspace(workspaceId: string) {
+  revalidatePath(workspacePath(workspaceId));
+}
+
+async function getWritableWorkspace(workspaceId: string) {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+
+  if (typeof userId !== "string") {
+    return { supabase, userId: null, workspace: null };
+  }
+
+  const { data: workspace, error } = await supabase
+    .from("workspaces")
+    .select("id, organization_id")
+    .eq("id", workspaceId)
+    .eq("status", "active")
+    .maybeSingle<WorkspaceForWrite>();
+
+  if (error || !workspace) {
+    return { supabase, userId, workspace: null };
+  }
+
+  return { supabase, userId, workspace };
 }
 
 export async function createOperationalEntry(workspaceId: string, formData: FormData) {
@@ -133,4 +181,162 @@ export async function createOperationalEntry(workspaceId: string, formData: Form
   }
 
   redirectWithStatus(workspaceId, accountCode, "saved");
+}
+
+export async function saveQuickNoteDraft(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const noteId = String(formData.get("noteId") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+
+  if (!body) {
+    redirectToMode(workspaceId, "notes", "note-empty", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  const { supabase, userId, workspace } = await getWritableWorkspace(workspaceId);
+
+  if (!userId) {
+    redirectToMode(workspaceId, "notes", "auth", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  if (!workspace) {
+    redirectToMode(workspaceId, "notes", "workspace", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  if (noteId) {
+    const { data: existingNote, error: existingError } = await supabase
+      .from("quick_notes")
+      .select("id, status")
+      .eq("id", noteId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle<QuickNoteForWrite>();
+
+    if (existingError) {
+      redirectToMode(workspaceId, "notes", "note-save", { account: accountCode, note: noteId });
+    }
+
+    if (existingNote?.status === "draft") {
+      const { error: updateError } = await supabase
+        .from("quick_notes")
+        .update({ body, status: "draft" })
+        .eq("id", noteId)
+        .eq("workspace_id", workspaceId);
+
+      if (updateError) {
+        redirectToMode(workspaceId, "notes", "note-save", { account: accountCode, note: noteId });
+      }
+
+      revalidateWorkspace(workspaceId);
+      redirectToMode(workspaceId, "notes", "note-saved", { account: accountCode, note: noteId });
+    }
+  }
+
+  const { data: insertedNote, error } = await supabase
+    .from("quick_notes")
+    .insert({
+      organization_id: workspace.organization_id,
+      workspace_id: workspace.id,
+      author_user_id: userId,
+      body,
+      status: "draft"
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !insertedNote) {
+    redirectToMode(workspaceId, "notes", "note-save", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "notes", "note-saved", { account: accountCode, note: insertedNote.id });
+}
+
+export async function submitQuickNoteToSmith(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const noteId = String(formData.get("noteId") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+
+  if (!body) {
+    redirectToMode(workspaceId, "notes", "note-empty", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  const { supabase, userId, workspace } = await getWritableWorkspace(workspaceId);
+
+  if (!userId) {
+    redirectToMode(workspaceId, "notes", "auth", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  if (!workspace) {
+    redirectToMode(workspaceId, "notes", "workspace", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  if (noteId) {
+    const { data: existingNote, error: existingError } = await supabase
+      .from("quick_notes")
+      .select("id, status")
+      .eq("id", noteId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle<QuickNoteForWrite>();
+
+    if (existingError) {
+      redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
+    }
+
+    if (existingNote?.status === "draft") {
+      const { error: updateError } = await supabase
+        .from("quick_notes")
+        .update({ body, status: "submitted_to_smith" })
+        .eq("id", noteId)
+        .eq("workspace_id", workspaceId);
+
+      if (updateError) {
+        redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
+      }
+
+      revalidateWorkspace(workspaceId);
+      redirectToMode(workspaceId, "notes", "note-submitted", { account: accountCode });
+    }
+  }
+
+  const { error } = await supabase.from("quick_notes").insert({
+    organization_id: workspace.organization_id,
+    workspace_id: workspace.id,
+    author_user_id: userId,
+    body,
+    status: "submitted_to_smith"
+  });
+
+  if (error) {
+    redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, ...(noteId ? { note: noteId } : {}) });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "notes", "note-submitted", { account: accountCode });
+}
+
+export async function deleteQuickNote(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const noteId = String(formData.get("noteId") || "").trim();
+
+  if (!noteId) {
+    redirectToMode(workspaceId, "notes", "note-missing", { account: accountCode });
+  }
+
+  const { supabase, userId } = await getWritableWorkspace(workspaceId);
+
+  if (!userId) {
+    redirectToMode(workspaceId, "notes", "auth", { account: accountCode });
+  }
+
+  const { error } = await supabase
+    .from("quick_notes")
+    .update({ status: "void" })
+    .eq("id", noteId)
+    .eq("workspace_id", workspaceId);
+
+  if (error) {
+    redirectToMode(workspaceId, "notes", "note-delete", { account: accountCode });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "notes", "note-deleted", { account: accountCode });
 }

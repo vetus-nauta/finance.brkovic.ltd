@@ -21,6 +21,7 @@ type MembershipRow = {
 
 type WorkspaceRow = {
   id: string;
+  organization_id?: string;
   name: string;
   workspace_type: string;
   currency_code: string;
@@ -49,6 +50,23 @@ export type OperationalEntry = {
   accountId: string | null;
 };
 
+export type QuickNoteSummary = {
+  id: string;
+  body: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReportSnapshotSummary = {
+  id: string;
+  title: string;
+  periodStart: string;
+  periodEnd: string;
+  status: string;
+  createdAt: string;
+};
+
 type TransactionRow = {
   id: string;
   row_no: number | null;
@@ -66,12 +84,31 @@ type LedgerRow = {
   review_status: string;
 };
 
+type QuickNoteRow = {
+  id: string;
+  body: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type ReportSnapshotRow = {
+  id: string;
+  title: string;
+  period_start: string;
+  period_end: string;
+  status: string;
+  created_at: string;
+};
+
 export type WorkspaceDetails = WorkspaceSummary & {
   accounts: AccountSummary[];
   transactionCount: number;
   reviewCount: number;
   activeAccountCode: string;
   entries: OperationalEntry[];
+  quickNotes: QuickNoteSummary[];
+  reportSnapshots: ReportSnapshotSummary[];
 };
 
 export const roleLabels: Record<string, string> = {
@@ -185,7 +222,7 @@ export async function getWorkspaceDetails(
     return null;
   }
 
-  const [{ data: accounts, error: accountsError }, transactions, reviews] = await Promise.all([
+  const [{ data: accounts, error: accountsError }, transactions, reviews, quickNotes, reportSnapshots] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, code, label, account_type, currency_code")
@@ -198,7 +235,23 @@ export async function getWorkspaceDetails(
       .from("ledger_entries")
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
-      .eq("review_status", "review")
+      .eq("review_status", "review"),
+    supabase
+      .from("quick_notes")
+      .select("id, body, status, created_at, updated_at")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "void")
+      .order("updated_at", { ascending: false })
+      .limit(20)
+      .returns<QuickNoteRow[]>(),
+    supabase
+      .from("report_snapshots")
+      .select("id, title, period_start, period_end, status, created_at")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "void")
+      .order("period_end", { ascending: false })
+      .limit(20)
+      .returns<ReportSnapshotRow[]>()
   ]);
 
   if (accountsError) {
@@ -211,6 +264,14 @@ export async function getWorkspaceDetails(
 
   if (reviews.error) {
     throw new Error(reviews.error.message);
+  }
+
+  if (quickNotes.error) {
+    throw new Error(quickNotes.error.message);
+  }
+
+  if (reportSnapshots.error) {
+    throw new Error(reportSnapshots.error.message);
   }
 
   const normalizedAccounts = [...(accounts ?? [])].sort((left, right) => {
@@ -290,6 +351,21 @@ export async function getWorkspaceDetails(
     transactionCount: transactions.count ?? 0,
     reviewCount: reviews.count ?? 0,
     activeAccountCode: activeAccount?.code ?? requestedAccountCode,
-    entries
+    entries,
+    quickNotes: (quickNotes.data ?? []).map((note) => ({
+      id: note.id,
+      body: note.body,
+      status: note.status,
+      createdAt: note.created_at,
+      updatedAt: note.updated_at
+    })),
+    reportSnapshots: (reportSnapshots.data ?? []).map((report) => ({
+      id: report.id,
+      title: report.title,
+      periodStart: report.period_start,
+      periodEnd: report.period_end,
+      status: report.status,
+      createdAt: report.created_at
+    }))
   };
 }
