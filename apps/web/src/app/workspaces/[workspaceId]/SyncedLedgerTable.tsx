@@ -48,7 +48,7 @@ export function SyncedLedgerTable({ entries }: SyncedLedgerTableProps) {
           onClick={() => setActiveZone("journal")}
           type="button"
         >
-          Оперативный журнал
+          <span className="zone-title-main">Оперативный журнал</span>
           <small>{entries.length} записей</small>
         </button>
         <button
@@ -57,7 +57,7 @@ export function SyncedLedgerTable({ entries }: SyncedLedgerTableProps) {
           onClick={() => setActiveZone("structure")}
           type="button"
         >
-          Структурная проверка
+          <span className="zone-title-main">Структурная проверка</span>
           <small>та же строка</small>
         </button>
       </div>

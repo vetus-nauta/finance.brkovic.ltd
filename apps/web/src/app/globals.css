@@ -455,6 +455,13 @@ button {
   text-align: left;
 }
 
+.zone-title-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .zone-title:first-child {
   grid-column: 1 / 4;
 }
@@ -470,8 +477,10 @@ button {
 
 .zone-title small {
   color: var(--muted);
+  flex: 0 0 auto;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .synced-head {
