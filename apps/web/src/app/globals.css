@@ -536,14 +536,25 @@ button {
   border-radius: 8px;
   display: grid;
   gap: 10px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(190px, 240px) auto;
   min-height: 44px;
   padding: 8px 10px;
 }
 
-.smith-proposal input {
+.smith-proposal input[type="checkbox"] {
   height: 18px;
   width: 18px;
+}
+
+.smith-proposal select {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  min-width: 0;
+  padding: 8px 9px;
 }
 
 .smith-proposal strong,
@@ -1025,6 +1036,11 @@ button {
 
   .smith-proposal {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .smith-proposal select {
+    grid-column: 2;
+    width: 100%;
   }
 
   .smith-proposal .status-pill {

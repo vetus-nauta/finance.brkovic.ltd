@@ -19,6 +19,8 @@
   {"code":"transport_expenses","name":{"ru":"Транспортные расходы","en":"Transport expenses"},"sort_order":125,"direction":"expense","keywords":["такси","трансфер","аренда авто","билеты","перелет","перелёт","авиа","поезд","автобус","taxi","transfer","car rental","tickets"]},
   {"code":"admin_legal","name":{"ru":"Админка / документы","en":"Admin and legal"},"sort_order":130,"direction":"expense","keywords":["юрист","адвокат","документы","страховка","регистрация","таможня","license","insurance","lawyer","customs"]},
   {"code":"current_boat_expenses","name":{"ru":"Текущие лодочные расходы","en":"Current boat expenses"},"sort_order":135,"direction":"expense","keywords":["брендирование","форма","спецодежда","агент","комиссии банков","банковская комиссия","bank fee","bank commission"]},
-  {"code":"cash_topup_from_card","name":{"ru":"Пополнение cash с карты","en":"Cash top-up from card"},"sort_order":140,"direction":"movement","keywords":["снял с карты","снятие с карты","банкомат","atm","cash withdrawal","card to cash"]},
+  {"code":"cash_topup_from_card","name":{"ru":"Пополнение cash с карты","en":"Cash top-up from card"},"sort_order":140,"direction":"neutral","keywords":["снял с карты","снятие с карты","банкомат","atm","cash withdrawal","card to cash"],"metadata":{"category_kind":"money_movement"}},
+  {"code":"admin_debt","name":{"ru":"Долг администратора","en":"Administrator debt"},"sort_order":930,"direction":"neutral","keywords":["мой кредит","мой долг","для себя","себе","temu","мото навигатор"],"metadata":{"category_kind":"accounting_block"}},
+  {"code":"lower_accounting","name":{"ru":"Подотчет / долг","en":"Accountable / debt"},"sort_order":940,"direction":"neutral","keywords":["долг","кредит","займ","под отчет","подотчет","вернул","возврат"],"metadata":{"category_kind":"accounting_block"}},
   {"code":"other","name":{"ru":"Другие расходы","en":"Other expenses"},"sort_order":999,"direction":"expense","keywords":[]}
 ]

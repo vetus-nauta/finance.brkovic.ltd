@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { isSmithCategoryCode, smithReviewReasonForCategory } from "@/lib/smith-categories";
 import { createClient } from "@/lib/supabase/server";
 import { workspacePath } from "@/lib/workspace-data";
 
@@ -339,6 +340,29 @@ export async function convertSmithProposalsToEntries(workspaceId: string, formDa
   }
 
   const supabase = await createClient();
+
+  for (const proposalId of proposalIds) {
+    const categoryCode = String(formData.get(`categoryCode:${proposalId}`) || "").trim();
+
+    if (!isSmithCategoryCode(categoryCode)) {
+      redirectToMode(workspaceId, "notes", "note-convert", { account: accountCode, note: noteId });
+    }
+
+    const { error: categoryUpdateError } = await supabase
+      .from("smith_entry_proposals")
+      .update({
+        candidate_category_code: categoryCode,
+        review_reason: smithReviewReasonForCategory(categoryCode)
+      })
+      .eq("id", proposalId)
+      .eq("quick_note_id", noteId)
+      .eq("status", "pending");
+
+    if (categoryUpdateError) {
+      redirectToMode(workspaceId, "notes", "note-convert", { account: accountCode, note: noteId });
+    }
+  }
+
   const { data, error } = await (supabase as unknown as SupabaseRpcClient)
     .rpc("convert_smith_entry_proposals", {
       p_note_id: noteId,

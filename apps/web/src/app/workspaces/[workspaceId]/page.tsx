@@ -8,6 +8,7 @@ import {
   submitQuickNoteToSmith
 } from "./actions";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
+import { smithCategoryLabel, smithCategoryOptions } from "@/lib/smith-categories";
 import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
 
 type WorkspacePageProps = {
@@ -134,61 +135,6 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
-}
-
-function categoryText(code: string | null) {
-  switch (code) {
-    case "crew":
-      return "Экипаж";
-    case "commercial_income":
-      return "Коммерческий приход";
-    case "non_commercial_income":
-      return "Некоммерческое поступление";
-    case "dry_dock":
-      return "Сухой док";
-    case "berth":
-      return "Стоянка";
-    case "marina_ports":
-      return "Марины и портовые";
-    case "service_water":
-      return "Сервисные работы";
-    case "tech_parts":
-      return "Техчасть и запчасти";
-    case "tender":
-      return "Тендер / тузик";
-    case "fuel":
-      return "Топливо";
-    case "provisions":
-      return "Продукты и гости";
-    case "guest_trip_support":
-      return "Обеспечение гостей в походе";
-    case "guest_cash_issued":
-      return "Выданные наличные гостям";
-    case "representation_expenses":
-      return "Представительские расходы";
-    case "interior":
-      return "Интерьер и быт";
-    case "cleaning":
-      return "Клининг и химия";
-    case "media_comms":
-      return "Мультимедиа и связь";
-    case "transport_expenses":
-      return "Транспортные расходы";
-    case "admin_legal":
-      return "Админка / документы";
-    case "current_boat_expenses":
-      return "Текущие лодочные расходы";
-    case "cash_topup_from_card":
-      return "Пополнение кеша с карты";
-    case "admin_debt":
-      return "Долг администратора";
-    case "lower_accounting":
-      return "Подотчет / долг";
-    case "other":
-      return "Нужно разобрать вручную";
-    default:
-      return "Категория не выбрана";
-  }
 }
 
 function reviewReasonText(reason: string | null) {
@@ -388,10 +334,21 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       <span>
                         <strong>{proposal.rawText}</strong>
                         <small>
-                          {categoryText(proposal.candidateCategoryCode)} · {reviewReasonText(proposal.reviewReason)}
+                          {smithCategoryLabel(proposal.candidateCategoryCode)} · {reviewReasonText(proposal.reviewReason)}
                           {proposal.confidence !== null ? ` · ${Math.round(proposal.confidence * 100)}%` : ""}
                         </small>
                       </span>
+                      <select
+                        aria-label={`Категория для строки ${proposal.lineNo}`}
+                        defaultValue={proposal.candidateCategoryCode ?? "other"}
+                        name={`categoryCode:${proposal.id}`}
+                      >
+                        {smithCategoryOptions.map((category) => (
+                          <option key={category.code} value={category.code}>
+                            {category.label}
+                          </option>
+                        ))}
+                      </select>
                       <span
                         className={
                           proposal.duplicateStatus === "possible_duplicate" || proposal.reviewReason !== "accepted"
