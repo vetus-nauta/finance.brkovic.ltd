@@ -2,6 +2,24 @@
 
 FinDesk v2 production codebase for `finance.brkovic.ltd`.
 
+## Foundation Branch
+
+This repository also contains the clean architecture foundation work for `brkovic.app`.
+
+Read first:
+
+- `docs/FOUNDATION_DIRECTOR_OPENING.md`
+- `docs/ARCHITECTURE.md`
+- `docs/CURRENT_STATE_AUDIT.md`
+- `docs/SECRETS_AND_ACCOUNTS.md`
+
+Foundation rule:
+
+- current PHP FinDesk v2 is legacy runtime and migration/product evidence
+- future `brkovic.app` foundation is PostgreSQL/Supabase + Next.js + Expo
+- MongoDB Atlas is not the target foundation unless a future ADR proves otherwise
+- no production cutover or legacy deletion without explicit approval
+
 ## Source Of Truth
 
 FinDesk v1 has been decommissioned from the runtime tree. The product source of truth is now:
@@ -85,7 +103,7 @@ storage/secrets/mongodb_uri
 ```
 
 Do not print or commit these values.
-The PHP runtime uses `app/db.php` for the current server backend. MongoDB Atlas is the required v2 parity/persistence target and must be kept synchronized before production sign-off.
+The PHP runtime uses `app/db.php` for the current server backend. MongoDB Atlas is the current v2 parity/persistence context and must be kept synchronized before legacy production sign-off. It is not the target database foundation for `brkovic.app`.
 Atlas URI is stored locally. The Atlas project is `finance-brkovic-ltd`, cluster `pwa-finance`, database `finance_brkovic_ltd`; verify with `npm run check:atlas` before migration or sync work.
 To replace the local Atlas URI safely, use `FINDESK_MONGO_URI='<new atlas uri>' npm run set:atlas-uri`.
 
