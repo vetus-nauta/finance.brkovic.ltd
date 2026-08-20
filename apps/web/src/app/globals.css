@@ -379,10 +379,30 @@ button {
   min-height: 0;
   max-height: calc(100dvh - 318px);
   overflow: auto;
+  position: relative;
 }
 
 .synced-table.is-empty {
   max-height: none;
+}
+
+.synced-table::after {
+  background: var(--line-strong);
+  bottom: 0;
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 1px;
+  z-index: 3;
+}
+
+.synced-table.journal-active::after {
+  left: calc(12px + 48px + 10px + ((100% - 24px - 50px - 48px - 130px - 44px - 96px) * 0.7907) + 10px + 130px + 5px);
+}
+
+.synced-table.structure-active::after {
+  left: calc(12px + 42px + 10px + ((100% - 24px - 50px - 42px - 112px - 48px - 118px) * 0.2927) + 10px + 112px + 5px);
 }
 
 .synced-row {
@@ -500,7 +520,6 @@ button {
 }
 
 .synced-row > :nth-child(4) {
-  border-left: 1px solid var(--line-strong);
   padding-left: 12px;
 }
 
@@ -698,6 +717,11 @@ button {
 
   .synced-table.structure-active .synced-row {
     grid-template-columns: 40px minmax(140px, 0.6fr) 104px 44px 112px minmax(180px, 1fr);
+  }
+
+  .synced-table.journal-active::after,
+  .synced-table.structure-active::after {
+    left: calc(10px + 44px + 10px + 280px + 10px + 112px + 5px);
   }
 
   .zone-title:first-child {
