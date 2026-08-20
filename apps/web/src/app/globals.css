@@ -386,25 +386,6 @@ button {
   max-height: none;
 }
 
-.synced-table::after {
-  background: var(--line-strong);
-  bottom: 0;
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  top: 46px;
-  width: 1px;
-  z-index: 3;
-}
-
-.synced-table.journal-active::after {
-  left: calc(12px + 48px + 10px + ((100% - 24px - 50px - 48px - 130px - 44px - 96px) * 0.7907) + 10px + 130px + 5px);
-}
-
-.synced-table.structure-active::after {
-  left: calc(12px + 42px + 10px + ((100% - 24px - 50px - 42px - 112px - 48px - 118px) * 0.2927) + 10px + 112px + 5px);
-}
-
 .synced-row {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -515,10 +496,15 @@ button {
 }
 
 .synced-row > :nth-child(3) {
+  padding-right: 8px;
   text-align: right;
 }
 
-.synced-row > :nth-child(4) {
+.synced-row:not(.zone-head) > :nth-child(4) {
+  align-self: stretch;
+  border-left: 1px solid var(--line-strong);
+  display: flex;
+  align-items: center;
   padding-left: 12px;
 }
 
@@ -716,11 +702,6 @@ button {
 
   .synced-table.structure-active .synced-row {
     grid-template-columns: 40px minmax(140px, 0.6fr) 104px 44px 112px minmax(180px, 1fr);
-  }
-
-  .synced-table.journal-active::after,
-  .synced-table.structure-active::after {
-    left: calc(10px + 44px + 10px + 280px + 10px + 112px + 5px);
   }
 
   .zone-title:first-child {
