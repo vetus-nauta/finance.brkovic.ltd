@@ -10,6 +10,7 @@ const projectRef = process.env.SUPABASE_PROJECT_REF || process.argv[2] || "";
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN || "";
 const configPath = process.env.FINDESK_PROD_CONFIG || path.join(root, "storage/secrets/prod-config.local.php");
 const templatePath = path.join(root, "supabase/auth-email-templates/magic-link-otp.html");
+const senderName = process.env.FINDESK_AUTH_SENDER_NAME || "FinDesk";
 
 if (!projectRef) {
   console.error("SUPABASE_PROJECT_REF is required.");
@@ -110,7 +111,7 @@ function patchAuthConfig(payload) {
     smtp_port: String(smtp.port),
     smtp_user: smtp.username,
     smtp_pass: smtp.password,
-    smtp_sender_name: smtp.from_name
+    smtp_sender_name: senderName
   });
   console.log("Supabase custom SMTP enabled from production config.");
 

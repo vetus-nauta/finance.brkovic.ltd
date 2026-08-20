@@ -106,6 +106,9 @@ This script reads SMTP settings from the local secrets file at runtime, enables 
 sets `mailer_otp_length` to `6`, and then applies the numeric-code Magic Link email template. It
 must not print or commit SMTP passwords or Supabase access tokens.
 
+The sender name must be `FinDesk` by default. The SMTP mailbox may be inherited from older
+infrastructure, but old product names such as Quick Ledger must not appear in user-facing email.
+
 Supabase default OTP throttling allows a new OTP request for the same user roughly once per
 60 seconds, and project/email hourly limits may also apply. The UI must keep a resend cooldown
 instead of letting users repeatedly request codes.
