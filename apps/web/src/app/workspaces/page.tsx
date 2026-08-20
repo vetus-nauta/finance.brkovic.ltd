@@ -1,6 +1,3 @@
-import Link from "next/link";
-import { routes } from "@/lib/routes";
-
 const foundationBlocks = [
   {
     title: "Оперативный журнал",
@@ -29,9 +26,6 @@ export default function WorkspacesPage() {
           <h1>Рабочая область</h1>
           <p>Продуктовый каркас будущего web-клиента. Данные подключаются через команды и RLS.</p>
         </div>
-        <Link className="ghost-button" href={routes.hall}>
-          В холл
-        </Link>
       </section>
 
       <section className="workspace-shell">

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/AuthForm";
-import { SignOutButton } from "@/components/SignOutButton";
 import { getPublicEnv, hasSupabasePublicEnv } from "@/lib/env";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
@@ -40,7 +39,6 @@ export default async function HomePage() {
                 <Link className="primary-button" href={routes.hall}>
                   Открыть холл
                 </Link>
-                <SignOutButton />
               </div>
             </>
           ) : (

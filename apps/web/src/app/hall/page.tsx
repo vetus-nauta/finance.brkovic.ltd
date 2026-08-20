@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SignOutButton } from "@/components/SignOutButton";
 import { hasSupabasePublicEnv } from "@/lib/env";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +28,6 @@ export default async function HallPage() {
           <h1>Выбор пространства</h1>
           <p>Здесь пользователь входит в рабочие пространства и видит свою роль внутри каждого.</p>
         </div>
-        <SignOutButton />
       </section>
 
       {!session.email ? (

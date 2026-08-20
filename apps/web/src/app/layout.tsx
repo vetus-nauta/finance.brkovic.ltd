@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import "./globals.css";
-import { routes } from "@/lib/routes";
+import { AppHeader } from "@/components/AppHeader";
+import { hasSupabasePublicEnv } from "@/lib/env";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "FinDesk | brkovic.app",
@@ -14,23 +15,23 @@ export const viewport: Viewport = {
   viewportFit: "cover"
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+async function getHeaderEmail() {
+  if (!hasSupabasePublicEnv()) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return typeof data?.claims?.email === "string" ? data.claims.email : null;
+}
+
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const email = await getHeaderEmail();
+
   return (
     <html lang="ru">
       <body>
-        <header className="topbar">
-          <Link className="brand" href={routes.home}>
-            <span className="brand-mark">F</span>
-            <span>
-              <strong>FinDesk</strong>
-              <small>brkovic.app</small>
-            </span>
-          </Link>
-          <nav className="nav">
-            <Link href={routes.hall}>Холл</Link>
-            <Link href={routes.workspaces}>Пространства</Link>
-          </nav>
-        </header>
+        <AppHeader email={email} />
         {children}
       </body>
     </html>
