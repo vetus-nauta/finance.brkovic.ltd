@@ -21,16 +21,13 @@ This sprint is a gate, not a full production launch.
 
 ## Required Vercel project settings
 
-If Vercel project root is repository root:
+Chosen Vercel project root:
 
 ```text
-Install command: npm install
-Build command: npm run build:web
-Development command: npm run dev:web -- --hostname 0.0.0.0
-Framework: Next.js
+apps/web
 ```
 
-If Vercel project root is `apps/web`:
+Project settings:
 
 ```text
 Install command: npm install
@@ -39,9 +36,14 @@ Development command: npm run dev -- --hostname 0.0.0.0
 Framework: Next.js
 ```
 
-Use only one root model and document it in Vercel project settings. Do not keep
-parallel Vercel projects pointing at different roots for the same production
-domain.
+Committed Vercel config:
+
+```text
+apps/web/vercel.json
+```
+
+Do not keep parallel Vercel projects pointing at different roots for the same
+production domain. Do not deploy the repository root as a second production app.
 
 ## Required production env
 
@@ -100,15 +102,24 @@ Passed:
 
 - `npm run typecheck:web`
 - `npm run build:web`
+- `cd apps/web && npm run build`
 - `npm run check:foundation:sql`
 - `npm run smoke:foundation:rls`
 - `git diff --check`
 - responsive QA from `SPRINT-111R`
 
+Vercel CLI:
+
+- `npx vercel --version` returns `59.3.0`.
+- `npx vercel deploy --dry --yes --cwd apps/web --no-color` is blocked by
+  missing local Vercel credentials, not by project code.
+
 ## Blockers before live production acceptance
 
 - Vercel CLI/API access was not available in the local environment, so this
   sprint did not trigger a production deployment.
+- Next required human/account step: `vercel login` or a Vercel token for the
+  correct Vercel account/team.
 - A live Vercel deployment URL must be checked after deploy.
 - Supabase Auth OTP email must be verified on the deployed domain.
 - Domain routing for `brkovic.app` must be checked after Vercel project/domain
