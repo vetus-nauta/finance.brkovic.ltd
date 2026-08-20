@@ -33,7 +33,7 @@ export function AuthForm() {
       }
 
       setIsCodeSent(true);
-      setStatus("Код отправлен. Введите его ниже, чтобы открыть FinDesk.");
+      setStatus("Код отправлен. Введите 8 цифр из письма, чтобы открыть FinDesk.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Не удалось отправить код.");
     } finally {
@@ -65,7 +65,7 @@ export function AuthForm() {
       });
 
       if (error) {
-        setStatus("Код не принят. Проверьте письмо или запросите новый код.");
+        setStatus("Код не принят. Проверьте 8 цифр из последнего письма или запросите новый код.");
         return;
       }
 
@@ -116,7 +116,7 @@ export function AuthForm() {
               value={code}
               onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
               disabled={!ready || isSubmitting}
-              placeholder="123456"
+              placeholder="12345678"
               required
             />
             <button
@@ -132,7 +132,7 @@ export function AuthForm() {
       ) : null}
       <p className={ready ? "form-note" : "form-note error"}>
         {ready
-          ? status || "Вход работает через Supabase Auth. Финансовые данные откроются только после роли в пространстве."
+          ? status || "Введите email, получите код письмом и введите его здесь."
           : "Нужно заполнить NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."}
       </p>
     </form>

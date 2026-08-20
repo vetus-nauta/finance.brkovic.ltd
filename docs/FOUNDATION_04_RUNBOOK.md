@@ -56,6 +56,42 @@ Forbidden in `apps/web`:
 - legacy MySQL credentials
 - Atlas credentials
 
+## Email Code UX Contract
+
+FinDesk must keep the existing user-facing auth flow:
+
+1. user enters email
+2. user receives a numeric code
+3. user enters the code in the same FinDesk window
+4. FinDesk opens the hall/workspace
+
+Do not use magic-link-first UX as the primary product behavior.
+
+Supabase `signInWithOtp` sends either a magic link or a numeric OTP depending on the active email
+template. The Magic Link template must use `{{ .Token }}`, not only `{{ .ConfirmationURL }}`.
+
+Dashboard setup:
+
+1. Open Supabase Dashboard.
+2. Go to `Authentication` -> `Email Templates`.
+3. Select `Magic Link`.
+4. Set subject to:
+
+```text
+Код входа в FinDesk: {{ .Token }}
+```
+
+5. Paste the HTML from `supabase/auth-email-templates/magic-link-otp.html`.
+6. Save and test the sign-in form.
+
+Optional fallback link template, if a link is needed later:
+
+```html
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">Войти</a>
+```
+
+The fallback route exists at `/auth/confirm`, but it is not the primary UX.
+
 ## Domain Decision
 
 `brkovic.app` remains registered at Namecheap. DNS should point to the selected web deployment
