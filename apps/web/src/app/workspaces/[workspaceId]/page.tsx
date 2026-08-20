@@ -1,38 +1,62 @@
 import { notFound } from "next/navigation";
-import { getWorkspaceDetails, roleLabels } from "@/lib/workspace-data";
-
-const foundationBlocks = [
-  {
-    title: "Оперативный журнал",
-    text: "Рабочая лента записей, корректировок и закрытых отчетных периодов."
-  },
-  {
-    title: "Сводка",
-    text: "Итоги считаются из записей пространства. Ручные итоговые цифры здесь не живут."
-  },
-  {
-    title: "Заметки",
-    text: "Быстрые записи передаются Smith на разбор и подтверждение перед переносом в журнал."
-  },
-  {
-    title: "Отчеты сотрудников",
-    text: "Выдача под отчет, принятие расходов, возвраты и возмещение перерасхода."
-  }
-];
+import Link from "next/link";
+import { createOperationalEntry } from "./actions";
+import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
 
 type WorkspacePageProps = {
   params: Promise<{
     workspaceId: string;
   }>;
+  searchParams?: Promise<{
+    account?: string;
+    entry?: string;
+  }>;
 };
 
-export default async function WorkspacePage({ params }: WorkspacePageProps) {
+function formatAmount(amount: number | null, direction: string | null) {
+  if (amount === null) {
+    return "—";
+  }
+
+  const value = new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+
+  return `${direction === "income" ? "+" : "-"}${value} €`;
+}
+
+function entryStatusText(status?: string) {
+  switch (status) {
+    case "saved":
+      return "Запись сохранена.";
+    case "amount":
+      return "Начните запись с суммы: например, -350 продукты или +1000 от судовладельца.";
+    case "missing":
+      return "Заполните дату и запись.";
+    case "account":
+      return "Счет не найден.";
+    case "auth":
+      return "Сессия не найдена. Войдите заново.";
+    case "save":
+      return "Не удалось сохранить запись.";
+    default:
+      return "";
+  }
+}
+
+export default async function WorkspacePage({ params, searchParams }: WorkspacePageProps) {
   const { workspaceId } = await params;
-  const workspace = await getWorkspaceDetails(workspaceId);
+  const query = searchParams ? await searchParams : {};
+  const workspace = await getWorkspaceDetails(workspaceId, query.account);
 
   if (!workspace) {
     notFound();
   }
+
+  const entryAction = createOperationalEntry.bind(null, workspace.id);
+  const today = new Date().toISOString().slice(0, 10);
+  const statusText = entryStatusText(query.entry);
 
   return (
     <main className="page compact-page">
@@ -61,34 +85,96 @@ export default async function WorkspacePage({ params }: WorkspacePageProps) {
         <aside className="side-tabs" aria-label="Разделы рабочего пространства">
           {workspace.accounts.length > 0 ? (
             workspace.accounts.map((account) => (
-              <button
-                className={account.account_type === "cash" ? "active" : undefined}
-                type="button"
+              <Link
+                className={workspace.activeAccountCode === account.code ? "active" : undefined}
+                aria-current={workspace.activeAccountCode === account.code ? "page" : undefined}
+                href={`${workspacePath(workspace.id)}?account=${encodeURIComponent(account.code)}`}
                 key={account.id}
               >
                 {account.label}
-              </button>
+              </Link>
             ))
           ) : (
             <>
-              <button className="active" type="button">
+              <span className="active">
                 Кеш
-              </button>
-              <button type="button">Карта</button>
+              </span>
+              <span>Карта</span>
             </>
           )}
-          <button type="button">Заметки</button>
-          <button type="button">Отчеты</button>
+          <span>Заметки</span>
+          <span>Отчеты</span>
         </aside>
-        <div className="workspace-main">
-          {foundationBlocks.map((block) => (
-            <article className="panel" key={block.title}>
-              <h2>{block.title}</h2>
-              <p>{block.text}</p>
-            </article>
-          ))}
+        <div className="operational-workspace">
+          <section className="journal-panel" aria-label="Оперативный журнал">
+            <div className="table-title">
+              <h2>Оперативный журнал</h2>
+              <small>{workspace.entries.length} записей</small>
+            </div>
+            <div className="ledger-table" role="table">
+              <div className="ledger-row ledger-head" role="row">
+                <span>№</span>
+                <span>Описание</span>
+                <span>Сумма</span>
+              </div>
+              {workspace.entries.length > 0 ? (
+                workspace.entries.map((entry) => (
+                  <div className="ledger-row" role="row" key={entry.id}>
+                    <span>{entry.rowNo}</span>
+                    <strong>{entry.rawText}</strong>
+                    <span className={entry.direction === "income" ? "amount-income" : "amount-expense"}>
+                      {formatAmount(entry.amount, entry.direction)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="ledger-empty">Пока нет записей по выбранному счету.</div>
+              )}
+            </div>
+          </section>
+
+          <section className="structure-panel" aria-label="Структурная проверка">
+            <div className="table-title">
+              <h2>Структурная проверка</h2>
+              <small>та же строка</small>
+            </div>
+            <div className="check-table" role="table">
+              <div className="check-row ledger-head" role="row">
+                <span>№</span>
+                <span>Дата</span>
+                <span>Проверка</span>
+              </div>
+              {workspace.entries.length > 0 ? (
+                workspace.entries.map((entry) => (
+                  <div className="check-row" role="row" key={entry.id}>
+                    <span>{entry.rowNo}</span>
+                    <span>{entry.occurredOn}</span>
+                    <span>{entry.reviewStatus === "review" ? "проверить" : "принято"}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="ledger-empty">Проверка появится вместе с первой записью.</div>
+              )}
+            </div>
+          </section>
         </div>
       </section>
+
+      <form className="entry-bar" action={entryAction}>
+        <input type="hidden" name="account" value={workspace.activeAccountCode} />
+        <label>
+          <span>Дата</span>
+          <input type="date" name="occurredOn" defaultValue={today} required />
+        </label>
+        <label>
+          <span>Запись</span>
+          <input name="rawText" placeholder="-350 продукты" required />
+        </label>
+        <button className="primary-action" type="submit">
+          Сохранить
+        </button>
+      </form>
+      {statusText ? <p className={query.entry === "saved" ? "form-note success" : "form-note error"}>{statusText}</p> : null}
     </main>
   );
 }
