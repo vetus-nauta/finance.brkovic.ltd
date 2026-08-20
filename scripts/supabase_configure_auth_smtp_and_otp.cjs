@@ -116,9 +116,10 @@ function patchAuthConfig(payload) {
 
   await patchAuthConfig({
     mailer_subjects_magic_link: "Код входа в FinDesk: {{ .Token }}",
-    mailer_templates_magic_link_content: template
+    mailer_templates_magic_link_content: template,
+    mailer_otp_length: 6
   });
-  console.log("Supabase magic-link email template now sends OTP code.");
+  console.log("Supabase magic-link email template now sends a 6-digit OTP code.");
 })().catch((error) => {
   console.error(`Supabase auth SMTP/OTP setup failed: ${error.message}`);
   process.exit(1);

@@ -6,6 +6,7 @@ import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/browser";
 
 const OTP_RESEND_SECONDS = 60;
+const OTP_CODE_LENGTH = 6;
 
 function cooldownKey(email: string) {
   return `findesk:auth:next-code-request:${email.trim().toLowerCase()}`;
@@ -176,7 +177,7 @@ export function AuthForm() {
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, OTP_CODE_LENGTH))}
               disabled={!ready || isSubmitting}
               placeholder="123456"
               required
@@ -185,7 +186,7 @@ export function AuthForm() {
               type="button"
               className="primary-action"
               onClick={verifyCode}
-              disabled={!ready || isSubmitting || code.trim().length < 6}
+              disabled={!ready || isSubmitting || code.trim().length !== OTP_CODE_LENGTH}
             >
               {isSubmitting ? "Проверяем" : "Войти"}
             </button>

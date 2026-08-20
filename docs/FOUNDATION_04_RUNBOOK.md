@@ -61,8 +61,8 @@ Forbidden in `apps/web`:
 FinDesk must keep the existing user-facing auth flow:
 
 1. user enters email
-2. user receives a numeric code
-3. user enters the code in the same FinDesk window
+2. user receives a 6-digit numeric code
+3. user enters the 6-digit code in the same FinDesk window
 4. FinDesk opens the hall/workspace
 
 Do not use magic-link-first UX as the primary product behavior.
@@ -103,8 +103,8 @@ npm run setup:supabase:auth-email
 ```
 
 This script reads SMTP settings from the local secrets file at runtime, enables Supabase custom SMTP,
-and then applies the numeric-code Magic Link email template. It must not print or commit SMTP
-passwords or Supabase access tokens.
+sets `mailer_otp_length` to `6`, and then applies the numeric-code Magic Link email template. It
+must not print or commit SMTP passwords or Supabase access tokens.
 
 Supabase default OTP throttling allows a new OTP request for the same user roughly once per
 60 seconds, and project/email hourly limits may also apply. The UI must keep a resend cooldown
