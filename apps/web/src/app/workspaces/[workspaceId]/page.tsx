@@ -157,34 +157,6 @@ function directionText(direction: string) {
   }
 }
 
-function reviewReasonText(reason: string | null) {
-  switch (reason) {
-    case "accepted":
-      return "понятно";
-    case "owner_funding":
-      return "поступление от владельца";
-    case "money_movement":
-      return "перемещение денег";
-    case "weak_only":
-      return "слабый признак";
-    case "mixed_context":
-      return "смешанный смысл";
-    case "lower_accounting":
-      return "нижний учет";
-    case "admin_debt":
-      return "личный долг администратора";
-    case "merchant_alias_review":
-      return "название магазина, нужен ручной смысл";
-    case "card_income_needs_guard":
-      return "поступление на карту требует проверки";
-    case "other_review":
-    case "no_category":
-      return "нужно решение";
-    default:
-      return reason ?? "нужно решение";
-  }
-}
-
 function proposalSignalText(parserReason: string | null, duplicateStatus: string) {
   if (duplicateStatus === "possible_duplicate") {
     return "Похожая строка уже есть";
@@ -314,13 +286,13 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           </section>
         ) : null}
         {mode === "notes" ? (
-          <section className="workspace-mode-panel" aria-label="Быстрые заметки">
+          <section className="workspace-mode-panel notes-mode-panel" aria-label="Быстрые заметки">
             <div className="mode-title">
               <div>
-                <h2>Быстрые заметки</h2>
-                <p>Короткий блокнот. Смит перенесет строки в журнал, спорное оставит на проверке.</p>
+                <h2>Заметки</h2>
+                <p>Пишите как в блокноте. Смит разберет строки перед переносом в журнал.</p>
               </div>
-              <small>{workspace.quickNotes.length} в истории</small>
+              <small>{selectedQuickNote?.status === "draft" ? "текущая" : `${workspace.quickNotes.length} в истории`}</small>
             </div>
             <form className="quick-note-form" action={saveNoteAction}>
               <input type="hidden" name="account" value={workspace.activeAccountCode} />
@@ -334,7 +306,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 }
               />
               <label>
-                <span>Дата переноса</span>
+                <span>Дата для строк</span>
                 <input type="date" name="occurredOn" defaultValue={today} required />
               </label>
               <label>
@@ -356,12 +328,17 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </button>
               </div>
             </form>
+            {modeStatusText ? (
+              <p className={isWorkspaceStatusSuccess(query.status) ? "form-note success" : "form-note error"}>
+                {modeStatusText}
+              </p>
+            ) : null}
             {pendingProposals.length > 0 && selectedQuickNote ? (
               <form className="smith-review-panel" action={convertProposalAction}>
                 <input type="hidden" name="account" value={workspace.activeAccountCode} />
                 <input type="hidden" name="noteId" value={selectedQuickNote.id} />
                 <div className="note-history-head">
-                  <h3>Проверка Смита</h3>
+                  <h3>Смит подготовил перенос</h3>
                   <small>{pendingProposals.length} строк</small>
                 </div>
                 <div className="smith-proposal-list">
@@ -376,8 +353,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       <span>
                         <strong>{proposal.rawText}</strong>
                         <small>
-                          {smithCategoryLabel(proposal.candidateCategoryCode)} · {reviewReasonText(proposal.reviewReason)}
-                          {proposal.confidence !== null ? ` · ${Math.round(proposal.confidence * 100)}%` : ""}
+                          {proposal.duplicateStatus === "possible_duplicate"
+                            ? "Похоже на дубль"
+                            : `Категория: ${smithCategoryLabel(proposal.candidateCategoryCode)}`}
                         </small>
                       </span>
                       <select
@@ -405,7 +383,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </div>
                 <div className="mode-actions">
                   <button className="primary-action" type="submit">
-                    Перенести выбранное
+                    Перенести в журнал
                   </button>
                 </div>
               </form>
@@ -417,14 +395,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 <button type="submit">Удалить выбранную заметку</button>
               </form>
             ) : null}
-            {modeStatusText ? (
-              <p className={isWorkspaceStatusSuccess(query.status) ? "form-note success" : "form-note error"}>
-                {modeStatusText}
-              </p>
-            ) : null}
             <div className="note-history-head">
-              <h3>История заметок</h3>
-              <small>Последние сохраненные заметки</small>
+              <h3>История</h3>
+              <small>Черновики и отправленные заметки</small>
             </div>
             <div className="note-history" aria-label="История заметок">
               {workspace.quickNotes.length > 0 ? (

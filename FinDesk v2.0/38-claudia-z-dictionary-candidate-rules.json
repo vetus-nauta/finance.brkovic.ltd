@@ -163,13 +163,18 @@
         "лебедк"
       ],
       "warnings": [
-        "Generic ремонт can be broad; prefer service when paired with equipment or work."
+        "Generic ремонт can be broad; prefer service when paired with equipment or work.",
+        "Purchase verbs such as купил, покупка, заказал, приобрел are not service work by themselves; if paired with a technical object, classify as tech_parts or review."
       ]
     },
     {
       "category_code": "tech_parts",
       "language": "multi",
       "patterns": [
+        "купил ремень генератора",
+        "покупка ремня генератора",
+        "заказал техническую деталь",
+        "приобрел запчасть",
         "запчаст",
         "расходник",
         "материал",
