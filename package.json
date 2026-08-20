@@ -15,6 +15,7 @@
     "backup:v2:atlas": "node scripts/v2_atlas_backup_export.js",
     "commit:v2:atlas": "node scripts/v2_atlas_commit_payload.js",
     "check:foundation:sql": "python3 scripts/check_foundation_sql.py",
+    "smoke:foundation:rls": "node scripts/foundation_rls_smoke.cjs",
     "drop:v2:atlas-legacy": "node scripts/v2_atlas_drop_legacy_collections.js",
     "smoke:v2:atlas-runtime": "node scripts/v2_atlas_runtime_smoke.js",
     "smoke:v2:atlas-proxy": "bash scripts/v2_atlas_php_proxy_smoke.sh",
@@ -40,6 +41,7 @@
     "test:v2:fixtures": "bash scripts/v2_fixture_runner.sh"
   },
   "devDependencies": {
+    "pg": "^8.16.3",
     "playwright-core": "^1.61.1"
   }
 }

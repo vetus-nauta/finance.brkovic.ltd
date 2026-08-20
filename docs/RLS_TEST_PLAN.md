@@ -70,3 +70,21 @@ Audit rows must be created for:
 - correction
 - destructive/void action
 - document upload/delete
+
+## Automated Smoke Coverage
+
+Implemented in `supabase/tests/foundation_rls_smoke.sql` and run with:
+
+```bash
+npm run smoke:foundation:rls
+```
+
+Current automated coverage:
+
+- owner can read workspace ledger/report rows
+- employee cannot read full operational ledger
+- employee can read own accountable money/report/item rows
+- employee can read own quick note
+- employee cannot insert operational ledger rows directly
+- outsider cannot read workspace rows
+- fixture rows are rolled back after the smoke run

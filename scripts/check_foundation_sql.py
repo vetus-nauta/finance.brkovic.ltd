@@ -27,6 +27,32 @@ def names(pattern: str, sql: str) -> set[str]:
     return set(re.findall(pattern, sql, flags=re.IGNORECASE | re.MULTILINE))
 
 
+def duplicate_columns(sql: str) -> list[str]:
+    duplicates: list[str] = []
+    table_blocks = re.finditer(
+        r"^create table public\.([a-z0-9_]+)\s*\((.*?)^\);",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+
+    for block in table_blocks:
+        table_name = block.group(1)
+        body = block.group(2)
+        seen: set[str] = set()
+        for line in body.splitlines():
+            match = re.match(r"^\s{2}([a-z][a-z0-9_]*)\s+", line, flags=re.IGNORECASE)
+            if not match:
+                continue
+            column_name = match.group(1).lower()
+            if column_name in {"primary", "unique", "check", "foreign", "constraint"}:
+                continue
+            if column_name in seen:
+                duplicates.append(f"{table_name}.{column_name}")
+            seen.add(column_name)
+
+    return duplicates
+
+
 def main() -> int:
     sql = migration_path().read_text(encoding="utf-8")
 
@@ -42,6 +68,10 @@ def main() -> int:
         errors.append("Tables without RLS: " + ", ".join(missing_rls))
     if missing_policy:
         errors.append("Tables without policies: " + ", ".join(missing_policy))
+
+    duplicate_column_names = duplicate_columns(sql)
+    if duplicate_column_names:
+        errors.append("Duplicate columns: " + ", ".join(sorted(duplicate_column_names)))
 
     if "numeric(14,2)" not in sql:
         errors.append("Money numeric(14,2) not found")

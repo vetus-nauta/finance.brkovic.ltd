@@ -45,6 +45,7 @@ DNS:
 - `supabase/migrations/20260820143100_foundation_core.sql`
 - `supabase/migrations/20260820143200_foundation_hardening.sql`
 - `supabase/migrations/20260820143300_rls_auth_initplan_hardening.sql`
+- `supabase/migrations/20260820143400_rls_authenticated_policy_scope.sql`
 - `supabase/README.md`
 - `env.foundation.example`
 - `docs/MIGRATION_DRY_RUN_PLAN.md`
@@ -64,6 +65,8 @@ Applied on 2026-08-20:
 - added covering indexes for all detected foreign keys
 - split broad write policies into action-specific insert/update/delete policies
 - wrapped direct RLS `auth.uid()` calls for init-plan performance
+- scoped app-data RLS policies to `authenticated`
+- granted authenticated users controlled execute access to private RLS helper functions
 
 ## Acceptance Gate
 
@@ -83,7 +86,7 @@ Current residual advisory note:
 
 - performance advisor reports `unused_index` INFO items because the new database is empty and indexes have not served traffic yet. This is expected at foundation stage and must be rechecked after seed/scenario testing.
 
-## Next Sprint Candidate
+## Completed Follow-Up
 
 Foundation-03: Seed Org/Workspace/User Scenario And RLS Smoke
 
@@ -92,5 +95,5 @@ Expected outputs:
 - first RLS tests executed
 - first seed org/workspace/user scenario
 - direct-client denied/allowed matrix captured
-- storage bucket policies drafted
-- application scaffold connected to Supabase through env
+- rollback-safe smoke fixture
+- authenticated-only app-data policy scope
