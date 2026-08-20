@@ -222,7 +222,14 @@ export async function getWorkspaceDetails(
     return null;
   }
 
-  const [{ data: accounts, error: accountsError }, transactions, reviews, quickNotes, reportSnapshots] = await Promise.all([
+  const [
+    { data: accounts, error: accountsError },
+    transactions,
+    ledgerReviews,
+    transactionReviews,
+    quickNotes,
+    reportSnapshots
+  ] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, code, label, account_type, currency_code")
@@ -236,6 +243,11 @@ export async function getWorkspaceDetails(
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .eq("review_status", "review"),
+    supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "needs_review"),
     supabase
       .from("quick_notes")
       .select("id, body, status, created_at, updated_at")
@@ -262,8 +274,12 @@ export async function getWorkspaceDetails(
     throw new Error(transactions.error.message);
   }
 
-  if (reviews.error) {
-    throw new Error(reviews.error.message);
+  if (ledgerReviews.error) {
+    throw new Error(ledgerReviews.error.message);
+  }
+
+  if (transactionReviews.error) {
+    throw new Error(transactionReviews.error.message);
   }
 
   if (quickNotes.error) {
@@ -349,7 +365,7 @@ export async function getWorkspaceDetails(
     accessScope: membership.access_scope,
     accounts: normalizedAccounts,
     transactionCount: transactions.count ?? 0,
-    reviewCount: reviews.count ?? 0,
+    reviewCount: (ledgerReviews.count ?? 0) + (transactionReviews.count ?? 0),
     activeAccountCode: activeAccount?.code ?? requestedAccountCode,
     entries,
     quickNotes: (quickNotes.data ?? []).map((note) => ({

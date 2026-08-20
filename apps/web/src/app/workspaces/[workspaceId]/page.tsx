@@ -25,6 +25,10 @@ function entryStatusText(status?: string) {
       return "Запись сохранена.";
     case "amount":
       return "Начните запись с суммы: например, -350 продукты или +1000 от судовладельца.";
+    case "review":
+      return "Запись сохранена на проверку и пока не влияет на деньги.";
+    case "card-income":
+      return "Поступление на карту нужно проводить через импорт, корректировку или проверку Смита.";
     case "missing":
       return "Заполните дату и запись.";
     case "account":

@@ -22,8 +22,12 @@ function formatAmount(amount: number | null, direction: string | null) {
   return `${direction === "income" ? "+" : "-"}${value} €`;
 }
 
-function reviewStatusText(status: string | null) {
-  return status === "review" ? "проверить" : "принято";
+function reviewStatusText(status: string | null, transactionStatus: string) {
+  if (transactionStatus === "needs_review" || status === "review") {
+    return "проверить";
+  }
+
+  return "принято";
 }
 
 function zoneClassName(activeZone: ActiveZone, entryCount: number) {
@@ -101,10 +105,10 @@ export function SyncedLedgerTable({ entries }: SyncedLedgerTableProps) {
               <span onClick={() => setActiveZone("structure")}>{entry.rowNo}</span>
               <span onClick={() => setActiveZone("structure")}>{entry.occurredOn}</span>
               <span
-                className={entry.reviewStatus === "review" ? "status-pill attention" : "status-pill"}
+                className={entry.reviewStatus === "review" || entry.status === "needs_review" ? "status-pill attention" : "status-pill"}
                 onClick={() => setActiveZone("structure")}
               >
-                {reviewStatusText(entry.reviewStatus)}
+                {reviewStatusText(entry.reviewStatus, entry.status)}
               </span>
             </div>
           ))

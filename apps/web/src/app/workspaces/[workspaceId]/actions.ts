@@ -5,18 +5,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { workspacePath } from "@/lib/workspace-data";
 
-type AccountForEntry = {
-  id: string;
-  organization_id: string;
-  workspace_id: string;
-  account_type: string;
-  currency_code: string;
-};
-
-type LatestRow = {
-  row_no: number | null;
-};
-
 type WorkspaceForWrite = {
   id: string;
   organization_id: string;
@@ -27,25 +15,26 @@ type QuickNoteForWrite = {
   status: string;
 };
 
-function parseEntry(rawText: string) {
-  const match = rawText.trim().match(/^([+-])?\s*(\d+(?:[.,]\d{1,2})?)/);
+type CreateOperationalEntryResult = {
+  transaction_id: string;
+  ledger_entry_id: string | null;
+  row_no: number;
+  counted: boolean;
+  transaction_status: string;
+  review_status: string | null;
+};
 
-  if (!match) {
-    return null;
-  }
-
-  const sign = match[1] ?? "-";
-  const amount = Number.parseFloat(match[2].replace(",", "."));
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return null;
-  }
-
-  return {
-    amount: amount.toFixed(2),
-    direction: sign === "+" ? "income" : "expense"
+type SupabaseRpcClient = {
+  rpc: (
+    functionName: string,
+    args: Record<string, unknown>
+  ) => {
+    returns: <T>() => Promise<{
+      data: T | null;
+      error: { message: string } | null;
+    }>;
   };
-}
+};
 
 function redirectWithStatus(workspaceId: string, accountCode: string, status: string): never {
   redirect(`${workspacePath(workspaceId)}?account=${encodeURIComponent(accountCode)}&entry=${encodeURIComponent(status)}`);
@@ -97,90 +86,51 @@ export async function createOperationalEntry(workspaceId: string, formData: Form
     redirectWithStatus(workspaceId, accountCode, "missing");
   }
 
-  const parsed = parseEntry(rawText);
-
-  if (!parsed) {
-    redirectWithStatus(workspaceId, accountCode, "amount");
-  }
-
   const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  const userId = claims?.claims?.sub;
-
-  if (typeof userId !== "string") {
-    redirectWithStatus(workspaceId, accountCode, "auth");
-  }
-
-  const { data: account, error: accountError } = await supabase
-    .from("accounts")
-    .select("id, organization_id, workspace_id, account_type, currency_code")
-    .eq("workspace_id", workspaceId)
-    .eq("code", accountCode)
-    .eq("is_active", true)
-    .maybeSingle<AccountForEntry>();
-
-  if (accountError || !account) {
-    redirectWithStatus(workspaceId, accountCode, "account");
-  }
-
-  const { data: latestRows, error: rowError } = await supabase
-    .from("transactions")
-    .select("row_no")
-    .eq("workspace_id", workspaceId)
-    .order("row_no", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .returns<LatestRow[]>();
-
-  if (rowError) {
-    redirectWithStatus(workspaceId, accountCode, "save");
-  }
-
-  const rowNo = (latestRows?.[0]?.row_no ?? 0) + 1;
-
-  const { data: transaction, error: transactionError } = await supabase
-    .from("transactions")
-    .insert({
-      organization_id: account.organization_id,
-      workspace_id: workspaceId,
-      account_id: account.id,
-      source_type: "manual",
-      occurred_on: occurredOn,
-      row_no: rowNo,
-      raw_text: rawText,
-      status: "open",
-      created_by: userId,
-      metadata: {
-        account_code: accountCode,
-        parser: "foundation_manual_amount_v1"
-      }
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("create_operational_entry", {
+      p_workspace_id: workspaceId,
+      p_account_code: accountCode,
+      p_occurred_on: occurredOn,
+      p_raw_text: rawText,
+      p_source_type: "manual",
+      p_source_channel: "manual",
+      p_source_language: "ru",
+      p_source_id: null,
+      p_source_ref: {},
+      p_metadata: {}
     })
-    .select("id")
-    .single<{ id: string }>();
+    .returns<CreateOperationalEntryResult[]>();
 
-  if (transactionError || !transaction) {
-    redirectWithStatus(workspaceId, accountCode, "save");
-  }
+  if (error) {
+    const message = error.message;
 
-  const { error: ledgerError } = await supabase.from("ledger_entries").insert({
-    organization_id: account.organization_id,
-    workspace_id: workspaceId,
-    transaction_id: transaction.id,
-    account_id: account.id,
-    direction: parsed.direction,
-    amount: parsed.amount,
-    currency_code: account.currency_code,
-    review_status: "accepted",
-    metadata: {
-      account_code: accountCode,
-      source: "operational_entry_form"
+    if (message.includes("auth_required") || message.includes("ledger_write_required")) {
+      redirectWithStatus(workspaceId, accountCode, "auth");
     }
-  });
 
-  if (ledgerError) {
+    if (message.includes("account_not_found")) {
+      redirectWithStatus(workspaceId, accountCode, "account");
+    }
+
+    if (message.includes("manual_card_income_blocked")) {
+      redirectWithStatus(workspaceId, accountCode, "card-income");
+    }
+
+    if (message.includes("amount_must_be_positive")) {
+      redirectWithStatus(workspaceId, accountCode, "amount");
+    }
+
     redirectWithStatus(workspaceId, accountCode, "save");
   }
 
-  redirectWithStatus(workspaceId, accountCode, "saved");
+  const result = data?.[0];
+
+  if (!result) {
+    redirectWithStatus(workspaceId, accountCode, "save");
+  }
+
+  redirectWithStatus(workspaceId, accountCode, result.counted ? "saved" : "review");
 }
 
 export async function saveQuickNoteDraft(workspaceId: string, formData: FormData) {
