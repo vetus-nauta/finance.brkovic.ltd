@@ -33,6 +33,7 @@ function isRateLimitError(error: unknown) {
 export function AuthForm() {
   const env = getPublicEnv();
   const ready = hasSupabasePublicEnv(env);
+  const isLocalAuth = env.appEnv === "local";
   const [email, setEmail] = useState("vetus.nauta@gmail.com");
   const [code, setCode] = useState("");
   const [isCodeSent, setIsCodeSent] = useState(false);
@@ -120,6 +121,24 @@ export function AuthForm() {
     setStatus("");
 
     try {
+      if (isLocalAuth) {
+        const devLoginResponse = await fetch("/auth/dev-login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email,
+            code: code.trim()
+          })
+        });
+
+        if (devLoginResponse.ok) {
+          window.location.assign(routes.hall);
+          return;
+        }
+      }
+
       const supabase = createClient();
       const { error } = await supabase.auth.verifyOtp({
         email,
@@ -168,6 +187,20 @@ export function AuthForm() {
               : "Получить код"}
         </button>
       </div>
+      {!isCodeSent && isLocalAuth ? (
+        <div className="button-row">
+          <button
+            type="button"
+            onClick={() => {
+              setIsCodeSent(true);
+              setStatus("Локальный вход: введите код 111111 без ожидания письма.");
+            }}
+            disabled={!ready || isSubmitting}
+          >
+            Ввести код без письма
+          </button>
+        </div>
+      ) : null}
       {isCodeSent ? (
         <div className="auth-code-block">
           <label htmlFor="otp-code">Код из письма</label>

@@ -110,17 +110,17 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           <span>Отчеты</span>
         </aside>
         <section className="operational-workspace" aria-label="Оперативный журнал и структурная проверка">
-          <div className="synced-title-row">
-            <div className="table-title">
-              <h2>Оперативный журнал</h2>
-              <small>{workspace.entries.length} записей</small>
+          <div className={workspace.entries.length === 0 ? "synced-table is-empty" : "synced-table"} role="table">
+            <div className="synced-row zone-head" role="row">
+              <h2>
+                Оперативный журнал
+                <small>{workspace.entries.length} записей</small>
+              </h2>
+              <h2>
+                Структурная проверка
+                <small>та же строка</small>
+              </h2>
             </div>
-            <div className="table-title">
-              <h2>Структурная проверка</h2>
-              <small>та же строка</small>
-            </div>
-          </div>
-          <div className="synced-table" role="table">
             <div className="synced-row synced-head" role="row">
               <span>№</span>
               <span>Описание</span>

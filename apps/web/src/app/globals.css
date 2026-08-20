@@ -348,16 +348,7 @@ button {
 
 .operational-workspace {
   display: grid;
-  gap: 12px;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 560px;
   min-width: 0;
-}
-
-.synced-title-row {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
 }
 
 .table-title {
@@ -386,7 +377,12 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   min-height: 0;
+  max-height: calc(100dvh - 318px);
   overflow: auto;
+}
+
+.synced-table.is-empty {
+  max-height: none;
 }
 
 .synced-row {
@@ -423,6 +419,45 @@ button {
   z-index: 1;
 }
 
+.zone-head {
+  background: var(--panel);
+  height: 46px;
+  min-height: 46px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.zone-head h2 {
+  align-items: baseline;
+  display: flex;
+  font-size: 18px;
+  gap: 12px;
+  line-height: 1.15;
+  margin: 0;
+  min-width: 0;
+}
+
+.zone-head h2:first-child {
+  grid-column: 1 / 4;
+}
+
+.zone-head h2:last-child {
+  grid-column: 4 / 7;
+  border-left: 1px solid var(--line-strong);
+  padding-left: 12px;
+}
+
+.zone-head small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.synced-head {
+  top: 46px;
+}
+
 .synced-row > * {
   min-width: 0;
   overflow: hidden;
@@ -445,8 +480,6 @@ button {
 
 .empty-synced-row {
   color: var(--muted);
-  height: var(--ledger-row-height);
-  min-height: var(--ledger-row-height);
 }
 
 .status-pill {
@@ -620,14 +653,6 @@ button {
     min-height: 0;
   }
 
-  .synced-title-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .synced-title-row .table-title:last-child {
-    display: none;
-  }
-
   .synced-table {
     max-height: 46dvh;
   }
@@ -636,6 +661,14 @@ button {
     grid-template-columns: 44px minmax(190px, 1fr) 112px 44px 104px 96px;
     min-width: 702px;
     padding: 0 10px;
+  }
+
+  .zone-head h2:first-child {
+    grid-column: 1 / 4;
+  }
+
+  .zone-head h2:last-child {
+    grid-column: 4 / 7;
   }
 
   .entry-bar {
