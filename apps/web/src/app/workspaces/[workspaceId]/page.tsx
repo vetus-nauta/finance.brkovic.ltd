@@ -45,6 +45,10 @@ function entryStatusText(status?: string) {
   }
 }
 
+function reviewStatusText(status: string | null) {
+  return status === "review" ? "проверить" : "принято";
+}
+
 export default async function WorkspacePage({ params, searchParams }: WorkspacePageProps) {
   const { workspaceId } = await params;
   const query = searchParams ? await searchParams : {};
@@ -105,59 +109,46 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           <span>Заметки</span>
           <span>Отчеты</span>
         </aside>
-        <div className="operational-workspace">
-          <section className="journal-panel" aria-label="Оперативный журнал">
+        <section className="operational-workspace" aria-label="Оперативный журнал и структурная проверка">
+          <div className="synced-title-row">
             <div className="table-title">
               <h2>Оперативный журнал</h2>
               <small>{workspace.entries.length} записей</small>
             </div>
-            <div className="ledger-table" role="table">
-              <div className="ledger-row ledger-head" role="row">
-                <span>№</span>
-                <span>Описание</span>
-                <span>Сумма</span>
-              </div>
-              {workspace.entries.length > 0 ? (
-                workspace.entries.map((entry) => (
-                  <div className="ledger-row" role="row" key={entry.id}>
-                    <span>{entry.rowNo}</span>
-                    <strong>{entry.rawText}</strong>
-                    <span className={entry.direction === "income" ? "amount-income" : "amount-expense"}>
-                      {formatAmount(entry.amount, entry.direction)}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="ledger-empty">Пока нет записей по выбранному счету.</div>
-              )}
-            </div>
-          </section>
-
-          <section className="structure-panel" aria-label="Структурная проверка">
             <div className="table-title">
               <h2>Структурная проверка</h2>
               <small>та же строка</small>
             </div>
-            <div className="check-table" role="table">
-              <div className="check-row ledger-head" role="row">
-                <span>№</span>
-                <span>Дата</span>
-                <span>Проверка</span>
-              </div>
-              {workspace.entries.length > 0 ? (
-                workspace.entries.map((entry) => (
-                  <div className="check-row" role="row" key={entry.id}>
-                    <span>{entry.rowNo}</span>
-                    <span>{entry.occurredOn}</span>
-                    <span>{entry.reviewStatus === "review" ? "проверить" : "принято"}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="ledger-empty">Проверка появится вместе с первой записью.</div>
-              )}
+          </div>
+          <div className="synced-table" role="table">
+            <div className="synced-row synced-head" role="row">
+              <span>№</span>
+              <span>Описание</span>
+              <span>Сумма</span>
+              <span>№</span>
+              <span>Дата</span>
+              <span>Проверка</span>
             </div>
-          </section>
-        </div>
+            {workspace.entries.length > 0 ? (
+              workspace.entries.map((entry) => (
+                <div className="synced-row" role="row" key={entry.id}>
+                  <span>{entry.rowNo}</span>
+                  <strong>{entry.rawText}</strong>
+                  <span className={entry.direction === "income" ? "amount-income" : "amount-expense"}>
+                    {formatAmount(entry.amount, entry.direction)}
+                  </span>
+                  <span>{entry.rowNo}</span>
+                  <span>{entry.occurredOn}</span>
+                  <span className={entry.reviewStatus === "review" ? "status-pill attention" : "status-pill"}>
+                    {reviewStatusText(entry.reviewStatus)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="ledger-empty">Пока нет записей по выбранному счету.</div>
+            )}
+          </div>
+        </section>
       </section>
 
       <form className="entry-bar" action={entryAction}>
