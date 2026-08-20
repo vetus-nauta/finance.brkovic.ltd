@@ -73,6 +73,7 @@ Accepted work:
 - The command validates workspace write permission, account, source type, source channel, and language.
 - The command creates transaction, optional ledger entry, row number, and audit event atomically.
 - The command blocks manual income on card accounts.
+- Applied security follow-up migration so the RPC runs as `SECURITY INVOKER`; RLS stays active for transaction, ledger, and audit writes.
 - The Next.js action now calls the RPC instead of manually inserting `transactions` and `ledger_entries`.
 - The UI now treats `needs_review` transactions as visible “проверить” rows.
 - The workspace review counter includes both ledger review rows and transaction-level review rows.
@@ -82,10 +83,11 @@ Deferred work:
 - Telegram bot integration.
 - Voice transcription.
 - Full Smith multilingual reasoning and training UI.
-- Applying the migration to remote Supabase; this handoff only records source and local verification.
+- Actual production UX write walkthrough after the next deploy.
 
 Files changed:
 - `supabase/migrations/20260820160000_foundation_operational_entry_command.sql`
+- `supabase/migrations/20260820161000_operational_entry_security_invoker.sql`
 - `apps/web/src/app/workspaces/[workspaceId]/actions.ts`
 - `apps/web/src/app/workspaces/[workspaceId]/page.tsx`
 - `apps/web/src/app/workspaces/[workspaceId]/SyncedLedgerTable.tsx`
@@ -97,10 +99,20 @@ Tests or checks:
 - `npm run typecheck:web`
 - `npm run build:web`
 - `git diff --check`
+- Supabase migration apply:
+  - `foundation_operational_entry_command`
+  - `operational_entry_security_invoker`
+- Supabase authenticated RPC smoke:
+  - counted cash expense creates one transaction and one ledger entry;
+  - no-sign row creates one `needs_review` transaction and no ledger entry;
+  - manual card income is blocked;
+  - smoke rows were cleaned up afterward.
+- Supabase security advisor after follow-up:
+  - no `create_operational_entry` security-definer warning remains;
+  - remaining warning is Auth leaked-password protection disabled.
 
 Risks:
-- The RPC must be applied to Supabase before the deployed app can use it.
-- Browser write smoke should be repeated after migration apply, because the source now depends on a new database function.
+- Browser write smoke should be repeated after deploy, because the local source now depends on the new remote database function.
 - Quick notes still stop at “submitted to Smith”; conversion into structured ledger rows remains a future Smith sprint.
 
 Next sprint:
