@@ -13,13 +13,19 @@ function cooldownKey(email: string) {
 
 function authErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
-  const lower = message.toLowerCase();
 
-  if (lower.includes("security") || lower.includes("rate") || lower.includes("limit")) {
-    return "Код уже запрошен слишком часто. Подождите немного и используйте последнее письмо.";
+  if (isRateLimitError(error)) {
+    return "Код уже запрошен слишком часто. Введите код из последнего письма ниже.";
   }
 
   return message || "Не удалось отправить код.";
+}
+
+function isRateLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const lower = message.toLowerCase();
+
+  return lower.includes("security") || lower.includes("rate") || lower.includes("limit");
 }
 
 export function AuthForm() {
@@ -55,7 +61,8 @@ export function AuthForm() {
 
   async function sendOtpRequest() {
     if (!canRequestCode) {
-      setStatus(`Код уже запрошен. Повторная отправка через ${resendSeconds} сек.`);
+      setIsCodeSent(true);
+      setStatus(`Код уже запрошен. Введите код из последнего письма. Повторная отправка через ${resendSeconds} сек.`);
       return;
     }
 
@@ -73,15 +80,21 @@ export function AuthForm() {
 
       if (error) {
         startCooldown();
+        if (isRateLimitError(error)) {
+          setIsCodeSent(true);
+        }
         setStatus(authErrorMessage(error));
         return;
       }
 
       startCooldown();
       setIsCodeSent(true);
-      setStatus("Код отправлен. Введите 8 цифр из письма, чтобы открыть FinDesk.");
+      setStatus("Код отправлен. Введите 6 цифр из письма, чтобы открыть FinDesk.");
     } catch (error) {
       startCooldown();
+      if (isRateLimitError(error)) {
+        setIsCodeSent(true);
+      }
       setStatus(authErrorMessage(error));
     } finally {
       setIsSubmitting(false);
@@ -112,7 +125,7 @@ export function AuthForm() {
       });
 
       if (error) {
-        setStatus("Код не принят. Проверьте 8 цифр из последнего письма или запросите новый код.");
+        setStatus("Код не принят. Проверьте 6 цифр из последнего письма или запросите новый код.");
         return;
       }
 
@@ -163,9 +176,9 @@ export function AuthForm() {
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
               disabled={!ready || isSubmitting}
-              placeholder="12345678"
+              placeholder="123456"
               required
             />
             <button
@@ -178,6 +191,12 @@ export function AuthForm() {
             </button>
           </div>
         </div>
+      ) : null}
+      {isCodeSent ? (
+        <p className="form-note">
+          Если письмо пока пришло ссылкой без цифр, откройте ссылку из письма. Код появится после
+          замены шаблона Supabase на OTP.
+        </p>
       ) : null}
       <p className={ready ? "form-note" : "form-note error"}>
         {ready
