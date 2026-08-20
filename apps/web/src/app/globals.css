@@ -517,6 +517,51 @@ button {
   color: var(--danger);
 }
 
+.smith-review-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.smith-proposal-list {
+  display: grid;
+  gap: 6px;
+}
+
+.smith-proposal {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.smith-proposal input {
+  height: 18px;
+  width: 18px;
+}
+
+.smith-proposal strong,
+.smith-proposal small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smith-proposal small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
 .inline-empty {
   box-shadow: none;
   max-width: none;
@@ -972,9 +1017,19 @@ button {
   .mode-title,
   .mode-actions,
   .note-card > div,
+  .smith-proposal,
   .report-card {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .smith-proposal {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .smith-proposal .status-pill {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .mode-actions a,

@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createOperationalEntry, deleteQuickNote, saveQuickNoteDraft, submitQuickNoteToSmith } from "./actions";
+import {
+  convertSmithProposalsToEntries,
+  createOperationalEntry,
+  deleteQuickNote,
+  saveQuickNoteDraft,
+  submitQuickNoteToSmith
+} from "./actions";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
 import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
 
@@ -52,6 +58,8 @@ function workspaceStatusText(status?: string) {
       return "Заметка сохранена в черновиках.";
     case "note-submitted":
       return "Заметка отправлена на проверку Смиту.";
+    case "note-ready":
+      return "Смит подготовил строки. Проверьте список и перенесите выбранное.";
     case "note-converted":
       return "Смит перенес заметку в оперативный журнал.";
     case "note-deleted":
@@ -62,8 +70,11 @@ function workspaceStatusText(status?: string) {
       return "Выберите дату для переноса заметки.";
     case "note-missing":
       return "Заметка не выбрана.";
+    case "note-select-lines":
+      return "Выберите хотя бы одну строку для переноса.";
     case "note-save":
     case "note-submit":
+    case "note-convert":
     case "note-delete":
       return "Не удалось выполнить действие с заметкой.";
     case "auth":
@@ -76,7 +87,13 @@ function workspaceStatusText(status?: string) {
 }
 
 function isWorkspaceStatusSuccess(status?: string) {
-  return status === "note-saved" || status === "note-submitted" || status === "note-converted" || status === "note-deleted";
+  return (
+    status === "note-saved" ||
+    status === "note-submitted" ||
+    status === "note-ready" ||
+    status === "note-converted" ||
+    status === "note-deleted"
+  );
 }
 
 function quickNoteStatusText(status: string) {
@@ -119,6 +136,35 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function proposalStatusText(status: string) {
+  switch (status) {
+    case "pending":
+      return "К переносу";
+    case "converted":
+      return "Перенесено";
+    case "rejected":
+      return "Не переносить";
+    default:
+      return status;
+  }
+}
+
+function proposalSignalText(parserReason: string | null, duplicateStatus: string) {
+  if (duplicateStatus === "possible_duplicate") {
+    return "Похожая строка уже есть";
+  }
+
+  if (parserReason === "missing_sign") {
+    return "Нет знака";
+  }
+
+  if (parserReason === "amount_missing") {
+    return "Нет суммы";
+  }
+
+  return "Готово";
+}
+
 export default async function WorkspacePage({ params, searchParams }: WorkspacePageProps) {
   const { workspaceId } = await params;
   const query = searchParams ? await searchParams : {};
@@ -132,6 +178,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const entryAction = createOperationalEntry.bind(null, workspace.id);
   const saveNoteAction = saveQuickNoteDraft.bind(null, workspace.id);
   const submitNoteAction = submitQuickNoteToSmith.bind(null, workspace.id);
+  const convertProposalAction = convertSmithProposalsToEntries.bind(null, workspace.id);
   const deleteNoteAction = deleteQuickNote.bind(null, workspace.id);
   const today = new Date().toISOString().slice(0, 10);
   const statusText = entryStatusText(query.entry);
@@ -141,6 +188,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
     workspace.quickNotes.find((note) => note.id === query.note) ??
     workspace.quickNotes.find((note) => note.status === "draft") ??
     null;
+  const pendingProposals = selectedQuickNote?.proposals.filter((proposal) => proposal.status === "pending") ?? [];
 
   return (
     <main className="page compact-page">
@@ -246,10 +294,39 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </Link>
                 <button type="submit">Сохранить черновик</button>
                 <button className="primary-action" formAction={submitNoteAction} type="submit">
-                  Проверить и перенести
+                  Проверить у Смита
                 </button>
               </div>
             </form>
+            {pendingProposals.length > 0 && selectedQuickNote ? (
+              <form className="smith-review-panel" action={convertProposalAction}>
+                <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                <input type="hidden" name="noteId" value={selectedQuickNote.id} />
+                <div className="note-history-head">
+                  <h3>Проверка Смита</h3>
+                  <small>{pendingProposals.length} строк</small>
+                </div>
+                <div className="smith-proposal-list">
+                  {pendingProposals.map((proposal) => (
+                    <label className="smith-proposal" key={proposal.id}>
+                      <input name="proposalId" type="checkbox" value={proposal.id} defaultChecked />
+                      <span>
+                        <strong>{proposal.rawText}</strong>
+                        <small>{proposalSignalText(proposal.parserReason, proposal.duplicateStatus)}</small>
+                      </span>
+                      <span className={proposal.duplicateStatus === "possible_duplicate" ? "status-pill attention" : "status-pill"}>
+                        {proposalStatusText(proposal.status)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="mode-actions">
+                  <button className="primary-action" type="submit">
+                    Перенести выбранное
+                  </button>
+                </div>
+              </form>
+            ) : null}
             {selectedQuickNote ? (
               <form className="note-delete-form" action={deleteNoteAction}>
                 <input type="hidden" name="account" value={workspace.activeAccountCode} />

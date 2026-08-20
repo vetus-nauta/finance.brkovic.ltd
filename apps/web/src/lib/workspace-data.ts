@@ -55,8 +55,21 @@ export type QuickNoteSummary = {
   body: string;
   status: string;
   convertedCount: number;
+  proposals: SmithEntryProposalSummary[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type SmithEntryProposalSummary = {
+  id: string;
+  lineNo: number;
+  rawText: string;
+  candidateAmount: number | null;
+  candidateDirection: "income" | "expense" | "neutral" | null;
+  parserReason: string | null;
+  duplicateStatus: string;
+  duplicateReason: string | null;
+  status: string;
 };
 
 export type ReportSnapshotSummary = {
@@ -101,6 +114,19 @@ type ReportSnapshotRow = {
   period_end: string;
   status: string;
   created_at: string;
+};
+
+type SmithEntryProposalRow = {
+  id: string;
+  quick_note_id: string;
+  line_no: number;
+  raw_text: string;
+  candidate_amount: number | string | null;
+  candidate_direction: "income" | "expense" | "neutral" | null;
+  parser_reason: string | null;
+  duplicate_status: string;
+  duplicate_reason: string | null;
+  status: string;
 };
 
 export type WorkspaceDetails = WorkspaceSummary & {
@@ -356,6 +382,39 @@ export async function getWorkspaceDetails(
       };
     })
     .sort((left, right) => left.rowNo - right.rowNo);
+  const quickNoteIds = (quickNotes.data ?? []).map((note) => note.id);
+  const { data: proposalRows, error: proposalsError } =
+    quickNoteIds.length > 0
+      ? await supabase
+          .from("smith_entry_proposals")
+          .select("id, quick_note_id, line_no, raw_text, candidate_amount, candidate_direction, parser_reason, duplicate_status, duplicate_reason, status")
+          .in("quick_note_id", quickNoteIds)
+          .neq("status", "void")
+          .order("line_no", { ascending: true })
+          .returns<SmithEntryProposalRow[]>()
+      : { data: [], error: null };
+
+  if (proposalsError) {
+    throw new Error(proposalsError.message);
+  }
+
+  const proposalsByNoteId = new Map<string, SmithEntryProposalSummary[]>();
+
+  for (const proposal of proposalRows ?? []) {
+    const list = proposalsByNoteId.get(proposal.quick_note_id) ?? [];
+    list.push({
+      id: proposal.id,
+      lineNo: proposal.line_no,
+      rawText: proposal.raw_text,
+      candidateAmount: proposal.candidate_amount === null ? null : Number(proposal.candidate_amount),
+      candidateDirection: proposal.candidate_direction,
+      parserReason: proposal.parser_reason,
+      duplicateStatus: proposal.duplicate_status,
+      duplicateReason: proposal.duplicate_reason,
+      status: proposal.status
+    });
+    proposalsByNoteId.set(proposal.quick_note_id, list);
+  }
 
   return {
     id: workspace.id,
@@ -375,6 +434,7 @@ export async function getWorkspaceDetails(
       body: note.body,
       status: note.status,
       convertedCount: note.converted_transaction_ids?.length ?? 0,
+      proposals: proposalsByNoteId.get(note.id) ?? [],
       createdAt: note.created_at,
       updatedAt: note.updated_at
     })),
