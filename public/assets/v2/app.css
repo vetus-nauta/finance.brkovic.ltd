@@ -1355,13 +1355,25 @@ body.v2-screen-quick-notes .v2-quick-notes-screen {
   padding: 8px;
 }
 
+.v2-quick-notes-list.is-history {
+  overflow-y: auto;
+}
+
 .v2-quick-note-card {
   display: grid;
-  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
   min-height: 64px;
   padding: 10px 11px;
   text-align: left;
   border-radius: 8px;
+}
+
+.v2-quick-note-card-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .v2-quick-note-card.is-active {
@@ -1369,20 +1381,142 @@ body.v2-screen-quick-notes .v2-quick-notes-screen {
   background: rgba(10, 132, 255, .07);
 }
 
-.v2-quick-note-card strong,
-.v2-quick-note-card span,
-.v2-quick-note-card small {
+.v2-quick-note-card.is-selectable {
+  cursor: pointer;
+}
+
+.v2-quick-note-card.is-selectable:hover,
+.v2-quick-note-card.is-selectable:focus-visible {
+  border-color: rgba(10, 132, 255, .45);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, .09);
+  outline: 0;
+}
+
+.v2-quick-note-card-main strong,
+.v2-quick-note-card-main span,
+.v2-quick-note-card-main small {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.v2-quick-note-card span,
-.v2-quick-note-card small,
+.v2-quick-note-card-main strong {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.v2-quick-note-current {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid rgba(10, 132, 255, .24);
+  border-radius: 5px;
+  color: var(--v2-blue);
+  background: rgba(10, 132, 255, .08);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.v2-quick-note-current-block {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(10, 132, 255, .22);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(10, 132, 255, .07), rgba(10, 132, 255, .03));
+}
+
+.v2-quick-note-current-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  color: var(--v2-blue);
+}
+
+.v2-quick-note-current-head strong,
+.v2-quick-note-current-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-quick-note-current-head strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.v2-quick-note-current-head span {
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.v2-quick-note-card-main span,
+.v2-quick-note-card-main small,
 .v2-quick-note-empty {
   color: var(--v2-muted);
   font-size: 12px;
+}
+
+.v2-quick-note-last-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.v2-quick-note-history-button,
+.v2-quick-note-history-head button,
+.v2-quick-note-delete {
+  min-width: 0;
+  font-weight: 850;
+}
+
+.v2-quick-note-history-button {
+  min-height: 64px;
+  padding-inline: 10px;
+}
+
+.v2-quick-note-history-button.is-compact {
+  min-height: 36px;
+}
+
+.v2-quick-note-history-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0 4px;
+  background: #fff;
+}
+
+.v2-quick-note-history-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-quick-note-delete {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  align-self: center;
+  color: var(--v2-red);
+  border-color: rgba(255, 59, 48, .28);
+  background: #fff;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .v2-quick-note-editor-panel {
@@ -6375,10 +6509,42 @@ body.v2-screen-quick-notes .v2-quick-notes-screen {
     overflow-y: hidden;
   }
 
+  .v2-quick-notes-list.is-history {
+    display: grid;
+    gap: 5px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
   .v2-quick-note-card {
     flex: 0 0 210px;
     min-height: 58px;
     padding: 7px 8px;
+  }
+
+  .v2-quick-notes-list.is-history .v2-quick-note-card {
+    flex: none;
+    width: 100%;
+  }
+
+  .v2-quick-note-last-row {
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  .v2-quick-note-history-button {
+    min-height: 58px;
+  }
+
+  .v2-quick-note-history-head {
+    position: static;
+    flex: 0 0 100%;
+    width: 100%;
+  }
+
+  .v2-quick-note-card-main small {
+    white-space: nowrap;
   }
 
   .v2-quick-note-editor-panel {

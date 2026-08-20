@@ -40,6 +40,9 @@
     quickNoteBusy: false,
     quickNoteComposingNew: false,
     quickNoteModalOpen: false,
+    quickNoteHistoryOpen: false,
+    quickNoteAutoSaveTimer: 0,
+    quickNoteAutoSaving: false,
     activeTrainingSourceRowId: '',
     trainingFilter: 'all',
     trainingSearch: '',
@@ -3286,6 +3289,10 @@
     return state.quickNotes.find((note) => String(note.id) === String(state.activeQuickNoteId)) || null;
   }
 
+  function quickNoteIsLocked(note) {
+    return !!note && note.status === 'converted';
+  }
+
   function quickNotePreviewItems() {
     return (state.quickNotePreview && Array.isArray(state.quickNotePreview.items)) ? state.quickNotePreview.items : [];
   }
@@ -3295,24 +3302,100 @@
     renderQuickNotes();
   }
 
+  function toggleQuickNoteHistory() {
+    state.quickNoteHistoryOpen = !state.quickNoteHistoryOpen;
+    renderQuickNotes();
+  }
+
+  function orderedQuickNotes(notes) {
+    const list = Array.isArray(notes) ? notes.slice() : [];
+    if (!state.activeQuickNoteId) return list;
+    const activeIndex = list.findIndex((note) => String(note.id) === String(state.activeQuickNoteId));
+    if (activeIndex <= 0) return list;
+    const active = list.splice(activeIndex, 1)[0];
+    return [active].concat(list);
+  }
+
+  function resetQuickNoteComposer() {
+    clearTimeout(state.quickNoteAutoSaveTimer);
+    state.quickNoteAutoSaveTimer = 0;
+    state.activeQuickNoteId = '';
+    state.quickNoteComposingNew = true;
+    state.quickNotePreview = null;
+    if (els.quickNoteDate) els.quickNoteDate.value = todayIso();
+    if (els.quickNoteText) els.quickNoteText.value = '';
+  }
+
+  function quickNoteCardHtml(note, options) {
+    const opts = options || {};
+    const lines = String(note.raw_text || '').split(/\n/).map((line) => line.trim()).filter(Boolean);
+    const title = note.title || ('Заметка от ' + formatReportDate(note.note_date));
+    const tag = opts.tag || 'article';
+    const attrs = opts.selectable
+      ? ' role="button" tabindex="0" data-v2-quick-note-select="' + escapeHtml(note.id) + '"'
+      : '';
+    const currentBadge = opts.current
+      ? '<span class="v2-quick-note-current">Текущая</span>'
+      : '';
+    const deleteAction = opts.deletable
+      ? '<button class="v2-quick-note-delete" type="button" data-v2-quick-note-delete="' + escapeHtml(note.id) + '" aria-label="Удалить заметку">🗑</button>'
+      : '';
+    return '<' + tag + ' class="v2-quick-note-card' + (opts.active ? ' is-active' : '') + (opts.readonly ? ' is-readonly' : '') + (opts.selectable ? ' is-selectable' : '') + '"' + attrs + '>'
+      + '<span class="v2-quick-note-card-main">'
+      + '<strong>' + escapeHtml(title) + currentBadge + '</strong>'
+      + '<span>' + escapeHtml(formatReportDate(note.note_date)) + ' · ' + escapeHtml(quickNoteStatusLabel(note.status)) + '</span>'
+      + '<small>' + escapeHtml(lines.slice(0, opts.lines || 2).join(' · ') || 'Без текста') + '</small>'
+      + '</span>'
+      + deleteAction
+      + '</' + tag + '>';
+  }
+
   function renderQuickNotes() {
     if (!els.quickNotesScreen) return;
     const notes = state.quickNotes || [];
     const active = activeQuickNote();
+    const visibleNotes = orderedQuickNotes(notes);
+    const topNote = active || visibleNotes[0] || null;
+    const historyNotes = active
+      ? visibleNotes.filter((note) => String(note.id) !== String(active.id))
+      : visibleNotes;
+    const activeLocked = quickNoteIsLocked(active);
+    const currentBlock = active
+      ? '<section class="v2-quick-note-current-block">'
+        + '<div class="v2-quick-note-current-head"><strong>' + (activeLocked ? 'Перенесенная заметка' : 'Текущая заметка') + '</strong><span>' + (activeLocked ? 'источник уже защищен' : 'открыта для работы') + '</span></div>'
+        + quickNoteCardHtml(active, { active: true, current: true, readonly: activeLocked, tag: 'article', lines: 3 })
+        + '</section>'
+      : '';
     if (els.quickNotesStatus) {
       els.quickNotesStatus.textContent = state.quickNotesStatus === 'loading'
         ? 'Загружаю'
-        : (notes.length ? notes.length + ' черновиков' : 'Черновики перед журналом');
+        : (state.quickNoteAutoSaving ? 'Сохраняю текущую' : (activeLocked ? 'Источник защищен' : (active ? 'Текущая заметка' : (state.quickNoteHistoryOpen ? visibleNotes.length + ' заметок' : (topNote ? 'Последняя заметка' : 'Быстрая запись перед журналом')))));
     }
     if (els.quickNotesList) {
-      els.quickNotesList.innerHTML = notes.length ? notes.map((note) => {
-        const isActive = String(note.id) === String(state.activeQuickNoteId);
-        return '<button class="v2-quick-note-card' + (isActive ? ' is-active' : '') + '" type="button" data-v2-quick-note-select="' + escapeHtml(note.id) + '">'
-          + '<strong>' + escapeHtml(note.title || ('Черновик от ' + formatReportDate(note.note_date))) + '</strong>'
-          + '<span>' + escapeHtml(formatReportDate(note.note_date)) + ' · ' + escapeHtml(quickNoteStatusLabel(note.status)) + '</span>'
-          + '<small>' + escapeHtml(String(note.raw_text || '').split(/\n/).filter(Boolean).slice(0, 2).join(' · ')) + '</small>'
-          + '</button>';
-      }).join('') : '<div class="v2-quick-note-empty">Здесь будут черновики. Напишите заметку и отправьте ее Смиту.</div>';
+      els.quickNotesList.classList.toggle('is-history', state.quickNoteHistoryOpen);
+      if (state.quickNoteHistoryOpen) {
+        els.quickNotesList.innerHTML = currentBlock
+          + '<div class="v2-quick-note-history-head">'
+          + '<strong>' + (active ? 'Другие заметки' : 'История заметок') + '</strong>'
+          + '<button type="button" data-v2-quick-note-history-toggle>Свернуть</button>'
+          + '</div>'
+          + (historyNotes.length
+            ? historyNotes.map((note) => {
+              const isActive = String(note.id) === String(state.activeQuickNoteId);
+              return quickNoteCardHtml(note, { selectable: true, active: isActive, current: isActive, readonly: quickNoteIsLocked(note), tag: 'article', lines: 3, deletable: !quickNoteIsLocked(note) });
+            }).join('')
+            : '<div class="v2-quick-note-empty">' + (active ? 'Других заметок пока нет.' : 'История пока пустая.') + '</div>');
+      } else {
+        els.quickNotesList.innerHTML = active
+          ? currentBlock
+            + '<button class="v2-quick-note-history-button is-compact" type="button" data-v2-quick-note-history-toggle>История</button>'
+          : topNote
+          ? '<div class="v2-quick-note-last-row">'
+            + quickNoteCardHtml(topNote, { selectable: true, active: active && String(topNote.id) === String(active.id), current: active && String(topNote.id) === String(active.id), readonly: quickNoteIsLocked(topNote), tag: 'article' })
+            + '<button class="v2-quick-note-history-button" type="button" data-v2-quick-note-history-toggle>История</button>'
+            + '</div>'
+          : '<div class="v2-quick-note-empty">Напишите заметку и нажмите «Поделиться». После принятия она уйдет в журнал.</div>';
+      }
     }
     if (els.quickNoteDate && !state.quickNoteBusy && (active || !state.quickNoteComposingNew)) {
       els.quickNoteDate.value = active ? active.note_date : todayIso();
@@ -3324,8 +3407,10 @@
         els.quickNoteText.value = '';
       }
     }
+    if (els.quickNoteText) els.quickNoteText.readOnly = activeLocked;
+    if (els.quickNoteDate) els.quickNoteDate.disabled = activeLocked;
     const items = quickNotePreviewItems();
-    if (els.quickNoteConvert) els.quickNoteConvert.disabled = !active || !items.length || state.quickNoteBusy;
+    if (els.quickNoteConvert) els.quickNoteConvert.disabled = activeLocked || !active || !items.length || state.quickNoteBusy;
     if (els.quickNoteLayer) els.quickNoteLayer.hidden = !state.quickNoteModalOpen;
     if (els.quickNoteModalRaw) {
       const raw = els.quickNoteText && els.quickNoteText.value.trim()
@@ -3364,7 +3449,7 @@
     try {
       const data = await v2Api('GET', '/api/workspaces/' + state.workspaceId + '/quick-notes');
       state.quickNotes = data.notes || [];
-      if (!state.activeQuickNoteId && !state.quickNoteComposingNew && state.quickNotes.length) state.activeQuickNoteId = state.quickNotes[0].id;
+      if (!state.activeQuickNoteId && !state.quickNoteComposingNew) state.quickNoteComposingNew = true;
       state.quickNotesStatus = 'ready';
       state.quickNotesError = '';
     } catch (error) {
@@ -3376,6 +3461,8 @@
   }
 
   function newQuickNote() {
+    clearTimeout(state.quickNoteAutoSaveTimer);
+    state.quickNoteAutoSaveTimer = 0;
     state.activeQuickNoteId = '';
     state.quickNoteComposingNew = true;
     state.quickNotePreview = null;
@@ -3387,15 +3474,52 @@
     renderQuickNotes();
   }
 
-  async function saveQuickNote() {
-    if (!state.workspaceId || state.quickNoteBusy || !els.quickNoteText) return null;
+  function openQuickNote(noteId) {
+    const note = state.quickNotes.find((item) => String(item.id) === String(noteId));
+    if (!note) return;
+    clearTimeout(state.quickNoteAutoSaveTimer);
+    state.quickNoteAutoSaveTimer = 0;
+    state.activeQuickNoteId = note.id;
+    state.quickNoteComposingNew = false;
+    state.quickNotePreview = null;
+    if (els.quickNoteDate) els.quickNoteDate.value = note.note_date || todayIso();
+    if (els.quickNoteText) {
+      els.quickNoteText.value = note.raw_text || '';
+      if (!quickNoteIsLocked(note)) els.quickNoteText.focus({ preventScroll: true });
+    }
+    renderQuickNotes();
+  }
+
+  function scheduleQuickNoteAutoSave() {
+    clearTimeout(state.quickNoteAutoSaveTimer);
+    state.quickNoteAutoSaveTimer = 0;
+    if (!state.workspaceId || !els.quickNoteText || state.quickNoteBusy) return;
+    if (quickNoteIsLocked(activeQuickNote())) return;
     const raw = els.quickNoteText.value.trim();
-    if (!raw) {
-      setStatus('Заметка пустая', true);
+    if (!raw) return;
+    state.quickNoteAutoSaveTimer = window.setTimeout(() => {
+      saveQuickNote({ silent: true });
+    }, 900);
+  }
+
+  async function saveQuickNote(options) {
+    const opts = options || {};
+    if (!state.workspaceId || state.quickNoteBusy || state.quickNoteAutoSaving || !els.quickNoteText) return null;
+    if (quickNoteIsLocked(activeQuickNote())) {
+      if (!opts.silent) setStatus('Эта заметка уже перенесена. Нажмите «Новая», чтобы продолжить.', true);
       return null;
     }
-    state.quickNoteBusy = true;
-    renderQuickNotes();
+    const raw = els.quickNoteText.value.trim();
+    if (!raw) {
+      if (!opts.silent) setStatus('Заметка пустая', true);
+      return null;
+    }
+    if (opts.silent) {
+      state.quickNoteAutoSaving = true;
+    } else {
+      state.quickNoteBusy = true;
+      renderQuickNotes();
+    }
     try {
       const payload = {
         note_date: els.quickNoteDate && els.quickNoteDate.value ? els.quickNoteDate.value : todayIso(),
@@ -3414,20 +3538,27 @@
         state.quickNoteComposingNew = false;
       }
       state.quickNotePreview = null;
-      setStatus('Заметка сохранена');
+      if (!opts.silent) setStatus('Заметка сохранена');
       state.quickNotesStatus = 'ready';
       return note || null;
     } catch (error) {
-      setStatus(error.error || 'Заметка не сохранена', true);
+      if (!opts.silent) setStatus(error.error || 'Заметка не сохранена', true);
       return null;
     } finally {
-      state.quickNoteBusy = false;
+      if (opts.silent) state.quickNoteAutoSaving = false;
+      else state.quickNoteBusy = false;
       renderQuickNotes();
     }
   }
 
   async function previewQuickNote() {
+    clearTimeout(state.quickNoteAutoSaveTimer);
+    state.quickNoteAutoSaveTimer = 0;
     let note = activeQuickNote();
+    if (quickNoteIsLocked(note)) {
+      setStatus('Эта заметка уже перенесена в журнал', true);
+      return;
+    }
     if (!note || (els.quickNoteText && els.quickNoteText.value.trim() !== note.raw_text)) {
       note = await saveQuickNote();
     }
@@ -3455,7 +3586,13 @@
   }
 
   async function convertQuickNote() {
+    clearTimeout(state.quickNoteAutoSaveTimer);
+    state.quickNoteAutoSaveTimer = 0;
     const note = activeQuickNote();
+    if (quickNoteIsLocked(note)) {
+      setStatus('Эта заметка уже перенесена в журнал', true);
+      return;
+    }
     const flow = activeFlow();
     const items = quickNotePreviewItems().map((item) => {
       const enabled = !!(els.quickNotePreview && els.quickNotePreview.querySelector('[data-v2-quick-note-proposal-enabled="' + String(item.line_index) + '"]:checked'));
@@ -3480,10 +3617,34 @@
       if (data.note) state.quickNotes = state.quickNotes.map((item) => String(item.id) === String(data.note.id) ? data.note : item);
       state.quickNotePreview = null;
       state.quickNoteModalOpen = false;
+      resetQuickNoteComposer();
       await loadWorkspaceData({ preferLatest: true, scrollToBottom: true });
+      if (state.activeScreen === 'quick-notes' && state.quickNotesStatus === 'idle') await loadQuickNotes();
       setStatus('Заметка перенесена в журнал');
     } catch (error) {
       setStatus(error.error || 'Перенос не выполнен', true);
+    } finally {
+      state.quickNoteBusy = false;
+      renderQuickNotes();
+    }
+  }
+
+  async function deleteQuickNote(noteId) {
+    if (!state.workspaceId || !noteId || state.quickNoteBusy) return;
+    const note = state.quickNotes.find((item) => String(item.id) === String(noteId));
+    if (quickNoteIsLocked(note)) {
+      setStatus('Перенесенная заметка защищена как источник журнала', true);
+      return;
+    }
+    state.quickNoteBusy = true;
+    renderQuickNotes();
+    try {
+      await v2Api('DELETE', '/api/workspaces/' + state.workspaceId + '/quick-notes/' + noteId);
+      state.quickNotes = state.quickNotes.filter((note) => String(note.id) !== String(noteId));
+      if (String(state.activeQuickNoteId) === String(noteId)) resetQuickNoteComposer();
+      setStatus('Заметка удалена из истории');
+    } catch (error) {
+      setStatus(error.error || 'Заметка не удалена', true);
     } finally {
       state.quickNoteBusy = false;
       renderQuickNotes();
@@ -4838,6 +4999,7 @@
     state.quickNotePreview = null;
     state.quickNoteComposingNew = false;
     state.quickNoteModalOpen = false;
+    state.quickNoteHistoryOpen = false;
     state.layer1Snapshots = [];
     state.layer1SnapshotsStatus = 'idle';
     state.layer1SnapshotsError = '';
@@ -5299,7 +5461,7 @@
       setStatus('Выберите пространство', true);
       return;
     }
-    const nextScreen = ['summary', 'training'].includes(screen) ? screen : 'operational';
+    const nextScreen = ['summary', 'training', 'quick-notes'].includes(screen) ? screen : 'operational';
     const openOptions = options || {};
     state.workspaceId = targetId;
     const workspace = state.workspaces.find((item) => String(item.id || '') === targetId);
@@ -7617,13 +7779,19 @@
     }
     if (els.quickNotesScreen) {
       els.quickNotesScreen.addEventListener('click', (event) => {
+        const historyToggle = event.target.closest('[data-v2-quick-note-history-toggle]');
+        if (historyToggle) {
+          toggleQuickNoteHistory();
+          return;
+        }
+        const deleteNote = event.target.closest('[data-v2-quick-note-delete]');
+        if (deleteNote) {
+          deleteQuickNote(deleteNote.getAttribute('data-v2-quick-note-delete') || '');
+          return;
+        }
         const select = event.target.closest('[data-v2-quick-note-select]');
         if (select) {
-          state.activeQuickNoteId = select.getAttribute('data-v2-quick-note-select') || '';
-          state.quickNoteComposingNew = false;
-          state.quickNotePreview = null;
-          renderQuickNotes();
-          if (els.quickNoteText) els.quickNoteText.focus({ preventScroll: true });
+          openQuickNote(select.getAttribute('data-v2-quick-note-select') || '');
         }
       });
     }
@@ -7632,6 +7800,8 @@
     if (els.quickNoteSave) els.quickNoteSave.addEventListener('click', () => saveQuickNote());
     if (els.quickNoteParse) els.quickNoteParse.addEventListener('click', previewQuickNote);
     if (els.quickNoteConvert) els.quickNoteConvert.addEventListener('click', convertQuickNote);
+    if (els.quickNoteText) els.quickNoteText.addEventListener('input', scheduleQuickNoteAutoSave);
+    if (els.quickNoteDate) els.quickNoteDate.addEventListener('change', scheduleQuickNoteAutoSave);
     (els.quickNoteModalClose || []).forEach((button) => button.addEventListener('click', closeQuickNoteSmith));
     if (els.layer1Information) {
       els.layer1Information.addEventListener('submit', (event) => {

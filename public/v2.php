@@ -35,7 +35,7 @@ if ($requestPath === '/v2.php') {
       display: none !important;
     }
   </style>
-  <link rel="stylesheet" href="/assets/v2/app.css?v=20260817-admin-debt-tooltip-breakdown">
+  <link rel="stylesheet" href="/assets/v2/app.css?v=20260817-quick-notes-apple-flow">
 </head>
 <body class="v2-booting v2-auth-mode">
   <main class="v2-shell" data-v2-app>
@@ -210,7 +210,7 @@ if ($requestPath === '/v2.php') {
         <div class="v2-panel-head">
           <div>
             <h1>Заметки</h1>
-            <span data-v2-quick-notes-status>Черновики перед журналом</span>
+            <span data-v2-quick-notes-status>Быстрая запись перед журналом</span>
           </div>
           <button class="v2-summary-refresh" type="button" data-v2-quick-note-new>Новая</button>
         </div>
@@ -610,6 +610,6 @@ if ($requestPath === '/v2.php') {
     <section class="v2-preview" data-v2-preview-panel hidden></section>
   </main>
 
-  <script src="/assets/v2/app.js?v=20260817-report-table-all-income" defer></script>
+  <script src="/assets/v2/app.js?v=20260817-quick-notes-apple-flow" defer></script>
 </body>
 </html>

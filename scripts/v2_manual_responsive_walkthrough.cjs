@@ -31,14 +31,61 @@ function priorMonthEndDate() {
 }
 
 async function waitForText(page, selector, text) {
+  const alternatives = text === 'Ready' ? ['Ready', 'Готово'] : [text];
   await page.waitForFunction(
-    ({ selector: targetSelector, text: targetText }) => {
+    ({ selector: targetSelector, texts }) => {
       const node = document.querySelector(targetSelector);
-      return Boolean(node && node.textContent && node.textContent.includes(targetText));
+      return Boolean(node && node.textContent && texts.some((targetText) => node.textContent.includes(targetText)));
     },
-    { selector, text },
+    { selector, texts: alternatives },
     { timeout: 10000 }
   );
+}
+
+async function waitForAnyVisible(page, selectors, timeout = 10000) {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    for (const selector of selectors) {
+      if (await page.locator(selector).isVisible().catch(() => false)) return selector;
+    }
+    await page.waitForTimeout(100);
+  }
+  throw new Error('None of these selectors became visible: ' + selectors.join(', '));
+}
+
+async function openWorkspaceInDeviceContext(page, workspaceId) {
+  await waitForAnyVisible(page, [
+    '[data-v2-workspace]',
+    '[data-v2-hall]',
+    '[data-v2-auth]',
+    '[data-v2-create]',
+  ]);
+  if (await page.locator('[data-v2-workspace]').isVisible().catch(() => false)) return;
+  const navButton = page.locator('[data-v2-screen="operational"]');
+  if (await navButton.isVisible().catch(() => false)) {
+    await navButton.click();
+    if (await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)) return;
+  }
+  const hallButton = page.locator('[data-v2-hall-workspace-open][data-v2-workspace-id="' + workspaceId + '"]');
+  if (await hallButton.isVisible().catch(() => false)) {
+    await hallButton.click();
+    if (await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)) return;
+  }
+  const firstHallButton = page.locator('[data-v2-hall-workspace-open]').first();
+  if (await firstHallButton.isVisible().catch(() => false)) {
+    await firstHallButton.click();
+  }
+  await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
+}
+
+async function enableMobileFinanceMode(page) {
+  const toggle = page.locator('[data-v2-mobile-finance-toggle]');
+  await toggle.waitFor({ state: 'visible', timeout: 10000 });
+  const enabled = await page.evaluate(() => document.body.classList.contains('v2-mobile-finance-mode'));
+  if (!enabled) {
+    await toggle.click();
+    await page.waitForFunction(() => document.body.classList.contains('v2-mobile-finance-mode'));
+  }
 }
 
 async function saveEntry(page, rawText) {
@@ -251,13 +298,26 @@ function validateLayout(label, device, metrics, phase) {
   if (device.kind === 'mobile') {
     assert(metrics.horizontalDisplay === 'flex', `${prefix}: mobile/tablet compact view must use horizontal flex`);
     assert(['auto', 'scroll'].includes(metrics.horizontalOverflowX), `${prefix}: mobile/tablet compact view has no horizontal check scroll`);
-    assert(metrics.visibleViewTabs.map((tab) => tab.view).join(',') === 'write,check', `${prefix}: primary tabs are not Write/Check only`);
+    assert(metrics.visibleViewTabs.map((tab) => tab.view).join(',') === 'write,check,quick-notes', `${prefix}: primary tabs are not Write/Check/Quick notes`);
   } else {
     assert(metrics.horizontalDisplay === 'grid', `${prefix}: workspace view must use desktop/tablet grid`);
     assert(metrics.visibleViewTabs.length === 0, `${prefix}: workspace view should not show mobile tabs`);
     assert(metrics.writing.width >= 160, `${prefix}: journal panel is too narrow`);
     assert(metrics.check.width >= 300, `${prefix}: structured check panel is too narrow`);
   }
+}
+
+function validateMobileLightLayout(label, metrics, phase) {
+  const prefix = `${label} ${phase}`;
+  assert(metrics.bodyOverflow === 'hidden', `${prefix}: body scroll is not locked`);
+  assert(metrics.htmlOverflow === 'hidden', `${prefix}: html scroll is not locked`);
+  assert(metrics.shell.bottom <= metrics.height + 2, `${prefix}: shell exceeds viewport bottom`);
+  assert(metrics.bodyScrollWidth <= metrics.width + 2, `${prefix}: body overhangs viewport width`);
+  assert(metrics.htmlScrollWidth <= metrics.width + 2, `${prefix}: html overhangs viewport width`);
+  assert(metrics.inputbar.bottom <= metrics.height + 2, `${prefix}: inputbar is below viewport`);
+  assert(metrics.submit.bottom <= metrics.height + 2, `${prefix}: Save button is below viewport`);
+  assert(metrics.feedOverflowY === 'auto', `${prefix}: journal feed is not the vertical scroll container`);
+  assert(metrics.horizontalDisplay === 'grid', `${prefix}: light mobile view should show one-column journal`);
 }
 
 function validateSummaryLayout(label, metrics, phase, options = {}) {
@@ -326,8 +386,7 @@ async function walkthroughLayer1Summary(page, device, result) {
   await page.locator('[data-v2-screen="summary"]').click();
   assert((await summaryResponse).status() === 200, `${device.label}: Layer 1 summary API failed`);
   await page.locator('[data-v2-summary-screen]').waitFor({ state: 'visible', timeout: 10000 });
-  await waitForText(page, '[data-v2-layer1-information]', 'Period result');
-  await waitForText(page, '[data-v2-layer1-information]', 'Server values only');
+  await waitForText(page, '[data-v2-layer1-information]', 'Категории');
 
   const summaryPhases = [];
   const captureSummary = async (phase, suffix, options = {}) => {
@@ -340,11 +399,10 @@ async function walkthroughLayer1Summary(page, device, result) {
 
   await captureSummary('information', '01-information');
 
-  await page.locator('[data-v2-source-total="opening_cash"]').first().click();
+  await page.locator('[data-v2-source-total="cash_expense"]').first().click();
   await page.locator('[data-v2-source-layer]').waitFor({ state: 'visible', timeout: 10000 });
-  await waitForText(page, '[data-v2-source-body]', 'Cash flow opening balance');
-  await waitForText(page, '[data-v2-source-body]', '+42 manual responsive prior opening source');
-  await captureSummary('opening cash source trace', '02-opening-source-trace', { sourceVisible: true });
+  await waitForText(page, '[data-v2-source-body]', '-250 рыба');
+  await captureSummary('cash expense source trace', '02-cash-expense-source-trace', { sourceVisible: true });
   await page.locator('[data-v2-source-close]').click();
   await page.locator('[data-v2-source-layer]').waitFor({ state: 'hidden', timeout: 10000 });
 
@@ -362,9 +420,9 @@ async function walkthroughLayer1Summary(page, device, result) {
   });
   await page.locator('[data-v2-layer1-storage-save]').click();
   assert((await snapshotCreateResponse).status() === 200, `${device.label}: Layer 1 snapshot save failed`);
-  await waitForText(page, '[data-v2-layer1-storage]', 'Snapshot v');
-  await waitForText(page, '[data-v2-layer1-storage]', 'basis_opening');
-  await waitForText(page, '[data-v2-layer1-storage]', 'source_ids');
+  await waitForText(page, '[data-v2-layer1-storage]', 'Снимок v');
+  await waitForText(page, '[data-v2-layer1-storage]', 'Основа остатка');
+  await waitForText(page, '[data-v2-layer1-storage]', 'Записей-источников');
   await captureSummary('storage readback', '03-storage-readback');
 
   await page.locator('[data-v2-screen="operational"]').click();
@@ -372,7 +430,7 @@ async function walkthroughLayer1Summary(page, device, result) {
   result.summary = summaryPhases;
 }
 
-async function walkthroughDevice(browser, device) {
+async function walkthroughDevice(browser, device, workspaceId) {
   const context = await browser.newContext({
     baseURL: base,
     viewport: device.viewport,
@@ -381,9 +439,9 @@ async function walkthroughDevice(browser, device) {
   });
   await context.addCookies([{ name: cookieName, value: token, url: base }]);
   const page = await context.newPage();
-  await page.goto('/v2.php', { waitUntil: 'domcontentloaded' });
-  await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
-  await waitForText(page, '[data-v2-status]', 'Ready');
+  await page.goto('/v2.php?workspace=' + encodeURIComponent(workspaceId), { waitUntil: 'domcontentloaded' });
+  await openWorkspaceInDeviceContext(page, workspaceId);
+  await waitForText(page, '[data-v2-feed]', '-250 рыба');
 
   const result = {
     label: device.label,
@@ -400,6 +458,17 @@ async function walkthroughDevice(browser, device) {
     return metrics;
   };
 
+  const phoneLightMode = device.kind === 'mobile'
+    && (device.viewport.width <= 600 || device.viewport.height <= 430);
+  if (phoneLightMode) {
+    const lightMetrics = await collectMetrics(page);
+    validateMobileLightLayout(device.label, lightMetrics, 'light journal view');
+    result.phases.push({ phase: 'light journal view', metrics: lightMetrics });
+    await screenshot(page, `${device.slug}-00-light`, device.label, 'light journal view');
+    await enableMobileFinanceMode(page);
+    await page.waitForTimeout(250);
+  }
+
   await capturePhase('initial write/journal view', '01-write');
 
   await page.locator('[data-v2-feed]').evaluate((feed) => {
@@ -407,8 +476,14 @@ async function walkthroughDevice(browser, device) {
   });
   await page.waitForTimeout(150);
   const feedMetrics = await capturePhase('journal vertical scroll bottom', '02-journal-scroll-bottom');
-  assert(feedMetrics.feedScrollHeight > feedMetrics.feedClientHeight, `${device.label}: journal has no vertical scroll room`);
-  assert(feedMetrics.feedScrollTop > 0, `${device.label}: journal did not scroll vertically`);
+  assert(
+    feedMetrics.feedScrollHeight > feedMetrics.feedClientHeight,
+    `${device.label}: journal has no vertical scroll room (${feedMetrics.feedScrollHeight}/${feedMetrics.feedClientHeight})`
+  );
+  assert(
+    feedMetrics.feedScrollTop > 0,
+    `${device.label}: journal did not scroll vertically (${feedMetrics.feedScrollTop}/${feedMetrics.feedScrollHeight}/${feedMetrics.feedClientHeight})`
+  );
 
   if (device.kind === 'mobile') {
     await page.locator('[data-v2-view="check"]').click();
@@ -487,21 +562,20 @@ async function run() {
     const context = await browser.newContext({ baseURL: base, viewport: { width: 1365, height: 820 } });
     await context.addCookies([{ name: cookieName, value: token, url: base }]);
     const page = await context.newPage();
-    await page.goto('/v2.php', { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-v2-create-form]').waitFor({ state: 'visible', timeout: 10000 });
-    await page.locator('[data-v2-create-form] input[name="name"]').fill('Manual Responsive Walkthrough');
-    const workspaceResponse = page.waitForResponse((response) => (
-      response.request().method() === 'POST'
-      && response.url().includes('/v2-api.php')
-      && routeFromRequest(response.request()) === '/api/workspaces'
-    ));
-    await page.locator('[data-v2-create-form] button[type="submit"]').click();
-    const createdWorkspaceResponse = await workspaceResponse;
-    assert(createdWorkspaceResponse.status() === 200, 'workspace create failed');
-    const createdWorkspaceBody = await createdWorkspaceResponse.json();
+    const workspaceResponse = await page.request.post('/v2-api.php?route=' + encodeURIComponent('/api/workspaces'), {
+      headers: { 'X-FinDesk-V2-Request': 'fetch' },
+      data: {
+        name: 'Manual Responsive Walkthrough',
+        type: 'yacht',
+        opening_cash: 0,
+      },
+    });
+    assert(workspaceResponse.status() === 200, 'workspace API create failed');
+    const createdWorkspaceBody = await workspaceResponse.json();
     const workspaceId = createdWorkspaceBody && createdWorkspaceBody.workspace && createdWorkspaceBody.workspace.id;
     assert(workspaceId, 'workspace create response did not include id');
-    await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
+    await page.goto('/v2.php?workspace=' + encodeURIComponent(workspaceId), { waitUntil: 'domcontentloaded' });
+    await openWorkspaceInDeviceContext(page, workspaceId);
     await waitForText(page, '[data-v2-status]', 'Ready');
     const flowsResponse = await page.request.get('/v2-api.php?route=' + encodeURIComponent('/api/workspaces/' + workspaceId + '/flows'));
     assert(flowsResponse.status() === 200, 'flows API failed for manual walkthrough seed');
@@ -534,8 +608,15 @@ async function run() {
       records.push(`${sign}${amount} responsive audit row ${index}`);
     }
     for (const record of records) {
-      await saveEntry(page, record);
+      await createEntryViaApi(page, workspaceId, {
+        flow_id: cashFlow.id,
+        date: new Date().toISOString().slice(0, 10),
+        raw_text: record,
+      });
     }
+    await page.goto('/v2.php?workspace=' + encodeURIComponent(workspaceId), { waitUntil: 'domcontentloaded' });
+    await openWorkspaceInDeviceContext(page, workspaceId);
+    await waitForText(page, '[data-v2-feed]', '-250 рыба');
     await page.screenshot({ path: path.join(resultsDir, 'seed-desktop-created.png'), fullPage: false });
     await context.close();
 
@@ -552,7 +633,7 @@ async function run() {
     ];
 
     for (const device of devices) {
-      await walkthroughDevice(browser, device);
+      await walkthroughDevice(browser, device, workspaceId);
     }
   } finally {
     await browser.close();

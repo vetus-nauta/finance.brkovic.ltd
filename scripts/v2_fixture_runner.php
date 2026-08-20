@@ -1516,6 +1516,41 @@ runFixture($report, 'Quick notes Smith migration', function () use ($repo, $work
 
     $after = count($repo->listEntries($workspace['id'], [], $userId));
     assertSameValue($after, $before + 1, 'disabled quick note line should not create entry');
+    expectFixtureHttpError(function () use ($repo, $workspace, $cashFlow, $note, $userId): void {
+        $repo->previewQuickNoteConversion($workspace['id'], $note['id'], [
+            'flow_id' => $cashFlow['id'],
+            'date' => '2026-08-13',
+        ], $userId);
+    }, 409, 'quick_note_already_converted');
+    expectFixtureHttpError(function () use ($repo, $workspace, $cashFlow, $note, $userId): void {
+        $repo->convertQuickNote($workspace['id'], $note['id'], [
+            'flow_id' => $cashFlow['id'],
+            'date' => '2026-08-13',
+            'items' => [
+                ['line_index' => 0, 'enabled' => true],
+            ],
+        ], $userId);
+    }, 409, 'quick_note_already_converted');
+    expectFixtureHttpError(function () use ($repo, $workspace, $note, $userId): void {
+        $repo->updateQuickNote($workspace['id'], $note['id'], [
+            'note_date' => '2026-08-14',
+            'raw_text' => '-999 измененная перенесенная заметка',
+        ], $userId);
+    }, 409, 'quick_note_already_converted');
+    expectFixtureHttpError(function () use ($repo, $workspace, $note, $userId): void {
+        $repo->deleteQuickNote($workspace['id'], $note['id'], $userId);
+    }, 409, 'quick_note_already_converted');
+    $lockedNote = null;
+    foreach ($repo->listQuickNotes($workspace['id'], [], $userId) as $candidateNote) {
+        if (($candidateNote['id'] ?? null) === $note['id']) {
+            $lockedNote = $candidateNote;
+            break;
+        }
+    }
+    assertSameValue($lockedNote['raw_text'] ?? null, "Заметка от 13.08.26\n-89 Старлинк\n-27 продукты", 'converted quick note source text is immutable');
+    assertSameValue($lockedNote['status'] ?? null, 'converted', 'converted quick note stays visible as source');
+    $afterDuplicateAttempt = count($repo->listEntries($workspace['id'], [], $userId));
+    assertSameValue($afterDuplicateAttempt, $after, 'converted quick note must not create duplicate entries');
 
     $duplicateNote = $repo->createQuickNote($workspace['id'], [
         'note_date' => '2026-08-13',

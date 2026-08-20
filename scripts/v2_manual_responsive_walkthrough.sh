@@ -123,10 +123,42 @@ cp "${ROOT}/app/v2/LegacyExcelImporter.php" "${HARNESS}/app/v2/LegacyExcelImport
 cp "${ROOT}/app/v2/Database.php" "${HARNESS}/app/v2/Database.php"
 cp "${ROOT}/app/v2/Repository.php" "${HARNESS}/app/v2/Repository.php"
 cp "${ROOT}/app/v2/Api.php" "${HARNESS}/app/v2/Api.php"
+cp "${ROOT}/public/index.php" "${HARNESS}/public/index.php"
 cp "${ROOT}/public/v2-api.php" "${HARNESS}/public/v2-api.php"
 cp "${ROOT}/public/v2.php" "${HARNESS}/public/v2.php"
 cp "${ROOT}/public/assets/v2/app.css" "${HARNESS}/public/assets/v2/app.css"
 cp "${ROOT}/public/assets/v2/app.js" "${HARNESS}/public/assets/v2/app.js"
+cp "${ROOT}/public/assets/v2/"*.svg "${HARNESS}/public/assets/v2/" 2>/dev/null || true
+
+cat > "${HARNESS}/public/api.php" <<'PHP'
+<?php
+
+require_once __DIR__ . '/../app/auth.php';
+
+$action = $_GET['action'] ?? '';
+
+try {
+    if ($action === 'request_code') {
+        $input = ql_input();
+        ql_json(ql_issue_code((string)($input['email'] ?? '')));
+    }
+    if ($action === 'verify_code') {
+        $input = ql_input();
+        ql_json(ql_verify_code((string)($input['email'] ?? ''), (string)($input['code'] ?? '')));
+    }
+    if ($action === 'current_user') {
+        ql_json(['ok' => true, 'user' => ql_current_user()]);
+    }
+    if ($action === 'logout') {
+        ql_logout();
+        ql_json(['ok' => true]);
+    }
+
+    ql_json(['ok' => false, 'error' => 'unknown_action'], 404);
+} catch (Throwable $e) {
+    ql_json(['ok' => false, 'error' => 'server_error', 'message' => $e->getMessage()], 500);
+}
+PHP
 
 cat > "${HARNESS}/app/db.php" <<PHP
 <?php
@@ -159,6 +191,16 @@ function ql_db(): PDO
 
     return \$pdo;
 }
+PHP
+
+cat > "${HARNESS}/app/config.local.php" <<'PHP'
+<?php
+
+return [
+    'mail' => [
+        'mode' => 'log',
+    ],
+];
 PHP
 
 PORT="$(php -r '$s = stream_socket_server("tcp://127.0.0.1:0", $errno, $errstr); if (!$s) { fwrite(STDERR, $errstr); exit(1); } $name = stream_socket_get_name($s, false); fclose($s); echo substr(strrchr($name, ":"), 1);')"

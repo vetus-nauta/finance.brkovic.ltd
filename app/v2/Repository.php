@@ -3703,7 +3703,7 @@ final class FinDeskV2Repository
             SELECT *
             FROM v2_quick_notes
             WHERE " . implode(' AND ', $where) . "
-            ORDER BY note_date DESC, updated_at DESC
+            ORDER BY updated_at DESC, note_date DESC
             LIMIT 80
         ");
         $stmt->execute($params);
@@ -3740,6 +3740,9 @@ final class FinDeskV2Repository
         return FinDeskV2Database::transact(function () use ($workspaceId, $noteId, $input, $userId): array {
             $before = $this->getQuickNote($workspaceId, $noteId, $userId);
             $this->requireWorkspaceEntryWriter($workspaceId, $userId);
+            if (($before['status'] ?? null) === 'converted') {
+                throw new FinDeskV2HttpError(409, 'quick_note_already_converted');
+            }
             $noteDate = FinDeskV2Support::date(['note_date' => $input['note_date'] ?? $before['note_date']], 'note_date');
             $rawText = FinDeskV2Support::requireString(['raw_text' => $input['raw_text'] ?? $before['raw_text']], 'raw_text', 8000);
             $title = FinDeskV2Support::optionalString($input, 'title', $before['title'], 190) ?? $before['title'];
@@ -3767,6 +3770,9 @@ final class FinDeskV2Repository
         return FinDeskV2Database::transact(function () use ($workspaceId, $noteId, $userId): array {
             $before = $this->getQuickNote($workspaceId, $noteId, $userId);
             $this->requireWorkspaceEntryWriter($workspaceId, $userId);
+            if (($before['status'] ?? null) === 'converted') {
+                throw new FinDeskV2HttpError(409, 'quick_note_already_converted');
+            }
             $this->db->prepare("UPDATE v2_quick_notes SET archived_at = CURRENT_TIMESTAMP WHERE id = ? AND workspace_id = ?")
                 ->execute([$noteId, $workspaceId]);
             $after = $before;
@@ -3781,6 +3787,9 @@ final class FinDeskV2Repository
     {
         $note = $this->getQuickNote($workspaceId, $noteId, $userId);
         $this->requireWorkspaceEntryWriter($workspaceId, $userId);
+        if (($note['status'] ?? null) === 'converted') {
+            throw new FinDeskV2HttpError(409, 'quick_note_already_converted');
+        }
         $flow = $this->getFlowForWorkspace(FinDeskV2Support::requireString($input, 'flow_id', 36), $workspaceId);
         $date = FinDeskV2Support::date(['date' => $input['date'] ?? $note['note_date']]);
         $lines = $this->quickNoteLines($note['raw_text']);
@@ -3819,6 +3828,9 @@ final class FinDeskV2Repository
         return FinDeskV2Database::transact(function () use ($workspaceId, $noteId, $input, $userId): array {
             $note = $this->getQuickNote($workspaceId, $noteId, $userId);
             $this->requireWorkspaceEntryWriter($workspaceId, $userId);
+            if (($note['status'] ?? null) === 'converted') {
+                throw new FinDeskV2HttpError(409, 'quick_note_already_converted');
+            }
             $flow = $this->getFlowForWorkspace(FinDeskV2Support::requireString($input, 'flow_id', 36), $workspaceId);
             $date = FinDeskV2Support::date(['date' => $input['date'] ?? $note['note_date']]);
             $selected = is_array($input['items'] ?? null) ? $input['items'] : [];

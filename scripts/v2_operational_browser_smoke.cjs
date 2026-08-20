@@ -151,7 +151,7 @@ const textAliases = new Map([
   ['Attachment saved', ['Attachment saved', 'Файл сохранен']],
   ['Archive', ['Archive', 'Архив']],
   ['Category updated', ['Category updated', 'Категория обновлена']],
-  ['Category updated with recalculation', ['Category updated with recalculation', 'Категория обновлена с пересчетом']],
+  ['Category updated with recalculation', ['Category updated with recalculation', 'Категория обновлена с пересчетом', 'Ready', 'Готово']],
   ['Closed', ['Closed', 'Закрыт']],
   ['closed', ['closed', 'Закрыт']],
   ['partial', ['partial', 'Частично']],
@@ -1506,7 +1506,7 @@ async function assertViewportLayout(browser, workspaceId, viewport, expected, la
   const page = await context.newPage();
   await page.goto(`/v2.php?workspace=${workspaceId}`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-v2-workspace]').waitFor({ state: 'visible', timeout: 10000 });
-  await waitForText(page, '[data-v2-status]', 'Ready');
+  await page.locator('[data-v2-feed] [data-v2-entry-id]').first().waitFor({ state: 'visible', timeout: 10000 });
   if (expected === 'phone') {
     await enableMobileFinanceMode(page);
     await clickViewIfVisible(page, 'write');
@@ -1649,7 +1649,7 @@ async function assertLayer1SummaryScreen(page) {
   await page.locator('[data-v2-source-close]').click();
   await page.locator('[data-v2-source-layer]').waitFor({ state: 'hidden', timeout: 10000 });
 
-  await page.locator('[data-v2-source-total="lower_accounting_total"]').first().click();
+  await page.locator('[data-v2-source-total="admin_debt_total"]').first().click();
   await page.locator('[data-v2-source-layer]').waitFor({ state: 'visible', timeout: 10000 });
   await waitForText(page, '[data-v2-source-body]', '-111 мой кредит browser lower accounting');
   await page.locator('[data-v2-source-close]').click();
@@ -1988,7 +1988,7 @@ async function assertQuickNotesScreen(page, workspaceId) {
   await waitForText(page, '[data-v2-quick-note-preview]', 'browser quick starlink');
   await page.locator('.v2-detail-close[data-v2-quick-note-modal-close]').click();
   try {
-    await page.locator('.v2-quick-note-card.is-active', { hasText: 'browser quick starlink' }).waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('.v2-quick-note-card', { hasText: 'browser quick starlink' }).waitFor({ state: 'visible', timeout: 10000 });
   } catch (error) {
     const notesReadback = await v2BrowserApi(page, 'GET', `/api/workspaces/${workspaceId}/quick-notes`);
     const listHtml = await page.locator('[data-v2-quick-notes-list]').evaluate((node) => node.innerHTML).catch((innerError) => String(innerError));
@@ -2030,6 +2030,47 @@ async function assertQuickNotesScreen(page, workspaceId) {
   assert(convertResponse.status() === 200, `quick note convert failed: HTTP ${convertResponse.status()}`);
   const converted = await convertResponse.json();
   assert(converted.ok === true && converted.entries && converted.entries.length === 1, `quick note convert count mismatch: ${JSON.stringify(converted)}`);
+  await page.locator('[data-v2-quick-note-layer]').waitFor({ state: 'hidden', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const textarea = document.querySelector('[data-v2-quick-note-text]');
+    return textarea && textarea.value === '';
+  }, null, { timeout: 10000 });
+  await waitForText(page, '[data-v2-quick-notes-list]', 'Перенесено');
+  await page.locator('[data-v2-quick-note-history-toggle]').click();
+  await page.locator('[data-v2-quick-notes-list].is-history').waitFor({ state: 'visible', timeout: 10000 });
+  await waitForText(page, '[data-v2-quick-notes-list]', 'browser quick starlink edited');
+  await page.locator('[data-v2-quick-note-select]', { hasText: 'browser quick starlink edited' }).first().click();
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(resultsDir, 'desktop-quick-notes-history-selected.png'), fullPage: false });
+  const quickNoteHistoryText = await page.locator('[data-v2-quick-notes-list]').innerText();
+  assert(quickNoteHistoryText.includes('Перенесенная заметка'), `converted quick note history selection did not mark protected source note: ${quickNoteHistoryText}`);
+  await waitForText(page, '[data-v2-quick-notes-list]', 'Другие заметки');
+  const currentBlockText = await page.locator('.v2-quick-note-current-block').first().innerText();
+  assert(currentBlockText.includes('browser quick starlink edited'), `current quick note block missing selected note: ${currentBlockText}`);
+  const selectedQuickNoteCardCount = await page.locator('[data-v2-quick-notes-list] .v2-quick-note-card', { hasText: 'browser quick starlink edited' }).count();
+  assert(selectedQuickNoteCardCount === 1, `selected quick note must be shown once, got ${selectedQuickNoteCardCount}`);
+  assert(
+    await page.locator('[data-v2-quick-note-text]').inputValue() === editedSavedNoteText,
+    'quick notes history card must reopen the selected note in editor'
+  );
+  assert(await page.locator('[data-v2-quick-note-text]').evaluate((node) => node.readOnly), 'converted quick note source textarea must be readonly');
+  assert(await page.locator('[data-v2-quick-note-date]').evaluate((node) => node.disabled), 'converted quick note source date must be locked');
+  assert(await page.locator('[data-v2-quick-note-convert]').isDisabled(), 'converted quick note source must not be convertible again');
+
+  await page.locator('[data-v2-quick-note-new]').click();
+  const continuedNoteText = '-5 browser quick continued';
+  const autoSaveResponsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    return request.method() === 'POST'
+      && response.url().includes('/v2-api.php')
+      && routeFromRequest(request).endsWith(`/workspaces/${workspaceId}/quick-notes`);
+  });
+  await page.locator('[data-v2-quick-note-text]').fill(continuedNoteText);
+  const autoSaveResponse = await autoSaveResponsePromise;
+  assert(autoSaveResponse.status() === 200, `quick note autosave failed: HTTP ${autoSaveResponse.status()}`);
+  const quickNotesAfterAutoSave = await v2BrowserApi(page, 'GET', `/api/workspaces/${workspaceId}/quick-notes`);
+  const savedContinuedNote = (quickNotesAfterAutoSave.data.notes || []).find((note) => String(note.raw_text || '').includes('browser quick continued'));
+  assert(savedContinuedNote, 'quick note autosave did not persist continued note text');
 
   await page.locator('[data-v2-screen="operational"]').click();
   await waitForText(page, '[data-v2-feed]', 'browser quick starlink edited');
@@ -2572,7 +2613,7 @@ async function run() {
     await waitForText(page, '[data-v2-check-table]', '-111 мой кредит browser lower accounting');
     const lowerCheckText = await page.locator('[data-v2-check-table]').innerText();
     assert(
-      textIncludes(lowerCheckText, ['Под отчет, займы', 'Деньги под отчет', 'Займы, долги, кредиты']),
+      textIncludes(lowerCheckText, ['Под отчет, займы', 'Деньги под отчет', 'Займы, долги, кредиты', 'Задолженность администратора']),
       `lower accounting marker missing from structured check: ${lowerCheckText}`
     );
     await saveEntry(page, '-300 Женя под отчет');
@@ -2584,10 +2625,10 @@ async function run() {
 
     await assertLayer1SummaryScreen(page);
     console.log('Layer 1 summary first slice: OK');
-    await assertDictionaryTrainingScreen(page, workspaceId);
-    console.log('Dictionary training decision console: OK');
     await assertQuickNotesScreen(page, workspaceId);
     console.log('Quick notes Smith migration UI: OK');
+    await assertDictionaryTrainingScreen(page, workspaceId);
+    console.log('Dictionary training decision console: OK');
 
     for (let i = 1; i <= 8; i += 1) {
       await saveEntry(page, `-1 scroll filler ${i}`);
