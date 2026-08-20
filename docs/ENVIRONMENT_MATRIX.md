@@ -30,10 +30,11 @@ Rule:
 Domain:
 
 - localhost only
+- default web URL: `http://localhost:3000`
 
 Runtime:
 
-- future Next.js web
+- Next.js web in `apps/web`
 - future Expo mobile
 - future Supabase local/dev project
 
@@ -52,6 +53,7 @@ Rule:
 Domain:
 
 - staging subdomain under `brkovic.app` or Vercel preview URL
+- intended stable name: `staging.brkovic.app`
 
 Runtime:
 
@@ -71,6 +73,7 @@ Rule:
 Domain:
 
 - `brkovic.app`
+- `www.brkovic.app`
 
 Runtime:
 
@@ -94,3 +97,26 @@ Rule:
 3. Create Vercel project for web foundation.
 4. Create Supabase production project only after schema and RLS are accepted.
 5. Create Expo/EAS project once shared API contracts are stable.
+
+## Public Web Variables
+
+Only public browser-safe values are used by `apps/web`:
+
+- `NEXT_PUBLIC_APP_ENV`
+- `NEXT_PUBLIC_APP_DOMAIN`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Do not expose service role keys, database URLs, SMTP credentials, FTP credentials, or legacy
+database credentials to `apps/web`.
+
+## Domain Ownership
+
+`brkovic.app` remains registered at Namecheap. Registrar transfer is not required.
+
+DNS records should be changed only when the target deployment exists and has passed smoke tests.
+The expected production shape is:
+
+- apex `brkovic.app` -> Vercel app target
+- `www.brkovic.app` -> Vercel app target
+- optional `staging.brkovic.app` -> staging/preview target

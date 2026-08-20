@@ -16,6 +16,9 @@ error_log
 Thumbs.db
 
 node_modules/
+.next/
+apps/*/.next/
+*.tsbuildinfo
 .env
 .env.*
 .agents/

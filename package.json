@@ -1,8 +1,16 @@
 {
+  "name": "finance-brkovic-ltd",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
   "dependencies": {
     "mongodb": "^6.21.0"
   },
   "scripts": {
+    "dev:web": "npm --prefix apps/web run dev --",
+    "build:web": "npm --workspace apps/web run build",
+    "typecheck:web": "npm --workspace apps/web run typecheck",
     "start:v2:atlas-read": "node server/findesk-v2-atlas-read-server.js",
     "check:atlas": "node scripts/atlas_connection_smoke.js",
     "audit:v2:mysql-model": "php scripts/v2_mysql_model_audit.php",

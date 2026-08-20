@@ -37,6 +37,17 @@ For `brkovic.app`, the intended production shape is DNS -> Vercel web app.
 
 Shared hosting may keep a temporary placeholder or redirect, but it should not become the long-term application runtime.
 
+Namecheap remains the domain registrar. Do not move the domain as part of Foundation work.
+Change DNS records only after a verified web deployment target exists.
+
+Expected clean URLs after cutover:
+
+- `https://brkovic.app`
+- `https://www.brkovic.app`
+
+The app source is `apps/web`; legacy PHP routes must not be introduced under the clean
+`brkovic.app` runtime.
+
 ## Secrets
 
 No production secrets in Git.
@@ -44,6 +55,7 @@ No production secrets in Git.
 Use:
 
 - local `.env`
+- `apps/web/.env.local`
 - Vercel environment variables
 - Supabase secrets
 - Expo/EAS secrets

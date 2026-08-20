@@ -1,0 +1,109 @@
+# Foundation-04 Runbook: Clean Web App Foundation
+
+Date: 2026-08-20
+
+## Objective
+
+Create the first clean `brkovic.app` web foundation without deepening the legacy PHP/V2 runtime.
+
+This sprint does not cut over production and does not migrate financial data. It creates the
+application rail that future SaaS web, mobile, auth, role, report, and Mr. Smith workflows can use.
+
+## Director Scope
+
+Agents:
+
+- Product/UX reviewer: keep the shell understandable for a normal user, not a technical admin.
+- Frontend foundation agent: add Next.js/React/TypeScript under `apps/web`.
+- Supabase security reviewer: keep browser env limited to public URL and publishable key.
+- QA/audit reviewer: run type/build/RLS checks and verify no service role leaks to the web app.
+
+## Implemented Shape
+
+```text
+apps/web
+  src/app
+  src/components
+  src/lib
+```
+
+The root package now uses npm workspaces:
+
+- `npm run dev:web`
+- `npm run build:web`
+- `npm run typecheck:web`
+
+## Supabase Auth Boundary
+
+The web app uses:
+
+- `@supabase/ssr`
+- `@supabase/supabase-js`
+- browser client only for browser-safe operations
+- server client for Server Components and route handlers
+- proxy session refresh using `auth.getClaims()`
+
+Public variables:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Forbidden in `apps/web`:
+
+- service role key
+- direct database URL
+- FTP credentials
+- legacy MySQL credentials
+- Atlas credentials
+
+## Domain Decision
+
+`brkovic.app` remains registered at Namecheap. DNS should point to the selected web deployment
+target only after staging smoke tests pass.
+
+Target production URLs:
+
+- `https://brkovic.app`
+- `https://www.brkovic.app`
+
+## Current UI Surface
+
+The current Next UI is deliberately a foundation shell:
+
+- email auth entry
+- hall
+- workspace shell
+- clean Russian labels
+- responsive safe-area layout
+
+It does not pretend that the migrated financial product is already complete.
+
+## Acceptance Checks
+
+Run:
+
+```bash
+npm run typecheck:web
+npm run build:web
+npm run check:foundation:sql
+npm run smoke:foundation:rls
+git diff --check
+```
+
+For Supabase remote state:
+
+```bash
+supabase db push --db-url "$SUPABASE_DB_POOLER_URL" --skip-vault --dry-run
+```
+
+## Next Sprint
+
+Foundation-05 should add server-side business command skeletons:
+
+- create workspace
+- invite member
+- accept invitation
+- list workspaces by membership
+- create quick note draft
+
+No financial mutation should be implemented as a direct client-only write.
