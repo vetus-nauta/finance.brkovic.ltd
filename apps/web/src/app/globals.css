@@ -229,6 +229,12 @@ button {
   gap: 8px;
 }
 
+.auth-code-block {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
 .auth-row input {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -236,6 +242,12 @@ button {
   min-width: 0;
   padding: 0 12px;
   width: 100%;
+}
+
+.primary-action {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 .form-note {

@@ -9,11 +9,12 @@ export function AuthForm() {
   const env = getPublicEnv();
   const ready = hasSupabasePublicEnv(env);
   const [email, setEmail] = useState("vetus.nauta@gmail.com");
+  const [code, setCode] = useState("");
+  const [isCodeSent, setIsCodeSent] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function sendOtpRequest() {
     setIsSubmitting(true);
     setStatus("");
 
@@ -26,9 +27,51 @@ export function AuthForm() {
         }
       });
 
-      setStatus(error ? error.message : "Код отправлен. Проверьте почту и вернитесь в это окно.");
+      if (error) {
+        setStatus(error.message);
+        return;
+      }
+
+      setIsCodeSent(true);
+      setStatus("Код отправлен. Введите его ниже, чтобы открыть FinDesk.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Не удалось отправить код.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isCodeSent) {
+      await verifyCode();
+      return;
+    }
+
+    await sendOtpRequest();
+  }
+
+  async function verifyCode() {
+    setIsSubmitting(true);
+    setStatus("");
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: code.trim(),
+        type: "email"
+      });
+
+      if (error) {
+        setStatus("Код не принят. Проверьте письмо или запросите новый код.");
+        return;
+      }
+
+      window.location.assign(routes.hall);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Не удалось проверить код.");
     } finally {
       setIsSubmitting(false);
     }
@@ -48,10 +91,45 @@ export function AuthForm() {
           disabled={!ready || isSubmitting}
           required
         />
-        <button type="submit" disabled={!ready || isSubmitting}>
-          {isSubmitting ? "Отправляем" : "Получить код"}
+        <button
+          type={isCodeSent ? "button" : "submit"}
+          onClick={isCodeSent ? sendOtpRequest : undefined}
+          disabled={!ready || isSubmitting}
+        >
+          {isSubmitting && !isCodeSent
+            ? "Отправляем"
+            : isCodeSent
+              ? "Отправить заново"
+              : "Получить код"}
         </button>
       </div>
+      {isCodeSent ? (
+        <div className="auth-code-block">
+          <label htmlFor="otp-code">Код из письма</label>
+          <div className="auth-row">
+            <input
+              id="otp-code"
+              name="otp-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+              disabled={!ready || isSubmitting}
+              placeholder="123456"
+              required
+            />
+            <button
+              type="button"
+              className="primary-action"
+              onClick={verifyCode}
+              disabled={!ready || isSubmitting || code.trim().length < 6}
+            >
+              {isSubmitting ? "Проверяем" : "Войти"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <p className={ready ? "form-note" : "form-note error"}>
         {ready
           ? status || "Вход работает через Supabase Auth. Финансовые данные откроются только после роли в пространстве."
