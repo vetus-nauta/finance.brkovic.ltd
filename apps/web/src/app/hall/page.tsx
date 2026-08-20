@@ -2,6 +2,7 @@ import Link from "next/link";
 import { hasSupabasePublicEnv } from "@/lib/env";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
+import { listUserWorkspaces, roleLabels, workspacePath } from "@/lib/workspace-data";
 
 async function getSessionState() {
   if (!hasSupabasePublicEnv()) {
@@ -19,6 +20,7 @@ async function getSessionState() {
 
 export default async function HallPage() {
   const session = await getSessionState();
+  const workspaces = session.email ? await listUserWorkspaces() : [];
 
   return (
     <main className="page compact-page">
@@ -38,16 +40,21 @@ export default async function HallPage() {
             На вход
           </Link>
         </section>
-      ) : (
+      ) : workspaces.length > 0 ? (
         <section className="grid">
-          <article className="panel workspace-card">
-            <p className="eyebrow">Владелец</p>
-            <h2>Claudia Z</h2>
-            <p>Будущий боевой workspace после подтвержденной миграции.</p>
-            <Link className="primary-button" href={routes.workspaces}>
-              Открыть
-            </Link>
-          </article>
+          {workspaces.map((workspace) => (
+            <article className="panel workspace-card" key={workspace.id}>
+              <p className="eyebrow">{roleLabels[workspace.role] ?? workspace.role}</p>
+              <h2>{workspace.name}</h2>
+              <p>
+                {workspace.type === "yacht" ? "Яхта" : "Пространство"} · {workspace.currency} ·{" "}
+                {workspace.accessScope === "own_reports" ? "только свой отчет" : "рабочий доступ"}
+              </p>
+              <Link className="primary-button" href={workspacePath(workspace.id)}>
+                Открыть
+              </Link>
+            </article>
+          ))}
           <article className="panel workspace-card muted-card">
             <p className="eyebrow">Сотрудник</p>
             <h2>Под отчет</h2>
@@ -64,6 +71,18 @@ export default async function HallPage() {
               После команд
             </button>
           </article>
+        </section>
+      ) : (
+        <section className="panel empty-state">
+          <p className="eyebrow">Нет доступных пространств</p>
+          <h2>Холл готов, но членство еще не создано</h2>
+          <p>
+            После bootstrap/provision команды здесь появятся рабочие пространства пользователя.
+            Статические карточки больше не показываются, чтобы не путать реальный доступ с макетом.
+          </p>
+          <button type="button" disabled>
+            Создание пространства будет server command
+          </button>
         </section>
       )}
     </main>
