@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Fragment } from "react";
 import {
   convertSmithProposalsToEntries,
   createOperationalEntry,
@@ -7,7 +8,9 @@ import {
   saveQuickNoteDraft,
   submitQuickNoteToSmith
 } from "./actions";
+import { QuickNoteComposer } from "./QuickNoteComposer";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
+import { calculateQuickNoteTotal } from "@/lib/quick-note-totals";
 import { smithCategoryLabel, smithCategoryOptions } from "@/lib/smith-categories";
 import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
 
@@ -19,7 +22,9 @@ type WorkspacePageProps = {
     account?: string;
     entry?: string;
     mode?: string;
+    newNote?: string;
     note?: string;
+    notesView?: string;
     status?: string;
   }>;
 };
@@ -58,11 +63,11 @@ function workspaceStatusText(status?: string) {
     case "note-saved":
       return "Заметка сохранена в черновиках.";
     case "note-submitted":
-      return "Заметка отправлена на проверку Смиту.";
+      return "Заметка отправлена в журнал на разбор.";
     case "note-ready":
-      return "Смит подготовил строки. Проверьте список и перенесите выбранное.";
+      return "Пакет подготовлен к переносу в журнал.";
     case "note-converted":
-      return "Смит перенес заметку в оперативный журнал.";
+      return "Заметка перенесена в оперативный журнал.";
     case "note-deleted":
       return "Заметка убрана из истории.";
     case "note-empty":
@@ -102,7 +107,7 @@ function quickNoteStatusText(status: string) {
     case "draft":
       return "Черновик";
     case "submitted_to_smith":
-      return "У Смита";
+      return "На разборе";
     case "converted":
       return "Перенесено";
     default:
@@ -137,11 +142,39 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatDateOnly(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatNoteMonth(value: string) {
+  const date = new Date(value);
+  const month = new Intl.DateTimeFormat("ru-RU", { month: "long" }).format(date);
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${date.getFullYear()}`;
+}
+
+function noteMonthKey(value: string) {
+  return value.slice(0, 7);
+}
+
 function formatMoney(value: number, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
     currency,
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
+    style: "currency"
+  }).format(value);
+}
+
+function formatSignedMoney(value: number, currency: string) {
+  return new Intl.NumberFormat("ru-RU", {
+    currency,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    signDisplay: "exceptZero",
     style: "currency"
   }).format(value);
 }
@@ -192,11 +225,31 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const statusText = entryStatusText(query.entry);
   const modeStatusText = workspaceStatusText(query.status);
   const workspaceBasePath = workspacePath(workspace.id);
+  const notesView = query.notesView === "history" || query.notesView === "transfer" ? query.notesView : "current";
+  const composeNewQuickNote = query.newNote === "1";
   const selectedQuickNote =
-    workspace.quickNotes.find((note) => note.id === query.note) ??
-    workspace.quickNotes.find((note) => note.status === "draft") ??
-    null;
+    composeNewQuickNote
+      ? null
+      : workspace.quickNotes.find((note) => note.id === query.note) ??
+        workspace.quickNotes.find((note) => note.status === "draft") ??
+        null;
+  const editableQuickNote =
+    selectedQuickNote?.status === "draft" || selectedQuickNote?.status === "submitted_to_smith" ? selectedQuickNote : null;
+  const openedConvertedQuickNote = selectedQuickNote?.status === "converted" ? selectedQuickNote : null;
+  const historyQuickNotes = workspace.quickNotes.filter((note) => note.id !== editableQuickNote?.id);
+  const currentQuickNoteHref = editableQuickNote
+    ? `${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}&note=${encodeURIComponent(editableQuickNote.id)}`
+    : `${workspaceBasePath}?mode=notes&newNote=1&account=${encodeURIComponent(workspace.activeAccountCode)}`;
   const pendingProposals = selectedQuickNote?.proposals.filter((proposal) => proposal.status === "pending") ?? [];
+  const noteHasPendingTransfer = pendingProposals.length > 0 && selectedQuickNote?.status === "submitted_to_smith";
+  const showNoteTransfer = mode === "notes" && notesView === "transfer" && noteHasPendingTransfer;
+  const noteScreenOpen = mode === "notes" && (composeNewQuickNote || Boolean(query.note) || showNoteTransfer);
+  const activeNavigationLabel =
+    mode === "notes"
+      ? "Заметки"
+      : mode === "reports"
+        ? "Отчеты"
+        : workspace.accounts.find((account) => account.code === workspace.activeAccountCode)?.label ?? "Журнал";
   const summarySections = [
     {
       title: "Категории",
@@ -219,6 +272,8 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
       rows: workspace.categorySummary.uncategorized
     }
   ].filter((section) => section.rows.length > 0);
+
+  let previousQuickNoteMonth = "";
 
   return (
     <main className="page compact-page">
@@ -244,6 +299,45 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
       </section>
 
       <section className="workspace-shell">
+        <details className="mobile-section-menu">
+          <summary>
+            <span>Раздел</span>
+            <strong>{activeNavigationLabel}</strong>
+          </summary>
+          <nav className="mobile-section-menu-panel" aria-label="Мобильная навигация пространства">
+            {workspace.accounts.length > 0 ? (
+              workspace.accounts.map((account) => (
+                <Link
+                  className={mode === "ledger" && workspace.activeAccountCode === account.code ? "active" : undefined}
+                  aria-current={mode === "ledger" && workspace.activeAccountCode === account.code ? "page" : undefined}
+                  href={`${workspaceBasePath}?account=${encodeURIComponent(account.code)}`}
+                  key={account.id}
+                >
+                  {account.label}
+                </Link>
+              ))
+            ) : (
+              <>
+                <span className="active">Кеш</span>
+                <span>Карта</span>
+              </>
+            )}
+            <Link
+              className={mode === "notes" ? "active" : undefined}
+              aria-current={mode === "notes" ? "page" : undefined}
+              href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+            >
+              Заметки
+            </Link>
+            <Link
+              className={mode === "reports" ? "active" : undefined}
+              aria-current={mode === "reports" ? "page" : undefined}
+              href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+            >
+              Отчеты
+            </Link>
+          </nav>
+        </details>
         <aside className="side-tabs" aria-label="Разделы рабочего пространства">
           {workspace.accounts.length > 0 ? (
             workspace.accounts.map((account) => (
@@ -287,141 +381,212 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
         ) : null}
         {mode === "notes" ? (
           <section className="workspace-mode-panel notes-mode-panel" aria-label="Быстрые заметки">
-            <div className="mode-title">
-              <div>
-                <h2>Заметки</h2>
-                <p>Пишите как в блокноте. Смит разберет строки перед переносом в журнал.</p>
-              </div>
-              <small>{selectedQuickNote?.status === "draft" ? "текущая" : `${workspace.quickNotes.length} в истории`}</small>
-            </div>
-            <form className="quick-note-form" action={saveNoteAction}>
-              <input type="hidden" name="account" value={workspace.activeAccountCode} />
-              <input
-                type="hidden"
-                name="noteId"
-                value={
-                  selectedQuickNote?.status === "draft" || selectedQuickNote?.status === "submitted_to_smith"
-                    ? selectedQuickNote.id
-                    : ""
-                }
-              />
-              <label>
-                <span>Дата для строк</span>
-                <input type="date" name="occurredOn" defaultValue={today} required />
-              </label>
-              <label>
-                <span>Текущая заметка</span>
-                <textarea
-                  name="body"
-                  defaultValue={selectedQuickNote?.body ?? ""}
-                  placeholder={"+1000 поступило от судовладельца\n-350 продукты\n-100 стоянка в марине"}
-                  required
-                />
-              </label>
-              <div className="mode-actions">
-                <Link href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}>
-                  Новая заметка
-                </Link>
-                <button type="submit">Сохранить черновик</button>
-                <button className="primary-action" formAction={submitNoteAction} type="submit">
-                  Проверить у Смита
-                </button>
-              </div>
-            </form>
-            {modeStatusText ? (
-              <p className={isWorkspaceStatusSuccess(query.status) ? "form-note success" : "form-note error"}>
-                {modeStatusText}
-              </p>
-            ) : null}
-            {pendingProposals.length > 0 && selectedQuickNote ? (
-              <form className="smith-review-panel" action={convertProposalAction}>
-                <input type="hidden" name="account" value={workspace.activeAccountCode} />
-                <input type="hidden" name="noteId" value={selectedQuickNote.id} />
-                <div className="note-history-head">
-                  <h3>Смит подготовил перенос</h3>
-                  <small>{pendingProposals.length} строк</small>
-                </div>
-                <div className="smith-proposal-list">
-                  {pendingProposals.map((proposal) => (
-                    <label className="smith-proposal" key={proposal.id}>
-                      <input
-                        name="proposalId"
-                        type="checkbox"
-                        value={proposal.id}
-                        defaultChecked={proposal.duplicateStatus !== "possible_duplicate"}
-                      />
-                      <span>
-                        <strong>{proposal.rawText}</strong>
-                        <small>
-                          {proposal.duplicateStatus === "possible_duplicate"
-                            ? "Похоже на дубль"
-                            : `Категория: ${smithCategoryLabel(proposal.candidateCategoryCode)}`}
-                        </small>
-                      </span>
-                      <select
-                        aria-label={`Категория для строки ${proposal.lineNo}`}
-                        defaultValue={proposal.candidateCategoryCode ?? "other"}
-                        name={`categoryCode:${proposal.id}`}
-                      >
-                        {smithCategoryOptions.map((category) => (
-                          <option key={category.code} value={category.code}>
-                            {category.label}
-                          </option>
-                        ))}
-                      </select>
-                      <span
-                        className={
-                          proposal.duplicateStatus === "possible_duplicate" || proposal.reviewReason !== "accepted"
-                            ? "status-pill attention"
-                            : "status-pill"
-                        }
-                      >
-                        {proposalSignalText(proposal.parserReason, proposal.duplicateStatus)}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                <div className="mode-actions">
-                  <button className="primary-action" type="submit">
-                    Перенести в журнал
-                  </button>
-                </div>
-              </form>
-            ) : null}
-            {selectedQuickNote ? (
-              <form className="note-delete-form" action={deleteNoteAction}>
-                <input type="hidden" name="account" value={workspace.activeAccountCode} />
-                <input type="hidden" name="noteId" value={selectedQuickNote.id} />
-                <button type="submit">Удалить выбранную заметку</button>
-              </form>
-            ) : null}
-            <div className="note-history-head">
-              <h3>История</h3>
-              <small>Черновики и отправленные заметки</small>
-            </div>
-            <div className="note-history" aria-label="История заметок">
-              {workspace.quickNotes.length > 0 ? (
-                workspace.quickNotes.map((note) => (
+            <section className={`notes-apple-workspace ${noteScreenOpen ? "is-note-open" : "is-note-list"}`}>
+              <section className="notes-apple-list-panel" aria-label="Список заметок">
+                <div className="notes-apple-head">
+                  <div>
+                    <h2>Заметки</h2>
+                    <span>
+                      {workspace.quickNotes.length > 0
+                        ? `${workspace.quickNotes.length} заметки`
+                        : "Быстрая запись перед журналом"}
+                    </span>
+                  </div>
                   <Link
-                    className={selectedQuickNote?.id === note.id ? "note-card active" : "note-card"}
-                    href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}&note=${encodeURIComponent(note.id)}`}
-                    key={note.id}
+                    className="notes-new-button"
+                    href={`${workspaceBasePath}?mode=notes&newNote=1&account=${encodeURIComponent(workspace.activeAccountCode)}`}
                   >
-                    <div>
-                      <span className="status-pill">{quickNoteStatusText(note.status)}</span>
-                      {note.convertedCount > 0 ? <span className="status-pill">{note.convertedCount} строк</span> : null}
-                      <small>{formatDateTime(note.updatedAt)}</small>
-                    </div>
-                    <p>{note.body}</p>
+                    Новая
                   </Link>
-                ))
-              ) : (
-                <div className="empty-state inline-empty">
-                  <h2>Заметок пока нет</h2>
-                  <p>Напишите короткую рабочую запись и сохраните ее как черновик или отправьте на проверку.</p>
                 </div>
-              )}
-            </div>
+                <div className="notes-apple-list">
+                  <article className="note-card-row note-card-current-row">
+                    <Link
+                      className={[
+                        "note-card note-card-current",
+                        composeNewQuickNote || editableQuickNote ? "active" : ""
+                      ].filter(Boolean).join(" ")}
+                      href={currentQuickNoteHref}
+                      aria-label="Открыть текущую заметку"
+                    >
+                      <span>Текущая</span>
+                      <strong>
+                        {formatSignedMoney(editableQuickNote ? calculateQuickNoteTotal(editableQuickNote.body) : 0, workspace.currency)}
+                      </strong>
+                    </Link>
+                  </article>
+                  {historyQuickNotes.length > 0 ? (
+                    historyQuickNotes.map((note) => {
+                      const noteTotal = calculateQuickNoteTotal(note.body);
+                      const currentNoteMonth = noteMonthKey(note.createdAt);
+                      const showMonthLabel = currentNoteMonth !== previousQuickNoteMonth;
+                      previousQuickNoteMonth = currentNoteMonth;
+
+                      return (
+                        <Fragment key={note.id}>
+                          {showMonthLabel ? <div className="note-month-separator">{formatNoteMonth(note.createdAt)}</div> : null}
+                          <article className="note-card-row">
+                            <Link
+                              className={[
+                                selectedQuickNote?.id === note.id ? "note-card active" : "note-card",
+                                note.status === "submitted_to_smith" || note.status === "converted" ? "is-sent" : ""
+                              ].filter(Boolean).join(" ")}
+                              href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}&note=${encodeURIComponent(note.id)}`}
+                              aria-label={`Открыть заметку от ${formatDateOnly(note.createdAt)}`}
+                            >
+                              <time dateTime={note.createdAt}>{formatDateOnly(note.createdAt)}</time>
+                              <strong>{formatSignedMoney(noteTotal, workspace.currency)}</strong>
+                            </Link>
+                            {note.status !== "converted" ? (
+                              <form className="note-delete-form" action={deleteNoteAction} aria-label="Удалить заметку">
+                                <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                                <input type="hidden" name="noteId" value={note.id} />
+                                <button type="submit" aria-label="Удалить заметку">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                    <path d="M5 7h14" />
+                                    <path d="M8 7l1-3h6l1 3" />
+                                    <path d="M6 7l1 14h10l1-14" />
+                                  </svg>
+                                </button>
+                              </form>
+                            ) : null}
+                          </article>
+                        </Fragment>
+                      );
+                    })
+                  ) : workspace.quickNotes.length === 0 ? (
+                    <div className="empty-state inline-empty">
+                      <h2>Заметок пока нет</h2>
+                      <p>Новая заметка откроется справа.</p>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+              <section className="notes-apple-editor-panel" aria-label="Открытая заметка">
+                <Link
+                  className="notes-mobile-back"
+                  href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+                >
+                  Назад к заметкам
+                </Link>
+                {modeStatusText ? (
+                  <p className={isWorkspaceStatusSuccess(query.status) ? "form-note success" : "form-note error"}>
+                    {modeStatusText}
+                  </p>
+                ) : null}
+                {showNoteTransfer && selectedQuickNote ? (
+                  <form className="notes-transfer-panel" action={convertProposalAction}>
+                    <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                    <input type="hidden" name="noteId" value={selectedQuickNote.id} />
+                    <div className="notes-transfer-head">
+                      <div>
+                        <h3>Отправка в журнал</h3>
+                        <p>Проверьте строки пакета. Отмеченные строки попадут в оперативный журнал.</p>
+                      </div>
+                      <Link
+                        href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}&note=${encodeURIComponent(selectedQuickNote.id)}`}
+                      >
+                        К заметке
+                      </Link>
+                    </div>
+                    <div className="notes-source-card" aria-label="Исходная заметка">
+                      <strong>Исходная заметка</strong>
+                      <p>{selectedQuickNote.body}</p>
+                    </div>
+                    <div className="smith-proposal-list" aria-label="Строки для переноса">
+                      {pendingProposals.map((proposal) => (
+                        <label className="smith-proposal" key={proposal.id}>
+                          <input
+                            name="proposalId"
+                            type="checkbox"
+                            value={proposal.id}
+                            defaultChecked={proposal.duplicateStatus !== "possible_duplicate"}
+                          />
+                          <span>
+                            <strong>{proposal.rawText}</strong>
+                            <small>
+                              {proposal.duplicateStatus === "possible_duplicate"
+                                ? "Похоже на дубль"
+                                : `Категория: ${smithCategoryLabel(proposal.candidateCategoryCode)}`}
+                            </small>
+                          </span>
+                          <select
+                            aria-label={`Категория для строки ${proposal.lineNo}`}
+                            defaultValue={proposal.candidateCategoryCode ?? "other"}
+                            name={`categoryCode:${proposal.id}`}
+                          >
+                            {smithCategoryOptions.map((category) => (
+                              <option key={category.code} value={category.code}>
+                                {category.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span
+                            className={
+                              proposal.duplicateStatus === "possible_duplicate" || proposal.reviewReason !== "accepted"
+                                ? "status-pill attention"
+                                : "status-pill"
+                            }
+                          >
+                            {proposalSignalText(proposal.parserReason, proposal.duplicateStatus)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mode-actions">
+                      <button className="primary-action" type="submit">
+                        Перенести в журнал
+                      </button>
+                    </div>
+                  </form>
+                ) : openedConvertedQuickNote ? (
+                  <div className="notes-readonly-panel" aria-label="Перенесенная заметка">
+                    <div className="notes-transfer-head">
+                      <div>
+                        <h3>Заметка перенесена</h3>
+                        <p>Эти строки уже ушли в оперативный журнал. Для новых строк откройте текущую заметку.</p>
+                      </div>
+                      <Link href={currentQuickNoteHref}>К текущей</Link>
+                    </div>
+                    <div className="notes-source-card">
+                      <strong>{formatDateOnly(openedConvertedQuickNote.createdAt)}</strong>
+                      <p>{openedConvertedQuickNote.body}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {noteHasPendingTransfer && selectedQuickNote ? (
+                      <div className="notes-current-notice">
+                        <div>
+                          <strong>Заметка уже отправлена в журнал</strong>
+                          <span>Можно открыть подготовленный перенос или изменить текст и отправить пакет заново.</span>
+                        </div>
+                        <Link
+                          href={`${workspaceBasePath}?mode=notes&notesView=transfer&account=${encodeURIComponent(workspace.activeAccountCode)}&note=${encodeURIComponent(selectedQuickNote.id)}`}
+                        >
+                          Открыть перенос
+                        </Link>
+                      </div>
+                    ) : null}
+                    <QuickNoteComposer
+                      accountCode={workspace.activeAccountCode}
+                      currency={workspace.currency}
+                      defaultBody={editableQuickNote?.body ?? ""}
+                      noteId={
+                        editableQuickNote
+                          ? editableQuickNote.id
+                          : ""
+                      }
+                      saveAction={saveNoteAction}
+                      submitAction={submitNoteAction}
+                      today={today}
+                    />
+                  </>
+                )}
+              </section>
+            </section>
           </section>
         ) : null}
         {mode === "reports" ? (

@@ -318,6 +318,7 @@ export async function submitQuickNoteToSmith(workspaceId: string, formData: Form
   redirectToMode(workspaceId, "notes", "note-ready", {
     account: accountCode,
     note: quickNoteId,
+    notesView: "transfer",
     lines: String(data[0].proposal_count),
     review: String(data[0].review_count)
   });
@@ -378,6 +379,7 @@ export async function convertSmithProposalsToEntries(workspaceId: string, formDa
   redirectToMode(workspaceId, "notes", "note-converted", {
     account: accountCode,
     lines: String(data[0].converted_count),
+    newNote: "1",
     review: String(data[0].review_count)
   });
 }
