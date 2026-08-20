@@ -66,6 +66,12 @@ export type SmithEntryProposalSummary = {
   rawText: string;
   candidateAmount: number | null;
   candidateDirection: "income" | "expense" | "neutral" | null;
+  candidateCategoryCode: string | null;
+  confidence: number | null;
+  reviewReason: string | null;
+  matchedSignals: string[];
+  blockers: string[];
+  semanticMarkers: string[];
   parserReason: string | null;
   duplicateStatus: string;
   duplicateReason: string | null;
@@ -123,6 +129,12 @@ type SmithEntryProposalRow = {
   raw_text: string;
   candidate_amount: number | string | null;
   candidate_direction: "income" | "expense" | "neutral" | null;
+  candidate_category_code: string | null;
+  confidence: number | string | null;
+  review_reason: string | null;
+  matched_signals: string[] | null;
+  blockers: string[] | null;
+  semantic_markers: string[] | null;
   parser_reason: string | null;
   duplicate_status: string;
   duplicate_reason: string | null;
@@ -387,7 +399,9 @@ export async function getWorkspaceDetails(
     quickNoteIds.length > 0
       ? await supabase
           .from("smith_entry_proposals")
-          .select("id, quick_note_id, line_no, raw_text, candidate_amount, candidate_direction, parser_reason, duplicate_status, duplicate_reason, status")
+          .select(
+            "id, quick_note_id, line_no, raw_text, candidate_amount, candidate_direction, candidate_category_code, confidence, review_reason, matched_signals, blockers, semantic_markers, parser_reason, duplicate_status, duplicate_reason, status"
+          )
           .in("quick_note_id", quickNoteIds)
           .neq("status", "void")
           .order("line_no", { ascending: true })
@@ -408,6 +422,12 @@ export async function getWorkspaceDetails(
       rawText: proposal.raw_text,
       candidateAmount: proposal.candidate_amount === null ? null : Number(proposal.candidate_amount),
       candidateDirection: proposal.candidate_direction,
+      candidateCategoryCode: proposal.candidate_category_code,
+      confidence: proposal.confidence === null ? null : Number(proposal.confidence),
+      reviewReason: proposal.review_reason,
+      matchedSignals: proposal.matched_signals ?? [],
+      blockers: proposal.blockers ?? [],
+      semanticMarkers: proposal.semantic_markers ?? [],
       parserReason: proposal.parser_reason,
       duplicateStatus: proposal.duplicate_status,
       duplicateReason: proposal.duplicate_reason,

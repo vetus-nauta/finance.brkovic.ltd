@@ -136,16 +136,86 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function proposalStatusText(status: string) {
-  switch (status) {
-    case "pending":
-      return "К переносу";
-    case "converted":
-      return "Перенесено";
-    case "rejected":
-      return "Не переносить";
+function categoryText(code: string | null) {
+  switch (code) {
+    case "crew":
+      return "Экипаж";
+    case "commercial_income":
+      return "Коммерческий приход";
+    case "non_commercial_income":
+      return "Некоммерческое поступление";
+    case "dry_dock":
+      return "Сухой док";
+    case "berth":
+      return "Стоянка";
+    case "marina_ports":
+      return "Марины и портовые";
+    case "service_water":
+      return "Сервисные работы";
+    case "tech_parts":
+      return "Техчасть и запчасти";
+    case "tender":
+      return "Тендер / тузик";
+    case "fuel":
+      return "Топливо";
+    case "provisions":
+      return "Продукты и гости";
+    case "guest_trip_support":
+      return "Обеспечение гостей в походе";
+    case "guest_cash_issued":
+      return "Выданные наличные гостям";
+    case "representation_expenses":
+      return "Представительские расходы";
+    case "interior":
+      return "Интерьер и быт";
+    case "cleaning":
+      return "Клининг и химия";
+    case "media_comms":
+      return "Мультимедиа и связь";
+    case "transport_expenses":
+      return "Транспортные расходы";
+    case "admin_legal":
+      return "Админка / документы";
+    case "current_boat_expenses":
+      return "Текущие лодочные расходы";
+    case "cash_topup_from_card":
+      return "Пополнение кеша с карты";
+    case "admin_debt":
+      return "Долг администратора";
+    case "lower_accounting":
+      return "Подотчет / долг";
+    case "other":
+      return "Нужно разобрать вручную";
     default:
-      return status;
+      return "Категория не выбрана";
+  }
+}
+
+function reviewReasonText(reason: string | null) {
+  switch (reason) {
+    case "accepted":
+      return "понятно";
+    case "owner_funding":
+      return "поступление от владельца";
+    case "money_movement":
+      return "перемещение денег";
+    case "weak_only":
+      return "слабый признак";
+    case "mixed_context":
+      return "смешанный смысл";
+    case "lower_accounting":
+      return "нижний учет";
+    case "admin_debt":
+      return "личный долг администратора";
+    case "merchant_alias_review":
+      return "название магазина, нужен ручной смысл";
+    case "card_income_needs_guard":
+      return "поступление на карту требует проверки";
+    case "other_review":
+    case "no_category":
+      return "нужно решение";
+    default:
+      return reason ?? "нужно решение";
   }
 }
 
@@ -309,13 +379,27 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 <div className="smith-proposal-list">
                   {pendingProposals.map((proposal) => (
                     <label className="smith-proposal" key={proposal.id}>
-                      <input name="proposalId" type="checkbox" value={proposal.id} defaultChecked />
+                      <input
+                        name="proposalId"
+                        type="checkbox"
+                        value={proposal.id}
+                        defaultChecked={proposal.duplicateStatus !== "possible_duplicate"}
+                      />
                       <span>
                         <strong>{proposal.rawText}</strong>
-                        <small>{proposalSignalText(proposal.parserReason, proposal.duplicateStatus)}</small>
+                        <small>
+                          {categoryText(proposal.candidateCategoryCode)} · {reviewReasonText(proposal.reviewReason)}
+                          {proposal.confidence !== null ? ` · ${Math.round(proposal.confidence * 100)}%` : ""}
+                        </small>
                       </span>
-                      <span className={proposal.duplicateStatus === "possible_duplicate" ? "status-pill attention" : "status-pill"}>
-                        {proposalStatusText(proposal.status)}
+                      <span
+                        className={
+                          proposal.duplicateStatus === "possible_duplicate" || proposal.reviewReason !== "accepted"
+                            ? "status-pill attention"
+                            : "status-pill"
+                        }
+                      >
+                        {proposalSignalText(proposal.parserReason, proposal.duplicateStatus)}
                       </span>
                     </label>
                   ))}

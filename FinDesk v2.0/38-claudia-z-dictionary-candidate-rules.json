@@ -16,6 +16,7 @@
   "category_groups": {
     "money_balance": [
       "commercial_income",
+      "non_commercial_income",
       "cash_topup_from_card"
     ],
     "crew": [
@@ -46,8 +47,10 @@
       "admin_legal",
       "current_boat_expenses"
     ],
-    "review": [
-      "other"
+    "review_and_accounting_blocks": [
+      "other",
+      "lower_accounting",
+      "admin_debt"
     ]
   },
   "candidate_category_rules": [
@@ -336,6 +339,8 @@
         "магазин",
         "комиссии банков",
         "банковская комиссия",
+        "офис",
+        "принтер",
         "забрал свои",
         "bank fee",
         "bank commission"
@@ -378,7 +383,16 @@
         "самокат",
         "скутер",
         "параплан",
-        "музыкант"
+        "музыкант",
+        "водные игрушки",
+        "национальный парк",
+        "музей",
+        "снасти",
+        "маски",
+        "ласты",
+        "зарядка шефу",
+        "айфон гостям",
+        "iphone guest"
       ],
       "warnings": [
         "Use for guest support and activity costs during a trip; food and drinks stay provisions."
@@ -412,7 +426,10 @@
         "представительские",
         "подарок",
         "презент",
+        "цветы",
         "розы",
+        "украшения др",
+        "украшения к дню рождения",
         "деловой обед",
         "деловой ужин",
         "обед с",
@@ -425,7 +442,7 @@
         "dinner with"
       ],
       "warnings": [
-        "Plain food, restaurant, and flowers stay provisions unless gift/business-hospitality wording is explicit.",
+        "Plain food and restaurant rows stay provisions unless gift, birthday, guest diplomacy, or business-hospitality wording is explicit.",
         "Debt/return/accountable wording stays review even when a representation keyword is present."
       ]
     },
@@ -477,7 +494,10 @@
         "шампуни",
         "аптечка морская",
         "спрей подводные маски",
-        "маски ласты"
+        "маски ласты",
+        "мед",
+        "приправы",
+        "вода"
       ],
       "warnings": [
         "Single word вода is not enough: water/electricity belongs to marina utility context."
@@ -659,6 +679,23 @@
         "подотчет"
       ],
       "rule": "Use as a separate lower accounting block / semantic marker; do not create an expense category from loan, debt, credit, return, or accountable wording alone."
+    },
+    {
+      "marker": "admin_debt",
+      "patterns": [
+        "мой кредит",
+        "моя часть кредита",
+        "кредит себе",
+        "последний кредит",
+        "мой долг",
+        "для себя",
+        "себе",
+        "домой",
+        "с тему",
+        "temu",
+        "мото навигатор"
+      ],
+      "rule": "Use as administrator liability/reporting context, not as an operational expense category. Show it in a separate report block with returned/open amounts."
     },
     {
       "marker": "non_yacht_or_personal",

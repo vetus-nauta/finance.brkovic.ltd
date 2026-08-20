@@ -179,7 +179,7 @@ export async function saveQuickNoteDraft(workspaceId: string, formData: FormData
       redirectToMode(workspaceId, "notes", "note-save", { account: accountCode, note: noteId });
     }
 
-    if (existingNote?.status === "draft") {
+    if (existingNote?.status === "draft" || existingNote?.status === "submitted_to_smith") {
       const { error: updateError } = await supabase
         .from("quick_notes")
         .update({ body, status: "draft" })
@@ -188,6 +188,18 @@ export async function saveQuickNoteDraft(workspaceId: string, formData: FormData
 
       if (updateError) {
         redirectToMode(workspaceId, "notes", "note-save", { account: accountCode, note: noteId });
+      }
+
+      if (existingNote.status === "submitted_to_smith") {
+        const { error: voidProposalsError } = await supabase
+          .from("smith_entry_proposals")
+          .update({ status: "void" })
+          .eq("quick_note_id", noteId)
+          .in("status", ["pending", "rejected"]);
+
+        if (voidProposalsError) {
+          redirectToMode(workspaceId, "notes", "note-save", { account: accountCode, note: noteId });
+        }
       }
 
       revalidateWorkspace(workspaceId);
@@ -253,7 +265,7 @@ export async function submitQuickNoteToSmith(workspaceId: string, formData: Form
       redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
     }
 
-    if (existingNote?.status === "draft") {
+    if (existingNote?.status === "draft" || existingNote?.status === "submitted_to_smith") {
       const { error: updateError } = await supabase
         .from("quick_notes")
         .update({ body, status: "draft" })
@@ -263,7 +275,7 @@ export async function submitQuickNoteToSmith(workspaceId: string, formData: Form
       if (updateError) {
         redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
       }
-    } else if (existingNote?.status !== "submitted_to_smith") {
+    } else {
       redirectToMode(workspaceId, "notes", "note-submit", { account: accountCode, note: noteId });
     }
   }
