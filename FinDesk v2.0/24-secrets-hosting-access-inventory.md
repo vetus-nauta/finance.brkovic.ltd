@@ -271,8 +271,26 @@ errors: 0
 root items after wipe: 0
 ```
 
-The domain root directory itself was kept, but all old files and folders inside
-it were removed. No `finance.brkovic.ltd` runtime files were touched.
+The domain root directory itself was kept. All old files and folders inside it
+were removed. No `finance.brkovic.ltd` runtime files were touched.
+
+After browser-side DNS cache still showed the old LiteSpeed host as `Index of /`,
+a temporary two-file safety fallback was added to the empty old root:
+
+```text
+.htaccess
+index.html
+```
+
+Purpose:
+
+```text
+prevent directory listing on stale-DNS clients
+temporarily redirect stale old-host traffic to https://finance-brkovic-ltd.vercel.app/
+```
+
+This fallback is not product runtime and should be removed after DNS cache has
+fully stabilized on client networks.
 
 Local audit path outside Git:
 
