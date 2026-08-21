@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { OperationalEntry, ReportSnapshotSummary } from "@/lib/workspace-data";
 
@@ -118,6 +119,7 @@ function zoneClassName(activeZone: ActiveZone, entryCount: number) {
 }
 
 export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntryId, workspacePath }: SyncedLedgerTableProps) {
+  const router = useRouter();
   const [activeZone, setActiveZone] = useState<ActiveZone>("journal");
   const [expandedReportIds, setExpandedReportIds] = useState<Set<string>>(new Set());
   const tableRef = useRef<HTMLDivElement | null>(null);
@@ -126,6 +128,10 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
   const didInitialScroll = useRef(false);
   const lastSelectedScrollId = useRef<string | null>(null);
   const displayRows = useMemo(() => buildDisplayRows(entries, reports), [entries, reports]);
+  const draftRowNumber = useMemo(
+    () => entries.reduce((maxRowNo, entry) => Math.max(maxRowNo, entry.rowNo), 0) + 1,
+    [entries]
+  );
 
   useLayoutEffect(() => {
     if (!selectedEntryId || lastSelectedScrollId.current === selectedEntryId) {
@@ -182,6 +188,22 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
 
   function reportHref(reportId: string) {
     return `${workspacePath}?mode=reports&account=${encodeURIComponent(accountCode)}&report=${encodeURIComponent(reportId)}`;
+  }
+
+  function createEntryHref() {
+    return `${workspacePath}?account=${encodeURIComponent(accountCode)}`;
+  }
+
+  function activateCreateDraftRow(surface: ActiveZone) {
+    setActiveZone(surface);
+    router.push(createEntryHref());
+
+    window.requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLInputElement>("#operational-entry-form input[name='rawText']");
+      input?.focus({ preventScroll: true });
+      const end = input?.value.length ?? 0;
+      input?.setSelectionRange?.(end, end);
+    });
   }
 
   function toggleReport(reportId: string) {
@@ -405,6 +427,33 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
             <span onClick={() => setActiveZone("structure")} />
           </div>
         )}
+        <button
+          aria-label={`Новая запись, строка ${draftRowNumber}`}
+          aria-live="polite"
+          className="synced-row new-entry-row"
+          data-v2-draft-row
+          data-v2-row-number={draftRowNumber}
+          onClick={() => activateCreateDraftRow("journal")}
+          role="row"
+          type="button"
+        >
+          <span className="draft-row-number" data-v2-row-number-label>
+            {draftRowNumber}
+          </span>
+          <span className="entry-description-link">
+            <strong data-v2-draft-text>Новая запись</strong>
+          </span>
+          <span className="amount-pending" data-v2-draft-amount>
+            —
+          </span>
+          <span className="draft-row-number" data-v2-row-number-label>
+            {draftRowNumber}
+          </span>
+          <span data-v2-check-draft-date>—</span>
+          <span className="status-pill muted-pill" data-v2-check-draft-text>
+            новая
+          </span>
+        </button>
         <div className="ledger-end-anchor" ref={ledgerEndRef} aria-hidden="true" />
       </div>
     </div>

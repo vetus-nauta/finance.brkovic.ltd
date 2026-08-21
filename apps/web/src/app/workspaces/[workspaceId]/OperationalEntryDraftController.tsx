@@ -38,6 +38,31 @@ function readDraft(key: string): EntryDraft | null {
   }
 }
 
+function draftRowText(rawInput: HTMLInputElement) {
+  if (rawInput.defaultValue && rawInput.value === rawInput.defaultValue) {
+    return "";
+  }
+
+  return rawInput.value || "";
+}
+
+function updateDraftRows(dateInput: HTMLInputElement, rawInput: HTMLInputElement) {
+  const rawText = draftRowText(rawInput);
+  const dateText = dateInput.value || "—";
+
+  document.querySelectorAll("[data-v2-draft-text]").forEach((node) => {
+    node.textContent = rawText || "Новая запись";
+  });
+
+  document.querySelectorAll("[data-v2-check-draft-text]").forEach((node) => {
+    node.textContent = rawText || "новая";
+  });
+
+  document.querySelectorAll("[data-v2-check-draft-date]").forEach((node) => {
+    node.textContent = dateText;
+  });
+}
+
 export function OperationalEntryDraftController({
   draftKey,
   formId,
@@ -84,6 +109,7 @@ export function OperationalEntryDraftController({
     let saveTimer = 0;
 
     const saveDraft = () => {
+      updateDraftRows(dateInput, rawInput);
       window.clearTimeout(saveTimer);
       saveTimer = window.setTimeout(() => {
         const rawText = rawInput.value.trim();
@@ -91,6 +117,7 @@ export function OperationalEntryDraftController({
         if (!rawText) {
           window.localStorage.removeItem(draftKey);
           setNote("");
+          updateDraftRows(dateInput, rawInput);
           return;
         }
 
@@ -111,6 +138,7 @@ export function OperationalEntryDraftController({
 
     dateInput.addEventListener("input", saveDraft);
     rawInput.addEventListener("input", saveDraft);
+    updateDraftRows(dateInput, rawInput);
     const submitForms = submitFormIds
       .map((submitFormId) => document.getElementById(submitFormId) as HTMLFormElement | null)
       .filter((submitForm): submitForm is HTMLFormElement => Boolean(submitForm));
@@ -140,6 +168,10 @@ export function OperationalEntryDraftController({
     if (rawInput) {
       rawInput.value = rawInput.defaultValue;
       rawInput.focus();
+    }
+
+    if (dateInput && rawInput) {
+      updateDraftRows(dateInput, rawInput);
     }
   }
 

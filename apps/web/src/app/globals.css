@@ -1783,6 +1783,45 @@ button {
   color: var(--muted);
 }
 
+.new-entry-row {
+  background: #fff;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.new-entry-row:hover,
+.new-entry-row:focus-visible {
+  background: #f4fbfa;
+  outline: none;
+}
+
+.new-entry-row strong {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.draft-row-number {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.amount-pending {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.muted-pill {
+  background: #eef2f6;
+  border-color: #d8e0ea;
+  color: var(--muted);
+}
+
 .ledger-end-anchor {
   height: 1px;
   pointer-events: none;
