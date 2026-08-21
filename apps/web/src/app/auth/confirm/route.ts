@@ -11,10 +11,20 @@ export async function GET(request: NextRequest) {
 
   if (tokenHash && type) {
     const supabase = await createClient();
-    await supabase.auth.verifyOtp({
+    const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type
     });
+
+    if (error) {
+      const url = new URL(routes.home, requestUrl.origin);
+      url.searchParams.set("auth", "confirm-error");
+      return NextResponse.redirect(url);
+    }
+  } else {
+    const url = new URL(routes.home, requestUrl.origin);
+    url.searchParams.set("auth", "missing-token");
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

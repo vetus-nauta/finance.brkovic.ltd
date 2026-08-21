@@ -9,6 +9,17 @@ const OTP_RESEND_SECONDS = 75;
 const OTP_RATE_LIMIT_SECONDS = 300;
 const OTP_CODE_LENGTH = 6;
 
+function cleanOrigin(value: string) {
+  return value.replace(/\/+$/, "");
+}
+
+function authRedirectUrl(appDomain: string) {
+  const fallbackOrigin = typeof window === "undefined" ? "" : window.location.origin;
+  const origin = cleanOrigin(appDomain || fallbackOrigin);
+
+  return `${origin}${routes.authCallback}`;
+}
+
 function cooldownKey(email: string) {
   return `findesk:auth:next-code-request:${email.trim().toLowerCase()}`;
 }
@@ -77,7 +88,7 @@ export function AuthForm() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}${routes.authCallback}`,
+          emailRedirectTo: authRedirectUrl(env.appDomain),
           shouldCreateUser: false
         }
       });

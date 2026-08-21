@@ -9,7 +9,17 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      const url = new URL(routes.home, requestUrl.origin);
+      url.searchParams.set("auth", "callback-error");
+      return NextResponse.redirect(url);
+    }
+  } else {
+    const url = new URL(routes.home, requestUrl.origin);
+    url.searchParams.set("auth", "missing-code");
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));
