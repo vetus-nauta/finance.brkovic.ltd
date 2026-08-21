@@ -156,13 +156,18 @@ declare
   cash_income record;
   card_expense record;
   no_sign record;
+  quick_note_conversion record;
   transaction_count integer;
   ledger_count integer;
   audit_count integer;
+  quick_note_audit_count integer;
   updated_amount numeric(14,2);
   voided_card_status text;
   direct_insert_blocked boolean := false;
   direct_ledger_insert_blocked boolean := false;
+  direct_audit_insert_blocked boolean := false;
+  direct_audit_update_blocked boolean := false;
+  direct_audit_delete_blocked boolean := false;
   direct_row_count integer;
   manual_card_income_blocked boolean := false;
 begin
@@ -347,6 +352,90 @@ begin
   end if;
 
   begin
+    insert into public.approval_events (
+      organization_id,
+      workspace_id,
+      entity_type,
+      entity_id,
+      event_type,
+      actor_user_id,
+      note,
+      metadata
+    ) values (
+      '5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      'transaction',
+      cash_income.transaction_id,
+      'operational_entry_created',
+      '51111111-1111-4111-8111-111111111111',
+      'direct audit spoof',
+      '{}'::jsonb
+    );
+  exception
+    when insufficient_privilege or check_violation then
+      direct_audit_insert_blocked := true;
+    when others then
+      if sqlerrm like '%row-level security%' then
+        direct_audit_insert_blocked := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if direct_audit_insert_blocked is not true then
+    raise exception 'direct approval event insert spoof was unexpectedly accepted';
+  end if;
+
+  begin
+    update public.approval_events
+    set note = 'direct audit update spoof'
+    where workspace_id = '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+      and entity_id = cash_income.transaction_id;
+
+    get diagnostics direct_row_count = row_count;
+    if direct_row_count = 0 then
+      direct_audit_update_blocked := true;
+    end if;
+  exception
+    when insufficient_privilege or check_violation then
+      direct_audit_update_blocked := true;
+    when others then
+      if sqlerrm like '%row-level security%' then
+        direct_audit_update_blocked := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if direct_audit_update_blocked is not true then
+    raise exception 'direct approval event update spoof was unexpectedly accepted';
+  end if;
+
+  begin
+    delete from public.approval_events
+    where workspace_id = '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+      and entity_id = cash_income.transaction_id;
+
+    get diagnostics direct_row_count = row_count;
+    if direct_row_count = 0 then
+      direct_audit_delete_blocked := true;
+    end if;
+  exception
+    when insufficient_privilege or check_violation then
+      direct_audit_delete_blocked := true;
+    when others then
+      if sqlerrm like '%row-level security%' then
+        direct_audit_delete_blocked := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if direct_audit_delete_blocked is not true then
+    raise exception 'direct approval event delete spoof was unexpectedly accepted';
+  end if;
+
+  begin
     insert into public.transactions (
       organization_id,
       workspace_id,
@@ -442,6 +531,47 @@ begin
 
   if direct_row_count <> 0 then
     raise exception 'direct ledger delete bypass affected % rows', direct_row_count;
+  end if;
+
+  insert into public.quick_notes (
+    id,
+    organization_id,
+    workspace_id,
+    author_user_id,
+    body,
+    status
+  ) values (
+    '5f555555-5555-4555-8555-555555555555',
+    '5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    '51111111-1111-4111-8111-111111111111',
+    '-20 продукты' || chr(10) || '+100 поступило от судовладельца',
+    'draft'
+  );
+
+  select * into quick_note_conversion
+  from public.convert_quick_note_to_operational_entries(
+    '5f555555-5555-4555-8555-555555555555',
+    'cash',
+    '2026-08-21',
+    'ru'
+  );
+
+  if quick_note_conversion.converted_count <> 2
+    or cardinality(quick_note_conversion.transaction_ids) <> 2
+  then
+    raise exception 'quick note conversion returned unexpected result: %', row_to_json(quick_note_conversion);
+  end if;
+
+  select count(*) into quick_note_audit_count
+  from public.approval_events
+  where workspace_id = '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    and entity_type = 'quick_note'
+    and entity_id = '5f555555-5555-4555-8555-555555555555'
+    and event_type = 'quick_note_converted';
+
+  if quick_note_audit_count <> 1 then
+    raise exception 'expected one quick note conversion audit event, saw %', quick_note_audit_count;
   end if;
 end;
 $$;
