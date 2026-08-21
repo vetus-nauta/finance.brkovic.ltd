@@ -715,6 +715,17 @@ export async function getWorkspaceDetails(
 ): Promise<WorkspaceDetails | null> {
   const supabase = await createClient();
   const pageSize = 1000;
+  const lookupChunkSize = 200;
+
+  function chunkValues<T>(values: T[], chunkSize = lookupChunkSize) {
+    const chunks: T[][] = [];
+
+    for (let index = 0; index < values.length; index += chunkSize) {
+      chunks.push(values.slice(index, index + chunkSize));
+    }
+
+    return chunks;
+  }
 
   async function fetchAllSummaryTransactions() {
     const rows: SummaryTransactionRow[] = [];
@@ -796,6 +807,143 @@ export async function getWorkspaceDetails(
     return rows;
   }
 
+  async function fetchAllReportSnapshots() {
+    const rows: ReportSnapshotRow[] = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("report_snapshots")
+        .select("id, title, period_start, period_end, status, source_transaction_ids, totals, created_at")
+        .eq("workspace_id", workspaceId)
+        .neq("status", "void")
+        .order("period_end", { ascending: false })
+        .range(from, from + pageSize - 1)
+        .returns<ReportSnapshotRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  async function fetchAllReportPackages() {
+    const rows: ReportPackageRow[] = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("report_packages")
+        .select("id, title, status, created_at")
+        .eq("workspace_id", workspaceId)
+        .neq("status", "void")
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1)
+        .returns<ReportPackageRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  async function fetchReportSourceTransactions(transactionIds: string[]) {
+    const rows: ReportSourceTransactionRow[] = [];
+
+    for (const chunk of chunkValues(transactionIds)) {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id, row_no, occurred_on, raw_text, status")
+        .in("id", chunk)
+        .returns<ReportSourceTransactionRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+    }
+
+    return rows;
+  }
+
+  async function fetchReportSourceLedgerRows(transactionIds: string[]) {
+    const rows: LedgerRow[] = [];
+
+    for (const chunk of chunkValues(transactionIds)) {
+      const { data, error } = await supabase
+        .from("ledger_entries")
+        .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
+        .in("transaction_id", chunk)
+        .returns<LedgerRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+    }
+
+    return rows;
+  }
+
+  async function fetchReportPackageItems(reportPackageIds: string[]) {
+    const rows: ReportPackageItemRow[] = [];
+
+    for (const chunk of chunkValues(reportPackageIds)) {
+      const { data, error } = await supabase
+        .from("report_package_items")
+        .select("report_package_id, report_snapshot_id, position")
+        .in("report_package_id", chunk)
+        .order("position", { ascending: true })
+        .returns<ReportPackageItemRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+    }
+
+    return rows.sort((left, right) => left.position - right.position);
+  }
+
+  async function fetchReportApprovalEvents(entityIds: string[]) {
+    const rows: ApprovalEventRow[] = [];
+
+    for (const chunk of chunkValues(entityIds)) {
+      const { data, error } = await supabase
+        .from("approval_events")
+        .select("id, entity_type, entity_id, event_type, note, created_at")
+        .in("entity_id", chunk)
+        .in("entity_type", ["report_snapshot", "report_package"])
+        .order("created_at", { ascending: true })
+        .returns<ApprovalEventRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+    }
+
+    return rows.sort((left, right) => left.created_at.localeCompare(right.created_at));
+  }
+
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
 
@@ -875,22 +1023,8 @@ export async function getWorkspaceDetails(
       .order("updated_at", { ascending: false })
       .limit(20)
       .returns<QuickNoteRow[]>(),
-    supabase
-      .from("report_snapshots")
-      .select("id, title, period_start, period_end, status, source_transaction_ids, totals, created_at")
-      .eq("workspace_id", workspaceId)
-      .neq("status", "void")
-      .order("period_end", { ascending: false })
-      .limit(20)
-      .returns<ReportSnapshotRow[]>(),
-    supabase
-      .from("report_packages")
-      .select("id, title, status, created_at")
-      .eq("workspace_id", workspaceId)
-      .neq("status", "void")
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .returns<ReportPackageRow[]>(),
+    fetchAllReportSnapshots(),
+    fetchAllReportPackages(),
     supabase
       .from("categories")
       .select("id, code, direction, label, metadata, is_active")
@@ -917,14 +1051,6 @@ export async function getWorkspaceDetails(
 
   if (quickNotes.error) {
     throw new Error(quickNotes.error.message);
-  }
-
-  if (reportSnapshots.error) {
-    throw new Error(reportSnapshots.error.message);
-  }
-
-  if (reportPackages.error) {
-    throw new Error(reportPackages.error.message);
   }
 
   if (categories.error) {
@@ -1023,20 +1149,8 @@ export async function getWorkspaceDetails(
     proposalsByNoteId.set(proposal.quick_note_id, list);
   }
 
-  const reportPackageIds = (reportPackages.data ?? []).map((reportPackage) => reportPackage.id);
-  const { data: reportPackageItems, error: reportPackageItemsError } =
-    reportPackageIds.length > 0
-      ? await supabase
-          .from("report_package_items")
-          .select("report_package_id, report_snapshot_id, position")
-          .in("report_package_id", reportPackageIds)
-          .order("position", { ascending: true })
-          .returns<ReportPackageItemRow[]>()
-      : { data: [], error: null };
-
-  if (reportPackageItemsError) {
-    throw new Error(reportPackageItemsError.message);
-  }
+  const reportPackageIds = reportPackages.map((reportPackage) => reportPackage.id);
+  const reportPackageItems = reportPackageIds.length > 0 ? await fetchReportPackageItems(reportPackageIds) : [];
 
   const reportIdsByPackageId = new Map<string, string[]>();
 
@@ -1048,54 +1162,19 @@ export async function getWorkspaceDetails(
 
   const categoryById = new Map((categories.data ?? []).map((category) => [category.id, category]));
   const categoryByCode = new Map((categories.data ?? []).map((category) => [category.code, category]));
-  const reportSourceIds = [
-    ...new Set((reportSnapshots.data ?? []).flatMap((report) => report.source_transaction_ids ?? []))
-  ];
-  const reportSnapshotIds = (reportSnapshots.data ?? []).map((report) => report.id);
+  const reportSourceIds = [...new Set(reportSnapshots.flatMap((report) => report.source_transaction_ids ?? []))];
+  const reportSnapshotIds = reportSnapshots.map((report) => report.id);
   const reportEntityIds = [...reportSnapshotIds, ...reportPackageIds];
-  const { data: reportSourceTransactions, error: reportSourceTransactionsError } =
-    reportSourceIds.length > 0
-      ? await supabase
-          .from("transactions")
-          .select("id, row_no, occurred_on, raw_text, status")
-          .in("id", reportSourceIds)
-          .returns<ReportSourceTransactionRow[]>()
-      : { data: [], error: null };
-  const { data: reportSourceLedgerRows, error: reportSourceLedgerError } =
-    reportSourceIds.length > 0
-      ? await supabase
-          .from("ledger_entries")
-          .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
-          .in("transaction_id", reportSourceIds)
-          .returns<LedgerRow[]>()
-      : { data: [], error: null };
-  const { data: reportApprovalEvents, error: reportApprovalEventsError } =
-    reportEntityIds.length > 0
-      ? await supabase
-          .from("approval_events")
-          .select("id, entity_type, entity_id, event_type, note, created_at")
-          .in("entity_id", reportEntityIds)
-          .in("entity_type", ["report_snapshot", "report_package"])
-          .order("created_at", { ascending: true })
-          .returns<ApprovalEventRow[]>()
-      : { data: [], error: null };
-
-  if (reportSourceTransactionsError) {
-    throw new Error(reportSourceTransactionsError.message);
-  }
-
-  if (reportSourceLedgerError) {
-    throw new Error(reportSourceLedgerError.message);
-  }
-
-  if (reportApprovalEventsError) {
-    throw new Error(reportApprovalEventsError.message);
-  }
+  const [reportSourceTransactions, reportSourceLedgerRows, reportApprovalEvents] = await Promise.all([
+    reportSourceIds.length > 0 ? fetchReportSourceTransactions(reportSourceIds) : [],
+    reportSourceIds.length > 0 ? fetchReportSourceLedgerRows(reportSourceIds) : [],
+    reportEntityIds.length > 0 ? fetchReportApprovalEvents(reportEntityIds) : []
+  ]);
 
   const approvalEventsByEntityId = groupApprovalEventsByEntityId(reportApprovalEvents);
   const exportVersionsByEntityId = await getExportVersionsByEntityId(supabase, workspaceId, reportEntityIds);
-  const reportSourceTransactionById = new Map((reportSourceTransactions ?? []).map((row) => [row.id, row]));
-  const reportSourceLedgerByTransactionId = new Map((reportSourceLedgerRows ?? []).map((row) => [row.transaction_id, row]));
+  const reportSourceTransactionById = new Map(reportSourceTransactions.map((row) => [row.id, row]));
+  const reportSourceLedgerByTransactionId = new Map(reportSourceLedgerRows.map((row) => [row.transaction_id, row]));
 
   return {
     id: workspace.id,
@@ -1119,7 +1198,7 @@ export async function getWorkspaceDetails(
       createdAt: note.created_at,
       updatedAt: note.updated_at
     })),
-    reportSnapshots: (reportSnapshots.data ?? []).map((report) =>
+    reportSnapshots: reportSnapshots.map((report) =>
       buildReportSnapshotSummary(
         report,
         buildReportSourceEntries(
@@ -1133,7 +1212,7 @@ export async function getWorkspaceDetails(
         exportVersionsByEntityId.get(report.id) ?? []
       )
     ),
-    reportPackages: (reportPackages.data ?? []).map((reportPackage) => {
+    reportPackages: reportPackages.map((reportPackage) => {
       const reportIds = reportIdsByPackageId.get(reportPackage.id) ?? [];
 
       return {

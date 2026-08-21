@@ -124,21 +124,37 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
   const selectedRowRef = useRef<HTMLDivElement | null>(null);
   const ledgerEndRef = useRef<HTMLDivElement | null>(null);
   const didInitialScroll = useRef(false);
+  const lastSelectedScrollId = useRef<string | null>(null);
   const displayRows = useMemo(() => buildDisplayRows(entries, reports), [entries, reports]);
 
   useLayoutEffect(() => {
-    if (didInitialScroll.current || displayRows.length === 0) {
+    if (!selectedEntryId || lastSelectedScrollId.current === selectedEntryId) {
+      return;
+    }
+
+    lastSelectedScrollId.current = selectedEntryId;
+
+    const scrollToSelectedRow = () => {
+      selectedRowRef.current?.scrollIntoView({ block: "center" });
+    };
+
+    scrollToSelectedRow();
+    requestAnimationFrame(scrollToSelectedRow);
+    const timers = [80, 260, 700].map((delay) => window.setTimeout(scrollToSelectedRow, delay));
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [displayRows.length, selectedEntryId]);
+
+  useLayoutEffect(() => {
+    if (didInitialScroll.current || displayRows.length === 0 || selectedEntryId) {
       return;
     }
 
     didInitialScroll.current = true;
 
     const scrollToInitialPosition = () => {
-      if (selectedEntryId && selectedRowRef.current) {
-        selectedRowRef.current.scrollIntoView({ block: "center" });
-        return;
-      }
-
       const table = tableRef.current;
 
       if (table) {
