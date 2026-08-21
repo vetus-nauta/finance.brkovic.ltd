@@ -63,6 +63,12 @@ type CreateReportPackageResult = {
   included_count: number;
 };
 
+type ReturnReportSnapshotForRevisionResult = {
+  report_snapshot_id: string;
+  period_closure_id: string | null;
+  status: string;
+};
+
 type SupabaseRpcClient = {
   rpc: (
     functionName: string,
@@ -618,5 +624,43 @@ export async function createReportPackage(workspaceId: string, formData: FormDat
     account: accountCode,
     package: data[0].report_package_id,
     reports: String(data[0].included_count)
+  });
+}
+
+export async function returnReportSnapshotForRevision(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const reportId = String(formData.get("reportId") || "").trim();
+  const reason = String(formData.get("reason") || "").trim();
+
+  if (!reportId) {
+    redirectToMode(workspaceId, "reports", "report-missing", { account: accountCode });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("return_report_snapshot_for_revision", {
+      p_report_snapshot_id: reportId,
+      p_reason: reason || null
+    })
+    .returns<ReturnReportSnapshotForRevisionResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("auth_required") || message.includes("reports_manage_required")) {
+      redirectToMode(workspaceId, "reports", "report-auth", { account: accountCode, report: reportId });
+    }
+
+    if (message.includes("report_snapshot_required") || message.includes("report_snapshot_not_found")) {
+      redirectToMode(workspaceId, "reports", "report-missing", { account: accountCode });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-revision", { account: accountCode, report: reportId });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", "report-returned", {
+    account: accountCode,
+    report: data[0].report_snapshot_id
   });
 }

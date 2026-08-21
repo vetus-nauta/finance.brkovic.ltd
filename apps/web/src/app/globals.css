@@ -832,6 +832,47 @@ button {
   gap: 8px;
 }
 
+.report-revision-form {
+  align-items: end;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  padding: 10px;
+}
+
+.report-revision-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.report-revision-form span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-revision-form input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.report-revision-form button {
+  background: var(--panel);
+  border: 1px solid #f2a9a9;
+  border-radius: 8px;
+  color: var(--danger);
+  font-weight: 900;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
 .note-history-head h3 {
   font-size: 16px;
   line-height: 1.2;
@@ -1919,6 +1960,7 @@ button {
   .mode-actions,
   .report-create-panel,
   .report-package-head,
+  .report-revision-form,
   .notes-apple-head,
   .note-card > div,
   .note-card a > div,

@@ -8,6 +8,7 @@ import {
   createOperationalEntry,
   deleteOperationalEntry,
   deleteQuickNote,
+  returnReportSnapshotForRevision,
   saveQuickNoteDraft,
   submitQuickNoteToSmith,
   updateOperationalEntry
@@ -103,10 +104,14 @@ function workspaceStatusText(status?: string) {
       return "Отчет создан, строки периода закрыты от обычного редактирования.";
     case "report-package-created":
       return "Пакет отчетов создан.";
+    case "report-returned":
+      return "Отчет отмечен как возвращенный на доработку.";
     case "report-period":
       return "Выберите корректный период отчета.";
     case "report-empty":
       return "В выбранном периоде нет открытых строк для отчета.";
+    case "report-missing":
+      return "Отчет не найден.";
     case "report-package-empty":
       return "Выберите один или несколько сохраненных отчетов.";
     case "report-auth":
@@ -114,6 +119,8 @@ function workspaceStatusText(status?: string) {
     case "report-create":
     case "report-package-create":
       return "Не удалось создать отчет.";
+    case "report-revision":
+      return "Не удалось вернуть отчет на доработку.";
     case "auth":
       return "Сессия не найдена. Войдите заново.";
     case "workspace":
@@ -131,7 +138,8 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "note-converted" ||
     status === "note-deleted" ||
     status === "report-created" ||
-    status === "report-package-created"
+    status === "report-package-created" ||
+    status === "report-returned"
   );
 }
 
@@ -258,6 +266,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const deleteNoteAction = deleteQuickNote.bind(null, workspace.id);
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
+  const returnReportAction = returnReportSnapshotForRevision.bind(null, workspace.id);
   const today = new Date().toISOString().slice(0, 10);
   const statusText = entryStatusText(query.entry);
   const modeStatusText = workspaceStatusText(query.status);
@@ -825,6 +834,17 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                     </Link>
                   </div>
                 </div>
+                {selectedReport.status !== "returned_for_revision" ? (
+                  <form className="report-revision-form" action={returnReportAction}>
+                    <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                    <input type="hidden" name="reportId" value={selectedReport.id} />
+                    <label>
+                      <span>Причина доработки</span>
+                      <input name="reason" placeholder="Например: нужна корректировка строки" />
+                    </label>
+                    <button type="submit">На доработку</button>
+                  </form>
+                ) : null}
                 <div className="report-detail-totals" aria-label="Итоги открытого отчета">
                   <span>
                     <small>Приход</small>
