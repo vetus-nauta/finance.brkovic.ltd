@@ -9,13 +9,20 @@ async function getSessionState() {
     return { email: null, error: "Supabase env не заполнен." };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getClaims();
 
-  return {
-    email: data?.claims?.email ?? null,
-    error: error?.message ?? null
-  };
+    return {
+      email: data?.claims?.email ?? null,
+      error: error?.message ?? null
+    };
+  } catch (error) {
+    return {
+      email: null,
+      error: error instanceof Error ? error.message : "Не удалось проверить сессию."
+    };
+  }
 }
 
 export default async function HallPage() {

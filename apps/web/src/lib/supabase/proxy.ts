@@ -25,7 +25,11 @@ export async function updateSession(request: NextRequest) {
     }
   });
 
-  await supabase.auth.getClaims();
+  try {
+    await supabase.auth.getClaims();
+  } catch {
+    return response;
+  }
 
   return response;
 }

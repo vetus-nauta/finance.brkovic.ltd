@@ -20,9 +20,13 @@ async function getHeaderEmail() {
     return null;
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  return typeof data?.claims?.email === "string" ? data.claims.email : null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getClaims();
+    return typeof data?.claims?.email === "string" ? data.claims.email : null;
+  } catch {
+    return null;
+  }
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
