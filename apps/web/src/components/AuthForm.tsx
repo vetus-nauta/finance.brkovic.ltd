@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/browser";
 
 const OTP_RESEND_SECONDS = 75;
 const OTP_RATE_LIMIT_SECONDS = 300;
-const OTP_CODE_LENGTH = 6;
+const OTP_CODE_MIN_LENGTH = 6;
+const OTP_CODE_MAX_LENGTH = 8;
 
 function cleanOrigin(value: string) {
   return value.replace(/\/+$/, "");
@@ -104,7 +105,7 @@ export function AuthForm() {
 
       startCooldown(OTP_RESEND_SECONDS);
       setIsCodeSent(true);
-      setStatus("Код отправлен. Введите 6 цифр из письма, чтобы открыть FinDesk.");
+      setStatus("Код отправлен. Введите код из письма, чтобы открыть FinDesk.");
     } catch (error) {
       startCooldown(isRateLimitError(error) ? OTP_RATE_LIMIT_SECONDS : OTP_RESEND_SECONDS);
       if (isRateLimitError(error)) {
@@ -223,7 +224,7 @@ export function AuthForm() {
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, OTP_CODE_LENGTH))}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, OTP_CODE_MAX_LENGTH))}
               disabled={!ready || isSubmitting}
               placeholder="123456"
               required
@@ -232,7 +233,7 @@ export function AuthForm() {
               type="button"
               className="primary-action"
               onClick={verifyCode}
-              disabled={!ready || isSubmitting || code.trim().length !== OTP_CODE_LENGTH}
+              disabled={!ready || isSubmitting || code.trim().length < OTP_CODE_MIN_LENGTH}
             >
               {isSubmitting ? "Проверяем" : "Войти"}
             </button>
