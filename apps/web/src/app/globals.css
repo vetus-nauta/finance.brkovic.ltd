@@ -1879,6 +1879,29 @@ button {
   min-height: 42px;
 }
 
+.entry-draft-note {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 750;
+  gap: 8px;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  margin: -2px 0 0;
+}
+
+.entry-draft-note button {
+  background: transparent;
+  border: 0;
+  color: #0b73f6;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 0;
+  padding: 0;
+}
+
 .entry-delete-form {
   align-self: end;
 }

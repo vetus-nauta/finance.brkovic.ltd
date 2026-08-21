@@ -18,6 +18,7 @@ import {
   updateOperationalEntry
 } from "./actions";
 import { QuickNoteComposer } from "./QuickNoteComposer";
+import { OperationalEntryDraftController } from "./OperationalEntryDraftController";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
 import { calculateQuickNoteTotal } from "@/lib/quick-note-totals";
 import { smithCategoryLabel, smithCategoryOptions } from "@/lib/smith-categories";
@@ -388,6 +389,15 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   let previousQuickNoteMonth = "";
   const selectedEntry = workspace.entries.find((entry) => entry.id === query.edit) ?? null;
   const entryFormAction = selectedEntry ? updateEntryAction : entryAction;
+  const entryDraftFormId = "operational-entry-form";
+  const entryDeleteFormId = "operational-entry-delete-form";
+  const entryDraftKey = [
+    "findesk:v2:entry-draft",
+    workspace.id,
+    workspace.activeAccountCode,
+    selectedEntry?.id ?? "new"
+  ].join(":");
+  const entryDraftSuccess = query.entry === "saved" || query.entry === "updated" || query.entry === "deleted";
 
   return (
     <main className="page compact-page">
@@ -1106,7 +1116,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
       {mode === "ledger" ? (
         <>
           <section className={selectedEntry ? "entry-editor is-editing" : "entry-editor"} aria-label="Запись">
-            <form className="entry-bar" action={entryFormAction}>
+            <form id={entryDraftFormId} className="entry-bar" action={entryFormAction}>
               <input type="hidden" name="account" value={workspace.activeAccountCode} />
               {selectedEntry ? <input type="hidden" name="transactionId" value={selectedEntry.id} /> : null}
               <label>
@@ -1138,12 +1148,18 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
               </div>
             </form>
             {selectedEntry ? (
-              <form className="entry-delete-form" action={deleteEntryAction}>
+              <form id={entryDeleteFormId} className="entry-delete-form" action={deleteEntryAction}>
                 <input type="hidden" name="account" value={workspace.activeAccountCode} />
                 <input type="hidden" name="transactionId" value={selectedEntry.id} />
                 <button type="submit">Удалить</button>
               </form>
             ) : null}
+            <OperationalEntryDraftController
+              draftKey={entryDraftKey}
+              formId={entryDraftFormId}
+              submitFormIds={selectedEntry ? [entryDraftFormId, entryDeleteFormId] : [entryDraftFormId]}
+              successSignal={entryDraftSuccess}
+            />
           </section>
           {statusText ? (
             <p className={query.entry === "saved" || query.entry === "updated" || query.entry === "deleted" ? "form-note success" : "form-note error"}>
