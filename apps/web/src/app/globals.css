@@ -835,7 +835,9 @@ button {
   align-items: center;
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .compact-action-form {
@@ -1101,9 +1103,38 @@ button {
 
 .report-mini-table,
 .report-category-list,
+.report-export-list,
 .approval-event-list {
   display: grid;
   gap: 6px;
+}
+
+.report-export-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 110px minmax(180px, 1fr) 150px;
+  min-height: 38px;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+.report-export-row:hover {
+  border-color: var(--accent);
+}
+
+.report-export-row span,
+.report-export-row time {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .approval-event-row {

@@ -94,6 +94,7 @@ export type ReportSnapshotSummary = {
   categories: ReportCategorySummary[];
   entries: ReportSourceEntry[];
   events: ApprovalEventSummary[];
+  exportVersions: ReportExportVersionSummary[];
   createdAt: string;
 };
 
@@ -104,7 +105,20 @@ export type ReportPackageSummary = {
   reportIds: string[];
   reportCount: number;
   events: ApprovalEventSummary[];
+  exportVersions: ReportExportVersionSummary[];
   createdAt: string;
+};
+
+export type ReportExportVersionSummary = {
+  documentId: string;
+  documentVersionId: string;
+  entityType: string;
+  entityId: string;
+  format: "html" | "xls" | "pdf" | "file";
+  versionNo: number;
+  filename: string;
+  createdAt: string;
+  downloadPath: string;
 };
 
 export type ApprovalEventSummary = {
@@ -227,6 +241,26 @@ type ReportPackageItemRow = {
   report_package_id: string;
   report_snapshot_id: string;
   position: number;
+};
+
+type DocumentLinkRow = {
+  document_id: string;
+  entity_type: string;
+  entity_id: string;
+};
+
+type DocumentRow = {
+  id: string;
+  original_filename: string | null;
+  mime_type: string | null;
+};
+
+type DocumentVersionRow = {
+  id: string;
+  document_id: string;
+  version_no: number;
+  object_key: string;
+  created_at: string;
 };
 
 type ApprovalEventRow = {
@@ -449,7 +483,8 @@ function buildReportSourceEntries(
 function buildReportSnapshotSummary(
   report: ReportSnapshotRow,
   entries: ReportSourceEntry[],
-  events: ApprovalEventSummary[] = []
+  events: ApprovalEventSummary[] = [],
+  exportVersions: ReportExportVersionSummary[] = []
 ): ReportSnapshotSummary {
   return {
     id: report.id,
@@ -470,6 +505,7 @@ function buildReportSnapshotSummary(
     categories: reportCategoryRows(report.totals),
     entries,
     events,
+    exportVersions,
     createdAt: report.created_at
   };
 }
@@ -495,6 +531,120 @@ function groupApprovalEventsByEntityId(rows: ApprovalEventRow[] | null | undefin
   }
 
   return eventsByEntityId;
+}
+
+function exportFormatFromObjectKey(objectKey: string): ReportExportVersionSummary["format"] {
+  if (objectKey.includes("/html/") || objectKey.endsWith(".html")) return "html";
+  if (objectKey.includes("/xls/") || objectKey.endsWith(".xls")) return "xls";
+  if (objectKey.includes("/pdf/") || objectKey.endsWith(".pdf")) return "pdf";
+  return "file";
+}
+
+function exportDownloadPath(entityType: string, entityId: string, format: ReportExportVersionSummary["format"], workspaceId: string) {
+  const base =
+    entityType === "report_package"
+      ? `${workspacePath(workspaceId)}/report-packages/${encodeURIComponent(entityId)}`
+      : `${workspacePath(workspaceId)}/reports/${encodeURIComponent(entityId)}`;
+
+  return format === "xls" ? `${base}/excel` : base;
+}
+
+function groupExportVersionsByEntityId(
+  links: DocumentLinkRow[] | null | undefined,
+  documents: DocumentRow[] | null | undefined,
+  versions: DocumentVersionRow[] | null | undefined,
+  workspaceId: string
+) {
+  const documentById = new Map((documents ?? []).map((document) => [document.id, document]));
+  const linksByDocumentId = new Map((links ?? []).map((link) => [link.document_id, link]));
+  const versionsByEntityId = new Map<string, ReportExportVersionSummary[]>();
+
+  for (const version of versions ?? []) {
+    const link = linksByDocumentId.get(version.document_id);
+    const document = documentById.get(version.document_id);
+
+    if (!link || !document) {
+      continue;
+    }
+
+    const format = exportFormatFromObjectKey(version.object_key);
+    const list = versionsByEntityId.get(link.entity_id) ?? [];
+    list.push({
+      documentId: version.document_id,
+      documentVersionId: version.id,
+      entityType: link.entity_type,
+      entityId: link.entity_id,
+      format,
+      versionNo: version.version_no,
+      filename: document.original_filename ?? `findesk-report.${format}`,
+      createdAt: version.created_at,
+      downloadPath: exportDownloadPath(link.entity_type, link.entity_id, format, workspaceId)
+    });
+    versionsByEntityId.set(link.entity_id, list);
+  }
+
+  for (const list of versionsByEntityId.values()) {
+    list.sort((left, right) => {
+      const dateOrder = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      return dateOrder || right.versionNo - left.versionNo;
+    });
+  }
+
+  return versionsByEntityId;
+}
+
+async function getExportVersionsByEntityId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  entityIds: string[]
+) {
+  const uniqueEntityIds = [...new Set(entityIds.filter(Boolean))];
+
+  if (uniqueEntityIds.length === 0) {
+    return new Map<string, ReportExportVersionSummary[]>();
+  }
+
+  const { data: links, error: linksError } = await supabase
+    .from("document_links")
+    .select("document_id, entity_type, entity_id")
+    .eq("workspace_id", workspaceId)
+    .in("entity_id", uniqueEntityIds)
+    .in("entity_type", ["report_snapshot", "report_package"])
+    .returns<DocumentLinkRow[]>();
+
+  if (linksError) {
+    throw new Error(linksError.message);
+  }
+
+  const documentIds = [...new Set((links ?? []).map((link) => link.document_id))];
+
+  if (documentIds.length === 0) {
+    return new Map<string, ReportExportVersionSummary[]>();
+  }
+
+  const [{ data: documents, error: documentsError }, { data: versions, error: versionsError }] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id, original_filename, mime_type")
+      .in("id", documentIds)
+      .returns<DocumentRow[]>(),
+    supabase
+      .from("document_versions")
+      .select("id, document_id, version_no, object_key, created_at")
+      .in("document_id", documentIds)
+      .order("created_at", { ascending: false })
+      .returns<DocumentVersionRow[]>()
+  ]);
+
+  if (documentsError) {
+    throw new Error(documentsError.message);
+  }
+
+  if (versionsError) {
+    throw new Error(versionsError.message);
+  }
+
+  return groupExportVersionsByEntityId(links, documents, versions, workspaceId);
 }
 
 export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -893,6 +1043,7 @@ export async function getWorkspaceDetails(
   }
 
   const approvalEventsByEntityId = groupApprovalEventsByEntityId(reportApprovalEvents);
+  const exportVersionsByEntityId = await getExportVersionsByEntityId(supabase, workspaceId, reportEntityIds);
   const reportSourceTransactionById = new Map((reportSourceTransactions ?? []).map((row) => [row.id, row]));
   const reportSourceLedgerByTransactionId = new Map((reportSourceLedgerRows ?? []).map((row) => [row.transaction_id, row]));
 
@@ -928,7 +1079,8 @@ export async function getWorkspaceDetails(
           categoryById,
           categoryByCode
         ),
-        approvalEventsByEntityId.get(report.id) ?? []
+        approvalEventsByEntityId.get(report.id) ?? [],
+        exportVersionsByEntityId.get(report.id) ?? []
       )
     ),
     reportPackages: (reportPackages.data ?? []).map((reportPackage) => {
@@ -941,6 +1093,7 @@ export async function getWorkspaceDetails(
         reportIds,
         reportCount: reportIds.length,
         events: approvalEventsByEntityId.get(reportPackage.id) ?? [],
+        exportVersions: exportVersionsByEntityId.get(reportPackage.id) ?? [],
         createdAt: reportPackage.created_at
       };
     }),
@@ -1065,6 +1218,7 @@ export async function getWorkspaceReportSnapshot(
   const transactionById = new Map((transactions ?? []).map((row) => [row.id, row]));
   const ledgerByTransactionId = new Map((ledgerRows ?? []).map((row) => [row.transaction_id, row]));
   const entries = buildReportSourceEntries(sourceIds, transactionById, ledgerByTransactionId, categoryById, categoryByCode);
+  const exportVersionsByEntityId = await getExportVersionsByEntityId(supabase, workspaceId, [reportId]);
 
   return {
     id: workspace.id,
@@ -1074,7 +1228,12 @@ export async function getWorkspaceReportSnapshot(
     status: workspace.status,
     role: membership.role_code,
     accessScope: membership.access_scope,
-    report: buildReportSnapshotSummary(report, entries, buildApprovalEventSummaries(approvalEvents))
+    report: buildReportSnapshotSummary(
+      report,
+      entries,
+      buildApprovalEventSummaries(approvalEvents),
+      exportVersionsByEntityId.get(report.id) ?? []
+    )
   };
 }
 
@@ -1175,6 +1334,7 @@ export async function getWorkspaceReportPackage(
   }
 
   const reportIds = (packageItems ?? []).map((item) => item.report_snapshot_id);
+  const exportVersionsByEntityId = await getExportVersionsByEntityId(supabase, workspaceId, [packageId, ...reportIds]);
 
   if (reportIds.length === 0) {
     return {
@@ -1192,6 +1352,7 @@ export async function getWorkspaceReportPackage(
         reportIds,
         reportCount: 0,
         events: buildApprovalEventSummaries(packageApprovalEvents),
+        exportVersions: exportVersionsByEntityId.get(reportPackage.id) ?? [],
         createdAt: reportPackage.created_at
       },
       reports: []
@@ -1277,7 +1438,8 @@ export async function getWorkspaceReportPackage(
           categoryById,
           categoryByCode
         ),
-        approvalEventsByEntityId.get(report.id) ?? []
+        approvalEventsByEntityId.get(report.id) ?? [],
+        exportVersionsByEntityId.get(report.id) ?? []
       );
     })
     .filter((report): report is ReportSnapshotSummary => report !== null);
@@ -1297,6 +1459,7 @@ export async function getWorkspaceReportPackage(
       reportIds,
       reportCount: reportIds.length,
       events: buildApprovalEventSummaries(packageApprovalEvents),
+      exportVersions: exportVersionsByEntityId.get(reportPackage.id) ?? [],
       createdAt: reportPackage.created_at
     },
     reports: orderedReports

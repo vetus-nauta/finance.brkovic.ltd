@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import {
   convertSmithProposalsToEntries,
+  createReportExportVersion,
   createReportSnapshot,
   createReportPackage,
   createReportLockedCorrection,
@@ -120,6 +121,8 @@ function workspaceStatusText(status?: string) {
       return "Отчет отмечен как возвращенный на доработку.";
     case "report-correction-created":
       return "Корректировка создана новой строкой в рабочей ленте.";
+    case "report-export-saved":
+      return "Версия файла сохранена.";
     case "report-period":
       return "Выберите корректный период отчета.";
     case "report-empty":
@@ -132,6 +135,8 @@ function workspaceStatusText(status?: string) {
       return "Исходная строка не найдена или не закрыта отчетом.";
     case "report-package-empty":
       return "Выберите один или несколько сохраненных отчетов.";
+    case "report-export-missing":
+      return "Не выбран отчет, пакет или формат файла.";
     case "report-status-transition":
     case "report-package-status-transition":
       return "Этот переход статуса сейчас недоступен.";
@@ -146,6 +151,8 @@ function workspaceStatusText(status?: string) {
       return "Не удалось изменить статус отчета.";
     case "report-package-status":
       return "Не удалось изменить статус пакета.";
+    case "report-export-save":
+      return "Не удалось сохранить версию файла.";
     case "report-correction":
       return "Не удалось создать корректировку.";
     case "auth":
@@ -171,7 +178,8 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "report-package-sent" ||
     status === "report-package-accepted" ||
     status === "report-returned" ||
-    status === "report-correction-created"
+    status === "report-correction-created" ||
+    status === "report-export-saved"
   );
 }
 
@@ -223,6 +231,8 @@ function approvalEventText(eventType: string) {
       return "Пакет отправлен";
     case "report_package_accepted":
       return "Пакет принят";
+    case "report_export_version_created":
+      return "Сохранена версия файла";
     default:
       return eventType;
   }
@@ -230,6 +240,19 @@ function approvalEventText(eventType: string) {
 
 function latestApprovalEvent(events: ApprovalEventSummary[]) {
   return events.at(-1) ?? null;
+}
+
+function exportFormatLabel(format: string) {
+  switch (format) {
+    case "html":
+      return "HTML";
+    case "xls":
+      return "Excel";
+    case "pdf":
+      return "PDF";
+    default:
+      return "Файл";
+  }
 }
 
 function formatDateTime(value: string) {
@@ -325,6 +348,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const deleteNoteAction = deleteQuickNote.bind(null, workspace.id);
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
+  const createReportExportAction = createReportExportVersion.bind(null, workspace.id);
   const returnReportAction = returnReportSnapshotForRevision.bind(null, workspace.id);
   const createReportCorrectionAction = createReportLockedCorrection.bind(null, workspace.id);
   const setReportStatusAction = setReportSnapshotDeliveryStatus.bind(null, workspace.id);
@@ -803,6 +827,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                         <small>
                           {formatDateTime(reportPackage.createdAt)} · {reportPackage.reportCount} отчетов
                         </small>
+                        {reportPackage.exportVersions.length > 0 ? (
+                          <small>Файлы: {reportPackage.exportVersions.length}</small>
+                        ) : null}
                         {latestApprovalEvent(reportPackage.events) ? (
                           <small>
                             {approvalEventText(latestApprovalEvent(reportPackage.events)!.eventType)} ·{" "}
@@ -841,6 +868,15 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                         >
                           Excel
                         </Link>
+                        {(["html", "xls", "pdf"] as const).map((format) => (
+                          <form className="compact-action-form" action={createReportExportAction} key={format}>
+                            <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                            <input type="hidden" name="entityType" value="report_package" />
+                            <input type="hidden" name="entityId" value={reportPackage.id} />
+                            <input type="hidden" name="format" value={format} />
+                            <button type="submit">v {exportFormatLabel(format)}</button>
+                          </form>
+                        ))}
                       </div>
                     </article>
                   ))}
@@ -946,8 +982,33 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                     >
                       Excel
                     </Link>
+                    {(["html", "xls", "pdf"] as const).map((format) => (
+                      <form className="compact-action-form" action={createReportExportAction} key={format}>
+                        <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                        <input type="hidden" name="entityType" value="report_snapshot" />
+                        <input type="hidden" name="entityId" value={selectedReport.id} />
+                        <input type="hidden" name="format" value={format} />
+                        <button type="submit">v {exportFormatLabel(format)}</button>
+                      </form>
+                    ))}
                   </div>
                 </div>
+                {selectedReport.exportVersions.length > 0 ? (
+                  <section className="report-detail-section">
+                    <h4>Файлы</h4>
+                    <div className="report-export-list" aria-label="Версии файлов отчета">
+                      {selectedReport.exportVersions.map((version) => (
+                        <a className="report-export-row" href={version.downloadPath} key={version.documentVersionId}>
+                          <strong>
+                            {exportFormatLabel(version.format)} · v{version.versionNo}
+                          </strong>
+                          <span>{version.filename}</span>
+                          <time dateTime={version.createdAt}>{formatDateTime(version.createdAt)}</time>
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
                 {selectedReport.status !== "returned_for_revision" ? (
                   <form className="report-revision-form" action={returnReportAction}>
                     <input type="hidden" name="account" value={workspace.activeAccountCode} />

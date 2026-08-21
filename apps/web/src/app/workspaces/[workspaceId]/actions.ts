@@ -63,6 +63,14 @@ type CreateReportPackageResult = {
   included_count: number;
 };
 
+type CreateReportExportVersionResult = {
+  document_id: string;
+  document_version_id: string;
+  version_no: number;
+  format: string;
+  download_path: string;
+};
+
 type SetReportSnapshotDeliveryStatusResult = {
   report_snapshot_id: string;
   previous_status: string;
@@ -652,6 +660,77 @@ export async function createReportPackage(workspaceId: string, formData: FormDat
 function normalizeDeliveryStatus(value: string) {
   const status = value.trim().toLowerCase();
   return status === "sent" || status === "accepted" ? status : "";
+}
+
+function normalizeExportFormat(value: string) {
+  const format = value.trim().toLowerCase();
+  return format === "html" || format === "xls" || format === "pdf" ? format : "";
+}
+
+export async function createReportExportVersion(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const entityType = String(formData.get("entityType") || "").trim();
+  const entityId = String(formData.get("entityId") || "").trim();
+  const reportId = entityType === "report_snapshot" ? entityId : String(formData.get("reportId") || "").trim();
+  const format = normalizeExportFormat(String(formData.get("format") || ""));
+  const title = String(formData.get("title") || "").trim();
+
+  if (!entityId || !format || (entityType !== "report_snapshot" && entityType !== "report_package")) {
+    redirectToMode(workspaceId, "reports", "report-export-missing", {
+      account: accountCode,
+      ...(reportId ? { report: reportId } : {})
+    });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("create_report_export_version", {
+      p_workspace_id: workspaceId,
+      p_entity_type: entityType,
+      p_entity_id: entityId,
+      p_format: format,
+      p_title: title || null
+    })
+    .returns<CreateReportExportVersionResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("auth_required") || message.includes("reports_manage_required") || message.includes("documents_write_required")) {
+      redirectToMode(workspaceId, "reports", "report-auth", {
+        account: accountCode,
+        ...(reportId ? { report: reportId } : {})
+      });
+    }
+
+    if (message.includes("unsupported_report_entity") || message.includes("unsupported_export_format")) {
+      redirectToMode(workspaceId, "reports", "report-export-missing", {
+        account: accountCode,
+        ...(reportId ? { report: reportId } : {})
+      });
+    }
+
+    if (message.includes("report_snapshot_not_found")) {
+      redirectToMode(workspaceId, "reports", "report-missing", { account: accountCode });
+    }
+
+    if (message.includes("report_package_not_found")) {
+      redirectToMode(workspaceId, "reports", "report-package-empty", { account: accountCode });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-export-save", {
+      account: accountCode,
+      ...(reportId ? { report: reportId } : {})
+    });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", "report-export-saved", {
+    account: accountCode,
+    ...(reportId ? { report: reportId } : {}),
+    format: data[0].format,
+    version: String(data[0].version_no)
+  });
 }
 
 export async function setReportSnapshotDeliveryStatus(workspaceId: string, formData: FormData) {
