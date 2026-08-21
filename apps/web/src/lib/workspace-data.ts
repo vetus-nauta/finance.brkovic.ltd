@@ -90,6 +90,7 @@ export type ReportSnapshotSummary = {
   incomeTotal: number;
   expenseTotal: number;
   netTotal: number;
+  endingCash: number | null;
   accounts: ReportAccountSummary[];
   categories: ReportCategorySummary[];
   entries: ReportSourceEntry[];
@@ -486,6 +487,12 @@ function buildReportSnapshotSummary(
   events: ApprovalEventSummary[] = [],
   exportVersions: ReportExportVersionSummary[] = []
 ): ReportSnapshotSummary {
+  const source = report.totals?.v2_source;
+  const oldSummaryTotals =
+    source && typeof source === "object" && "old_summary_totals" in source
+      ? (source.old_summary_totals as Record<string, unknown> | null)
+      : null;
+
   return {
     id: report.id,
     title: report.title,
@@ -501,6 +508,7 @@ function buildReportSnapshotSummary(
     incomeTotal: numberFromJson(report.totals?.income_total),
     expenseTotal: numberFromJson(report.totals?.expense_total),
     netTotal: numberFromJson(report.totals?.net_total),
+    endingCash: oldSummaryTotals ? numberFromJson(oldSummaryTotals.ending_cash) : null,
     accounts: reportAccountRows(report.totals),
     categories: reportCategoryRows(report.totals),
     entries,

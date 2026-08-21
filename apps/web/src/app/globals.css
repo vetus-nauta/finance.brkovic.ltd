@@ -1009,6 +1009,12 @@ button {
   padding: 12px;
 }
 
+.report-document-card {
+  grid-template-columns: auto minmax(260px, 1fr) minmax(116px, auto) auto auto;
+  min-height: 56px;
+  padding: 8px 10px;
+}
+
 .report-card > div {
   min-width: 0;
 }
@@ -1018,6 +1024,27 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.report-document-link {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.report-document-icon {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 8px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 950;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
 }
 
 .report-select {
@@ -1057,6 +1084,27 @@ button {
 
 .report-card-metrics strong {
   font-size: 13px;
+}
+
+.compact-report-metrics {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.compact-report-metrics span {
+  min-width: 0;
+}
+
+.report-card-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.report-card-actions .ghost-button {
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .report-detail-panel {
@@ -1525,6 +1573,46 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.entry-description-link {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.entry-description-link small {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-ledger-row {
+  background: #f4fbfa;
+  box-shadow: inset 3px 0 0 #1b9587;
+}
+
+.report-ledger-row:hover,
+.report-ledger-row:focus-within {
+  background: #eaf7f4;
+}
+
+.report-ledger-row > a:first-child,
+.report-ledger-row > a:nth-child(4) {
+  color: #087469;
+  font-weight: 900;
+}
+
+.report-ledger-row > a:nth-child(3) {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .synced-head {
@@ -2131,6 +2219,16 @@ button {
 
   .report-card-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .compact-report-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .report-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     width: 100%;
   }
 

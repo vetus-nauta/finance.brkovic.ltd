@@ -376,37 +376,15 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const noteHasPendingTransfer = pendingProposals.length > 0 && selectedQuickNote?.status === "submitted_to_smith";
   const showNoteTransfer = mode === "notes" && notesView === "transfer" && noteHasPendingTransfer;
   const noteScreenOpen = mode === "notes" && (composeNewQuickNote || Boolean(query.note) || showNoteTransfer);
-  const selectedReport =
-    workspace.reportSnapshots.find((report) => report.id === query.report) ?? workspace.reportSnapshots[0] ?? null;
+  const selectedReport = query.report
+    ? workspace.reportSnapshots.find((report) => report.id === query.report) ?? null
+    : null;
   const activeNavigationLabel =
     mode === "notes"
       ? "Заметки"
       : mode === "reports"
         ? "Отчеты"
         : workspace.accounts.find((account) => account.code === workspace.activeAccountCode)?.label ?? "Журнал";
-  const summarySections = [
-    {
-      title: "Категории",
-      hint: "Рабочие доходы и расходы",
-      rows: workspace.categorySummary.operational
-    },
-    {
-      title: "Учетные блоки",
-      hint: "Долги, подотчет и деньги на руках",
-      rows: workspace.categorySummary.accountingBlocks
-    },
-    {
-      title: "Перемещения денег",
-      hint: "Не прибыль и не расход",
-      rows: workspace.categorySummary.moneyMovements
-    },
-    {
-      title: "Без категории",
-      hint: "Нужно разобрать вручную",
-      rows: workspace.categorySummary.uncategorized
-    }
-  ].filter((section) => section.rows.length > 0);
-
   let previousQuickNoteMonth = "";
   const selectedEntry = workspace.entries.find((entry) => entry.id === query.edit) ?? null;
   const entryFormAction = selectedEntry ? updateEntryAction : entryAction;
@@ -515,6 +493,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             <SyncedLedgerTable
               accountCode={workspace.activeAccountCode}
               entries={workspace.entries}
+              reports={workspace.reportSnapshots}
               selectedEntryId={selectedEntry?.id}
               workspacePath={workspaceBasePath}
             />
@@ -767,52 +746,6 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 Создать отчет
               </button>
             </form>
-            <div className="category-summary" aria-label="Сводка по категориям">
-              {summarySections.length > 0 ? (
-                summarySections.map((section) => (
-                  <section className="category-summary-section" key={section.title}>
-                    <div className="note-history-head">
-                      <h3>{section.title}</h3>
-                      <small>{section.hint}</small>
-                    </div>
-                    <div className="category-summary-table" role="table" aria-label={section.title}>
-                      <div className="category-summary-row category-summary-head" role="row">
-                        <span role="columnheader">Категория</span>
-                        <span role="columnheader">Тип</span>
-                        <span role="columnheader">Сумма</span>
-                        <span role="columnheader">Строк</span>
-                        <span role="columnheader">Проверка</span>
-                      </div>
-                      {section.rows.map((row) => (
-                        <div className="category-summary-row" role="row" key={row.code}>
-                          <strong role="cell">{row.label}</strong>
-                          <span role="cell">{directionText(row.direction)}</span>
-                          <span
-                            className={
-                              row.direction === "income"
-                                ? "amount-income"
-                                : row.direction === "expense"
-                                  ? "amount-expense"
-                                  : undefined
-                            }
-                            role="cell"
-                          >
-                            {formatMoney(row.total, workspace.currency)}
-                          </span>
-                          <span role="cell">{row.count}</span>
-                          <span role="cell">{row.reviewCount}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ))
-              ) : (
-                <div className="empty-state inline-empty">
-                  <h2>Категорий пока нет</h2>
-                  <p>После переноса заметок через Смита здесь появится сводка по реальным категориям.</p>
-                </div>
-              )}
-            </div>
             <section className="report-package-panel" aria-label="Пакеты отчетов">
               {workspace.reportPackages.length > 0 ? (
                 <section className="report-package-list" aria-label="Сохраненные пакеты отчетов">
@@ -894,42 +827,48 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 <div className="report-list">
                 {workspace.reportSnapshots.length > 0 ? (
                   workspace.reportSnapshots.map((report) => (
-                    <article className="report-card" key={report.id}>
+                    <article className="report-card report-document-card" key={report.id}>
                       <label className="report-select">
                         <input name="reportId" type="checkbox" value={report.id} />
                         <span>В пакет</span>
                       </label>
-                      <div>
+                      <Link
+                        className="report-document-link"
+                        href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}&report=${encodeURIComponent(report.id)}`}
+                      >
+                        <span className="report-document-icon" aria-hidden="true">F</span>
+                        <div>
                         <h3>{report.title}</h3>
                         <p>
                           {formatDateOnly(report.periodStart)} — {formatDateOnly(report.periodEnd)} · {report.entryCount} строк
+                          {report.reviewCount > 0 ? ` · проверка ${report.reviewCount}` : ""}
                         </p>
-                      </div>
-                      <div className="report-card-metrics" aria-label="Итоги отчета">
+                        </div>
+                      </Link>
+                      <div className="report-card-metrics compact-report-metrics" aria-label="Итог отчета">
                         <span>
-                          <small>Приход</small>
-                          <strong className="amount-income">{formatMoney(report.incomeTotal, workspace.currency)}</strong>
-                        </span>
-                        <span>
-                          <small>Расход</small>
-                          <strong className="amount-expense">{formatMoney(report.expenseTotal, workspace.currency)}</strong>
-                        </span>
-                        <span>
-                          <small>Итог</small>
-                          <strong>{formatMoney(report.netTotal, workspace.currency)}</strong>
-                        </span>
-                        <span>
-                          <small>Проверка</small>
-                          <strong>{report.reviewCount}</strong>
+                          <small>{report.endingCash === null ? "Итог" : "Остаток"}</small>
+                          <strong>
+                            {formatMoney(report.endingCash === null ? report.netTotal : report.endingCash, workspace.currency)}
+                          </strong>
                         </span>
                       </div>
                       <span className="status-pill">{reportStatusText(report.status)}</span>
-                      <Link
-                        className="ghost-button"
-                        href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}&report=${encodeURIComponent(report.id)}`}
-                      >
-                        Открыть
-                      </Link>
+                      <div className="report-card-actions">
+                        <Link
+                          className="ghost-button"
+                          href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}&report=${encodeURIComponent(report.id)}`}
+                        >
+                          Открыть
+                        </Link>
+                        <Link
+                          className="ghost-button"
+                          href={`${workspaceBasePath}/reports/${encodeURIComponent(report.id)}`}
+                          target="_blank"
+                        >
+                          HTML
+                        </Link>
+                      </div>
                     </article>
                   ))
                 ) : (
