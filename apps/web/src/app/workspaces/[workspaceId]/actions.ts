@@ -62,6 +62,13 @@ type VoidOperationalEntryResult = {
   voided: boolean;
 };
 
+type MaterializeExpenseReportResult = {
+  expense_report_id: string;
+  materialized_count: number;
+  transaction_ids: string[];
+  expense_total: number | string;
+};
+
 type PrepareQuickNoteResult = {
   quick_note_id: string;
   proposal_count: number;
@@ -557,6 +564,38 @@ export async function reviewAccountableReport(workspaceId: string, formData: For
 
   revalidateWorkspace(workspaceId);
   redirectToTeam(workspaceId, nextStatus === "approved" ? "accountable-report-approved" : "accountable-report-returned");
+}
+
+export async function materializeAccountableReport(workspaceId: string, formData: FormData) {
+  const reportId = String(formData.get("reportId") || "").trim();
+
+  if (!reportId) {
+    redirectToTeam(workspaceId, "accountable-report-missing");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("materialize_expense_report", {
+      p_expense_report_id: reportId
+    })
+    .returns<MaterializeExpenseReportResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("expense_report_not_approved")) {
+      redirectToTeam(workspaceId, "accountable-report-not-approved");
+    }
+
+    if (message.includes("expense_report_partially_materialized")) {
+      redirectToTeam(workspaceId, "accountable-report-partial");
+    }
+
+    redirectToTeam(workspaceId, "accountable-report-materialize");
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToTeam(workspaceId, "accountable-report-materialized");
 }
 
 export async function createOperationalEntry(workspaceId: string, formData: FormData) {

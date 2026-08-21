@@ -13,6 +13,7 @@ import {
   createOperationalEntry,
   deleteOperationalEntry,
   deleteQuickNote,
+  materializeAccountableReport,
   returnReportSnapshotForRevision,
   reviewAccountableReport,
   saveQuickNoteDraft,
@@ -147,14 +148,22 @@ function workspaceStatusText(status?: string) {
       return "Отчет сотрудника принят.";
     case "accountable-report-returned":
       return "Отчет сотрудника возвращен на доработку.";
+    case "accountable-report-materialized":
+      return "Отчет сотрудника перенесен в общий журнал.";
     case "accountable-report-missing":
       return "Отчет сотрудника не найден.";
+    case "accountable-report-not-approved":
+      return "Сначала примите отчет сотрудника.";
+    case "accountable-report-partial":
+      return "Отчет уже частично перенесен. Нужна ручная проверка связей.";
     case "accountable-item-create":
       return "Не удалось добавить строку в отчет.";
     case "accountable-report-submit":
       return "Не удалось отправить отчет.";
     case "accountable-report-review":
       return "Не удалось изменить статус отчета сотрудника.";
+    case "accountable-report-materialize":
+      return "Не удалось перенести отчет сотрудника в общий журнал.";
     case "report-created":
       return "Отчет создан, строки периода закрыты от обычного редактирования.";
     case "report-package-created":
@@ -228,6 +237,7 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "accountable-report-submitted" ||
     status === "accountable-report-approved" ||
     status === "accountable-report-returned" ||
+    status === "accountable-report-materialized" ||
     status === "report-created" ||
     status === "report-package-created" ||
     status === "report-sent" ||
@@ -266,7 +276,7 @@ function reportStatusText(status: string) {
     case "returned":
       return "На доработке";
     case "closed":
-      return "Закрыт";
+      return "В журнале";
     case "void":
       return "Отменен";
     case "sent":
@@ -442,6 +452,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const addAccountableExpenseItemAction = addAccountableExpenseItem.bind(null, workspace.id);
   const submitAccountableReportAction = submitAccountableReport.bind(null, workspace.id);
   const reviewAccountableReportAction = reviewAccountableReport.bind(null, workspace.id);
+  const materializeAccountableReportAction = materializeAccountableReport.bind(null, workspace.id);
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
   const createReportExportAction = createReportExportVersion.bind(null, workspace.id);
@@ -932,6 +943,15 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                             <input name="note" placeholder="Что исправить" />
                             <button type="submit">На доработку</button>
                           </form>
+                        </div>
+                      ) : null}
+                      {canIssueAccountableMoney && report.status === "approved" ? (
+                        <div className="team-review-actions" aria-label="Перенос отчета сотрудника в общий журнал">
+                          <form action={materializeAccountableReportAction} className="compact-action-form">
+                            <input type="hidden" name="reportId" value={report.id} />
+                            <button type="submit">В общий журнал</button>
+                          </form>
+                          <span className="team-action-hint">После переноса строки появятся в оперативном журнале.</span>
                         </div>
                       ) : null}
                     </article>

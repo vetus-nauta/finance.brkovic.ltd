@@ -753,6 +753,12 @@ button {
   min-height: 40px;
 }
 
+.team-action-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .notes-mode-panel {
   align-content: start;
   gap: 0;
