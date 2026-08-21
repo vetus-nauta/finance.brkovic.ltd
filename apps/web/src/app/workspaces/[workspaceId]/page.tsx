@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import {
   convertSmithProposalsToEntries,
   createReportSnapshot,
+  createReportPackage,
   createOperationalEntry,
   deleteOperationalEntry,
   deleteQuickNote,
@@ -100,13 +101,18 @@ function workspaceStatusText(status?: string) {
       return "Не удалось выполнить действие с заметкой.";
     case "report-created":
       return "Отчет создан, строки периода закрыты от обычного редактирования.";
+    case "report-package-created":
+      return "Пакет отчетов создан.";
     case "report-period":
       return "Выберите корректный период отчета.";
     case "report-empty":
       return "В выбранном периоде нет открытых строк для отчета.";
+    case "report-package-empty":
+      return "Выберите один или несколько сохраненных отчетов.";
     case "report-auth":
       return "Нет прав на создание отчета и закрытие периода.";
     case "report-create":
+    case "report-package-create":
       return "Не удалось создать отчет.";
     case "auth":
       return "Сессия не найдена. Войдите заново.";
@@ -124,7 +130,8 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "note-ready" ||
     status === "note-converted" ||
     status === "note-deleted" ||
-    status === "report-created"
+    status === "report-created" ||
+    status === "report-package-created"
   );
 }
 
@@ -250,6 +257,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const convertProposalAction = convertSmithProposalsToEntries.bind(null, workspace.id);
   const deleteNoteAction = deleteQuickNote.bind(null, workspace.id);
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
+  const createReportPackageAction = createReportPackage.bind(null, workspace.id);
   const today = new Date().toISOString().slice(0, 10);
   const statusText = entryStatusText(query.entry);
   const modeStatusText = workspaceStatusText(query.status);
@@ -710,50 +718,83 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </div>
               )}
             </div>
-            <div className="report-list">
-              {workspace.reportSnapshots.length > 0 ? (
-                workspace.reportSnapshots.map((report) => (
-                  <article className="report-card" key={report.id}>
-                    <div>
-                      <h3>{report.title}</h3>
-                      <p>
-                        {formatDateOnly(report.periodStart)} — {formatDateOnly(report.periodEnd)} · {report.entryCount} строк
-                      </p>
-                    </div>
-                    <div className="report-card-metrics" aria-label="Итоги отчета">
-                      <span>
-                        <small>Приход</small>
-                        <strong className="amount-income">{formatMoney(report.incomeTotal, workspace.currency)}</strong>
-                      </span>
-                      <span>
-                        <small>Расход</small>
-                        <strong className="amount-expense">{formatMoney(report.expenseTotal, workspace.currency)}</strong>
-                      </span>
-                      <span>
-                        <small>Итог</small>
-                        <strong>{formatMoney(report.netTotal, workspace.currency)}</strong>
-                      </span>
-                      <span>
-                        <small>Проверка</small>
-                        <strong>{report.reviewCount}</strong>
-                      </span>
-                    </div>
-                    <span className="status-pill">{reportStatusText(report.status)}</span>
-                    <Link
-                      className="ghost-button"
-                      href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}&report=${encodeURIComponent(report.id)}`}
-                    >
-                      Открыть
-                    </Link>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-state inline-empty">
-                  <h2>Отчетов пока нет</h2>
-                  <p>Выберите период выше и создайте первый сохраненный отчет.</p>
-                </div>
-              )}
-            </div>
+            <form className="report-package-panel" action={createReportPackageAction}>
+              <input type="hidden" name="account" value={workspace.activeAccountCode} />
+              <div className="report-package-head">
+                <label>
+                  <span>Пакет для отправки</span>
+                  <input name="title" placeholder="Например: Отчет шефу за август" />
+                </label>
+                <button type="submit">Собрать пакет</button>
+              </div>
+              {workspace.reportPackages.length > 0 ? (
+                <section className="report-package-list" aria-label="Сохраненные пакеты отчетов">
+                  <div className="note-history-head">
+                    <h3>Пакеты</h3>
+                    <small>{workspace.reportPackages.length} сохранено</small>
+                  </div>
+                  {workspace.reportPackages.map((reportPackage) => (
+                    <article className="report-package-card" key={reportPackage.id}>
+                      <div>
+                        <strong>{reportPackage.title}</strong>
+                        <small>
+                          {formatDateTime(reportPackage.createdAt)} · {reportPackage.reportCount} отчетов
+                        </small>
+                      </div>
+                      <span className="status-pill">{reportStatusText(reportPackage.status)}</span>
+                    </article>
+                  ))}
+                </section>
+              ) : null}
+              <div className="report-list">
+                {workspace.reportSnapshots.length > 0 ? (
+                  workspace.reportSnapshots.map((report) => (
+                    <article className="report-card" key={report.id}>
+                      <label className="report-select">
+                        <input name="reportId" type="checkbox" value={report.id} />
+                        <span>В пакет</span>
+                      </label>
+                      <div>
+                        <h3>{report.title}</h3>
+                        <p>
+                          {formatDateOnly(report.periodStart)} — {formatDateOnly(report.periodEnd)} · {report.entryCount} строк
+                        </p>
+                      </div>
+                      <div className="report-card-metrics" aria-label="Итоги отчета">
+                        <span>
+                          <small>Приход</small>
+                          <strong className="amount-income">{formatMoney(report.incomeTotal, workspace.currency)}</strong>
+                        </span>
+                        <span>
+                          <small>Расход</small>
+                          <strong className="amount-expense">{formatMoney(report.expenseTotal, workspace.currency)}</strong>
+                        </span>
+                        <span>
+                          <small>Итог</small>
+                          <strong>{formatMoney(report.netTotal, workspace.currency)}</strong>
+                        </span>
+                        <span>
+                          <small>Проверка</small>
+                          <strong>{report.reviewCount}</strong>
+                        </span>
+                      </div>
+                      <span className="status-pill">{reportStatusText(report.status)}</span>
+                      <Link
+                        className="ghost-button"
+                        href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}&report=${encodeURIComponent(report.id)}`}
+                      >
+                        Открыть
+                      </Link>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state inline-empty">
+                    <h2>Отчетов пока нет</h2>
+                    <p>Выберите период выше и создайте первый сохраненный отчет.</p>
+                  </div>
+                )}
+              </div>
+            </form>
             {selectedReport ? (
               <section className="report-detail-panel" aria-label="Открытый отчет">
                 <div className="note-history-head">

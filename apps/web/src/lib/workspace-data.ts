@@ -96,6 +96,15 @@ export type ReportSnapshotSummary = {
   createdAt: string;
 };
 
+export type ReportPackageSummary = {
+  id: string;
+  title: string;
+  status: string;
+  reportIds: string[];
+  reportCount: number;
+  createdAt: string;
+};
+
 export type ReportAccountSummary = {
   accountCode: string;
   label: string;
@@ -196,6 +205,19 @@ type ReportSnapshotRow = {
   created_at: string;
 };
 
+type ReportPackageRow = {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+};
+
+type ReportPackageItemRow = {
+  report_package_id: string;
+  report_snapshot_id: string;
+  position: number;
+};
+
 type SmithEntryProposalRow = {
   id: string;
   quick_note_id: string;
@@ -231,6 +253,7 @@ export type WorkspaceDetails = WorkspaceSummary & {
   entries: OperationalEntry[];
   quickNotes: QuickNoteSummary[];
   reportSnapshots: ReportSnapshotSummary[];
+  reportPackages: ReportPackageSummary[];
   categorySummary: WorkspaceCategorySummary;
 };
 
@@ -529,6 +552,7 @@ export async function getWorkspaceDetails(
     transactionReviews,
     quickNotes,
     reportSnapshots,
+    reportPackages,
     categories,
     summaryTransactions,
     ledgerSummary
@@ -572,6 +596,14 @@ export async function getWorkspaceDetails(
       .limit(20)
       .returns<ReportSnapshotRow[]>(),
     supabase
+      .from("report_packages")
+      .select("id, title, status, created_at")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "void")
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .returns<ReportPackageRow[]>(),
+    supabase
       .from("categories")
       .select("id, code, direction, label, metadata, is_active")
       .eq("workspace_id", workspaceId)
@@ -612,6 +644,10 @@ export async function getWorkspaceDetails(
 
   if (reportSnapshots.error) {
     throw new Error(reportSnapshots.error.message);
+  }
+
+  if (reportPackages.error) {
+    throw new Error(reportPackages.error.message);
   }
 
   if (categories.error) {
@@ -737,6 +773,29 @@ export async function getWorkspaceDetails(
     proposalsByNoteId.set(proposal.quick_note_id, list);
   }
 
+  const reportPackageIds = (reportPackages.data ?? []).map((reportPackage) => reportPackage.id);
+  const { data: reportPackageItems, error: reportPackageItemsError } =
+    reportPackageIds.length > 0
+      ? await supabase
+          .from("report_package_items")
+          .select("report_package_id, report_snapshot_id, position")
+          .in("report_package_id", reportPackageIds)
+          .order("position", { ascending: true })
+          .returns<ReportPackageItemRow[]>()
+      : { data: [], error: null };
+
+  if (reportPackageItemsError) {
+    throw new Error(reportPackageItemsError.message);
+  }
+
+  const reportIdsByPackageId = new Map<string, string[]>();
+
+  for (const item of reportPackageItems ?? []) {
+    const list = reportIdsByPackageId.get(item.report_package_id) ?? [];
+    list.push(item.report_snapshot_id);
+    reportIdsByPackageId.set(item.report_package_id, list);
+  }
+
   const categoryById = new Map((categories.data ?? []).map((category) => [category.id, category]));
   const categoryByCode = new Map((categories.data ?? []).map((category) => [category.code, category]));
   const reportSourceIds = [
@@ -804,6 +863,18 @@ export async function getWorkspaceDetails(
         )
       )
     ),
+    reportPackages: (reportPackages.data ?? []).map((reportPackage) => {
+      const reportIds = reportIdsByPackageId.get(reportPackage.id) ?? [];
+
+      return {
+        id: reportPackage.id,
+        title: reportPackage.title,
+        status: reportPackage.status,
+        reportIds,
+        reportCount: reportIds.length,
+        createdAt: reportPackage.created_at
+      };
+    }),
     categorySummary: buildCategorySummary(liveLedgerSummaryRows, categories.data ?? [])
   };
 }

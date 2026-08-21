@@ -58,6 +58,11 @@ type CreateReportSnapshotResult = {
   net_total: number;
 };
 
+type CreateReportPackageResult = {
+  report_package_id: string;
+  included_count: number;
+};
+
 type SupabaseRpcClient = {
   rpc: (
     functionName: string,
@@ -570,5 +575,48 @@ export async function createReportSnapshot(workspaceId: string, formData: FormDa
     report: data[0].report_snapshot_id,
     lines: String(data[0].included_count),
     review: String(data[0].review_count)
+  });
+}
+
+export async function createReportPackage(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const title = String(formData.get("title") || "").trim();
+  const reportIds = formData
+    .getAll("reportId")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  if (reportIds.length === 0) {
+    redirectToMode(workspaceId, "reports", "report-package-empty", { account: accountCode });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("create_report_package", {
+      p_workspace_id: workspaceId,
+      p_report_snapshot_ids: reportIds,
+      p_title: title || null
+    })
+    .returns<CreateReportPackageResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("auth_required") || message.includes("reports_manage_required")) {
+      redirectToMode(workspaceId, "reports", "report-auth", { account: accountCode });
+    }
+
+    if (message.includes("report_snapshots_required") || message.includes("report_snapshot_not_found")) {
+      redirectToMode(workspaceId, "reports", "report-package-empty", { account: accountCode });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-package-create", { account: accountCode });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", "report-package-created", {
+    account: accountCode,
+    package: data[0].report_package_id,
+    reports: String(data[0].included_count)
   });
 }

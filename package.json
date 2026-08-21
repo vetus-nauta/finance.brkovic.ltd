@@ -28,6 +28,7 @@
     "smoke:foundation:financial-boundary": "node scripts/foundation_financial_command_boundary_smoke.cjs",
     "smoke:foundation:approval-audit-boundary": "node scripts/foundation_approval_audit_boundary_smoke.cjs",
     "smoke:foundation:report-snapshot": "node scripts/foundation_report_snapshot_command_smoke.cjs",
+    "smoke:foundation:report-package": "node scripts/foundation_report_package_command_smoke.cjs",
     "bootstrap:foundation:workspace": "node scripts/foundation_bootstrap_workspace.cjs",
     "setup:supabase:auth-email": "node scripts/supabase_configure_auth_smtp_and_otp.cjs",
     "drop:v2:atlas-legacy": "node scripts/v2_atlas_drop_legacy_collections.js",
