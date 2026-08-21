@@ -687,6 +687,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           <section className="operational-workspace" aria-label="Оперативный журнал и структурная проверка">
             <SyncedLedgerTable
               accountCode={workspace.activeAccountCode}
+              accountableReports={workspace.accountableReports}
               entries={workspace.entries}
               reports={workspace.reportSnapshots}
               selectedEntryId={selectedEntry?.id}

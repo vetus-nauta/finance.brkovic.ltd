@@ -2049,6 +2049,40 @@ button {
   color: #087469;
 }
 
+.employee-report-ledger-row {
+  background: #f7fbff;
+  box-shadow: inset 3px 0 0 #2f73d8;
+}
+
+.employee-report-ledger-row.is-expanded {
+  background: #eef6ff;
+  border-bottom-color: #bfd7ff;
+}
+
+.employee-report-ledger-row:hover,
+.employee-report-ledger-row:focus-within {
+  background: #eef6ff;
+}
+
+.employee-report-child-row {
+  background: #fbfdff;
+}
+
+.employee-report-child-row > :first-child,
+.employee-report-child-row > :nth-child(4) {
+  color: #1d5fbf;
+}
+
+.employee-report-owner {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .synced-head {
   background: var(--panel-soft);
   color: var(--muted);

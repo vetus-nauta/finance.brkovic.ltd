@@ -54,6 +54,9 @@ export type OperationalEntry = {
   occurredOn: string;
   rawText: string;
   status: string;
+  sourceType: string;
+  sourceId: string | null;
+  metadata: Record<string, unknown>;
   amount: number | null;
   direction: "income" | "expense" | "neutral" | null;
   reviewStatus: string | null;
@@ -177,7 +180,10 @@ type TransactionRow = {
   occurred_on: string;
   raw_text: string;
   status: string;
+  source_type: string;
+  source_id: string | null;
   account_id: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type LedgerRow = {
@@ -929,7 +935,7 @@ export async function getWorkspaceDetails(
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
         .from("transactions")
-        .select("id, row_no, occurred_on, raw_text, status, account_id")
+        .select("id, row_no, occurred_on, raw_text, status, source_type, source_id, account_id, metadata")
         .eq("workspace_id", workspaceId)
         .neq("status", "void")
         .order("row_no", { ascending: true, nullsFirst: false })
@@ -1252,6 +1258,9 @@ export async function getWorkspaceDetails(
         occurredOn: row.occurred_on,
         rawText: row.raw_text,
         status: row.status,
+        sourceType: row.source_type,
+        sourceId: row.source_id,
+        metadata: row.metadata ?? {},
         amount: ledger ? Number(ledger.amount) : null,
         direction: ledger?.direction ?? null,
         reviewStatus: ledger?.review_status ?? null,

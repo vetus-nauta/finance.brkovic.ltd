@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { OperationalEntry, ReportSnapshotSummary } from "@/lib/workspace-data";
+import type { AccountableReportSummary, OperationalEntry, ReportSnapshotSummary } from "@/lib/workspace-data";
 
 type ActiveZone = "journal" | "structure";
 
 type SyncedLedgerTableProps = {
   accountCode: string;
+  accountableReports: AccountableReportSummary[];
   entries: OperationalEntry[];
   reports: ReportSnapshotSummary[];
   selectedEntryId?: string;
@@ -67,11 +68,26 @@ function reportSortValue(report: ReportSnapshotSummary) {
   return `${report.periodStart}-${report.periodEnd}-${report.createdAt}`;
 }
 
-function buildDisplayRows(entries: OperationalEntry[], reports: ReportSnapshotSummary[]) {
+function entryExpenseReportId(entry: OperationalEntry) {
+  return entry.sourceType === "expense_report" && typeof entry.metadata.expense_report_id === "string"
+    ? entry.metadata.expense_report_id
+    : null;
+}
+
+function reportEmployeeLabel(report: AccountableReportSummary | null | undefined) {
+  return report?.submittedByEmail ?? "Сотрудник";
+}
+
+function buildDisplayRows(
+  entries: OperationalEntry[],
+  reports: ReportSnapshotSummary[],
+  accountableReports: AccountableReportSummary[]
+) {
   const sortedReports = [...reports]
     .filter((report) => report.sourceTransactionIds.length > 0)
     .sort((left, right) => reportSortValue(left).localeCompare(reportSortValue(right)));
   const reportByEntryId = new Map<string, ReportSnapshotSummary>();
+  const accountableReportById = new Map(accountableReports.map((report) => [report.id, report]));
 
   for (const report of sortedReports) {
     for (const entryId of report.sourceTransactionIds) {
@@ -82,25 +98,90 @@ function buildDisplayRows(entries: OperationalEntry[], reports: ReportSnapshotSu
   }
 
   const emittedReportIds = new Set<string>();
+  const emittedEmployeeReportIds = new Set<string>();
+  const buildGroupedRows = (groupEntries: OperationalEntry[]) => {
+    const emittedGroupReportIds = new Set<string>();
+    const groupedRows: Array<
+      | { type: "entry"; entry: OperationalEntry }
+      | {
+          type: "employeeReport";
+          report: AccountableReportSummary | null;
+          reportId: string;
+          visibleEntries: OperationalEntry[];
+        }
+    > = [];
+
+    for (const entry of groupEntries) {
+      const employeeReportId = entryExpenseReportId(entry);
+
+      if (!employeeReportId) {
+        groupedRows.push({ type: "entry", entry });
+        continue;
+      }
+
+      if (emittedGroupReportIds.has(employeeReportId)) {
+        continue;
+      }
+
+      emittedGroupReportIds.add(employeeReportId);
+      groupedRows.push({
+        type: "employeeReport",
+        report: accountableReportById.get(employeeReportId) ?? null,
+        reportId: employeeReportId,
+        visibleEntries: groupEntries.filter((item) => entryExpenseReportId(item) === employeeReportId)
+      });
+    }
+
+    return groupedRows;
+  };
   const rows: Array<
     | { type: "entry"; entry: OperationalEntry }
-    | { type: "report"; report: ReportSnapshotSummary; visibleEntries: OperationalEntry[] }
+    | {
+        type: "employeeReport";
+        report: AccountableReportSummary | null;
+        reportId: string;
+        visibleEntries: OperationalEntry[];
+      }
+    | {
+        type: "report";
+        report: ReportSnapshotSummary;
+        visibleEntries: OperationalEntry[];
+        visibleRows: ReturnType<typeof buildGroupedRows>;
+      }
   > = [];
 
   for (const entry of entries) {
     const report = reportByEntryId.get(entry.id);
 
     if (!report) {
+      const employeeReportId = entryExpenseReportId(entry);
+
+      if (employeeReportId) {
+        if (!emittedEmployeeReportIds.has(employeeReportId)) {
+          emittedEmployeeReportIds.add(employeeReportId);
+          rows.push({
+            type: "employeeReport",
+            report: accountableReportById.get(employeeReportId) ?? null,
+            reportId: employeeReportId,
+            visibleEntries: entries.filter((item) => entryExpenseReportId(item) === employeeReportId)
+          });
+        }
+
+        continue;
+      }
+
       rows.push({ type: "entry", entry });
       continue;
     }
 
     if (!emittedReportIds.has(report.id)) {
       emittedReportIds.add(report.id);
+      const visibleEntries = entries.filter((item) => report.sourceTransactionIds.includes(item.id));
       rows.push({
         type: "report",
         report,
-        visibleEntries: entries.filter((item) => report.sourceTransactionIds.includes(item.id))
+        visibleEntries,
+        visibleRows: buildGroupedRows(visibleEntries)
       });
     }
   }
@@ -118,16 +199,27 @@ function zoneClassName(activeZone: ActiveZone, entryCount: number) {
     .join(" ");
 }
 
-export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntryId, workspacePath }: SyncedLedgerTableProps) {
+export function SyncedLedgerTable({
+  accountCode,
+  accountableReports,
+  entries,
+  reports,
+  selectedEntryId,
+  workspacePath
+}: SyncedLedgerTableProps) {
   const router = useRouter();
   const [activeZone, setActiveZone] = useState<ActiveZone>("journal");
   const [expandedReportIds, setExpandedReportIds] = useState<Set<string>>(new Set());
+  const [expandedEmployeeReportIds, setExpandedEmployeeReportIds] = useState<Set<string>>(new Set());
   const tableRef = useRef<HTMLDivElement | null>(null);
   const selectedRowRef = useRef<HTMLDivElement | null>(null);
   const ledgerEndRef = useRef<HTMLDivElement | null>(null);
   const didInitialScroll = useRef(false);
   const lastSelectedScrollId = useRef<string | null>(null);
-  const displayRows = useMemo(() => buildDisplayRows(entries, reports), [entries, reports]);
+  const displayRows = useMemo(
+    () => buildDisplayRows(entries, reports, accountableReports),
+    [accountableReports, entries, reports]
+  );
   const draftRowNumber = useMemo(
     () => entries.reduce((maxRowNo, entry) => Math.max(maxRowNo, entry.rowNo), 0) + 1,
     [entries]
@@ -220,7 +312,23 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
     });
   }
 
+  function toggleEmployeeReport(reportId: string) {
+    setExpandedEmployeeReportIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(reportId)) {
+        next.delete(reportId);
+      } else {
+        next.add(reportId);
+      }
+
+      return next;
+    });
+  }
+
   function renderEntryRow(entry: OperationalEntry, extraClassName = "") {
+    const sourceLabel = entry.sourceType === "expense_report" ? "Строка отчета сотрудника" : "Строка внутри закрытого отчета";
+
     return (
       <div
         className={[
@@ -237,7 +345,7 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
         </Link>
         <Link className="entry-description-link" href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
           <strong>{entry.rawText}</strong>
-          {extraClassName ? <small>Строка внутри закрытого отчета</small> : null}
+          {extraClassName ? <small>{sourceLabel}</small> : null}
         </Link>
         <Link
           className={entry.direction === "income" ? "amount-income" : "amount-expense"}
@@ -319,6 +427,99 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
         </div>
         {displayRows.length > 0 ? (
           displayRows.map((row) => {
+            if (row.type === "employeeReport") {
+              const expanded = expandedEmployeeReportIds.has(row.reportId);
+              const rowNumbers = row.visibleEntries.map((entry) => entry.rowNo).sort((left, right) => left - right);
+              const rowRange =
+                rowNumbers.length > 1
+                  ? `${rowNumbers[0]}-${rowNumbers[rowNumbers.length - 1]}`
+                  : String(rowNumbers[0] ?? "—");
+              const dates = row.visibleEntries.map((entry) => entry.occurredOn).sort();
+              const period =
+                dates.length > 1
+                  ? `${dates[0]} — ${dates[dates.length - 1]}`
+                  : dates[0] ?? "—";
+              const total = row.visibleEntries.reduce((sum, entry) => sum + (entry.amount ?? 0), 0);
+              const employeeLabel = reportEmployeeLabel(row.report);
+
+              return (
+                <Fragment key={`employee-report:${row.reportId}`}>
+                  <div
+                    className={expanded ? "synced-row employee-report-ledger-row is-expanded" : "synced-row employee-report-ledger-row"}
+                    role="row"
+                  >
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-toggle"
+                      onClick={() => {
+                        setActiveZone("journal");
+                        toggleEmployeeReport(row.reportId);
+                      }}
+                      title={expanded ? "Свернуть строки сотрудника" : "Раскрыть строки сотрудника"}
+                      type="button"
+                    >
+                      <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                      {rowRange}
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="entry-description-link report-row-title-button"
+                      onClick={() => {
+                        setActiveZone("journal");
+                        toggleEmployeeReport(row.reportId);
+                      }}
+                      type="button"
+                    >
+                      <strong>{employeeLabel}: отчет сотрудника</strong>
+                      <small>
+                        {row.visibleEntries.length} строк · относится к сотруднику, который отчитался
+                      </small>
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-balance-button amount-expense"
+                      onClick={() => {
+                        setActiveZone("journal");
+                        toggleEmployeeReport(row.reportId);
+                      }}
+                      type="button"
+                    >
+                      {formatAmount(total, "expense")}
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-toggle"
+                      onClick={() => {
+                        setActiveZone("structure");
+                        toggleEmployeeReport(row.reportId);
+                      }}
+                      title={expanded ? "Свернуть строки сотрудника" : "Раскрыть строки сотрудника"}
+                      type="button"
+                    >
+                      <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                      {rowRange}
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-title-button"
+                      onClick={() => {
+                        setActiveZone("structure");
+                        toggleEmployeeReport(row.reportId);
+                      }}
+                      type="button"
+                    >
+                      {period}
+                    </button>
+                    <span className="report-row-status-cell">
+                      <span className="status-pill">сотрудник</span>
+                      <span className="employee-report-owner">{employeeLabel}</span>
+                    </span>
+                  </div>
+                  {expanded ? row.visibleEntries.map((entry) => renderEntryRow(entry, "employee-report-child-row")) : null}
+                </Fragment>
+              );
+            }
+
             if (row.type === "report") {
               const report = row.report;
               const expanded = expandedReportIds.has(report.id);
@@ -407,7 +608,110 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
                       <Link href={reportHref(report.id)}>Открыть</Link>
                     </span>
                   </div>
-                  {expanded ? row.visibleEntries.map((entry) => renderEntryRow(entry, "report-child-row")) : null}
+                  {expanded
+                    ? row.visibleRows.map((childRow) => {
+                        if (childRow.type === "employeeReport") {
+                          const employeeExpanded = expandedEmployeeReportIds.has(childRow.reportId);
+                          const childRowNumbers = childRow.visibleEntries
+                            .map((entry) => entry.rowNo)
+                            .sort((left, right) => left - right);
+                          const childRowRange =
+                            childRowNumbers.length > 1
+                              ? `${childRowNumbers[0]}-${childRowNumbers[childRowNumbers.length - 1]}`
+                              : String(childRowNumbers[0] ?? "—");
+                          const childDates = childRow.visibleEntries.map((entry) => entry.occurredOn).sort();
+                          const childPeriod =
+                            childDates.length > 1
+                              ? `${childDates[0]} — ${childDates[childDates.length - 1]}`
+                              : childDates[0] ?? "—";
+                          const childTotal = childRow.visibleEntries.reduce((sum, entry) => sum + (entry.amount ?? 0), 0);
+                          const childEmployeeLabel = reportEmployeeLabel(childRow.report);
+
+                          return (
+                            <Fragment key={`report:${report.id}:employee-report:${childRow.reportId}`}>
+                              <div
+                                className={
+                                  employeeExpanded
+                                    ? "synced-row employee-report-ledger-row report-child-row is-expanded"
+                                    : "synced-row employee-report-ledger-row report-child-row"
+                                }
+                                role="row"
+                              >
+                                <button
+                                  aria-expanded={employeeExpanded}
+                                  className="report-row-toggle"
+                                  onClick={() => {
+                                    setActiveZone("journal");
+                                    toggleEmployeeReport(childRow.reportId);
+                                  }}
+                                  title={employeeExpanded ? "Свернуть строки сотрудника" : "Раскрыть строки сотрудника"}
+                                  type="button"
+                                >
+                                  <span aria-hidden="true">{employeeExpanded ? "▾" : "▸"}</span>
+                                  {childRowRange}
+                                </button>
+                                <button
+                                  aria-expanded={employeeExpanded}
+                                  className="entry-description-link report-row-title-button"
+                                  onClick={() => {
+                                    setActiveZone("journal");
+                                    toggleEmployeeReport(childRow.reportId);
+                                  }}
+                                  type="button"
+                                >
+                                  <strong>{childEmployeeLabel}: отчет сотрудника</strong>
+                                  <small>{childRow.visibleEntries.length} строк внутри общего отчета</small>
+                                </button>
+                                <button
+                                  aria-expanded={employeeExpanded}
+                                  className="report-row-balance-button amount-expense"
+                                  onClick={() => {
+                                    setActiveZone("journal");
+                                    toggleEmployeeReport(childRow.reportId);
+                                  }}
+                                  type="button"
+                                >
+                                  {formatAmount(childTotal, "expense")}
+                                </button>
+                                <button
+                                  aria-expanded={employeeExpanded}
+                                  className="report-row-toggle"
+                                  onClick={() => {
+                                    setActiveZone("structure");
+                                    toggleEmployeeReport(childRow.reportId);
+                                  }}
+                                  title={employeeExpanded ? "Свернуть строки сотрудника" : "Раскрыть строки сотрудника"}
+                                  type="button"
+                                >
+                                  <span aria-hidden="true">{employeeExpanded ? "▾" : "▸"}</span>
+                                  {childRowRange}
+                                </button>
+                                <button
+                                  aria-expanded={employeeExpanded}
+                                  className="report-row-title-button"
+                                  onClick={() => {
+                                    setActiveZone("structure");
+                                    toggleEmployeeReport(childRow.reportId);
+                                  }}
+                                  type="button"
+                                >
+                                  {childPeriod}
+                                </button>
+                                <span className="report-row-status-cell">
+                                  <span className="status-pill">сотрудник</span>
+                                  <span className="employee-report-owner">{childEmployeeLabel}</span>
+                                </span>
+                              </div>
+                              {employeeExpanded
+                                ? childRow.visibleEntries.map((entry) => renderEntryRow(entry, "employee-report-child-row"))
+                                : null}
+                            </Fragment>
+                          );
+                        }
+
+                        return renderEntryRow(childRow.entry, "report-child-row");
+                      })
+                    : null}
                 </Fragment>
               );
             }
