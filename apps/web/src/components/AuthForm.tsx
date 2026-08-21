@@ -14,11 +14,13 @@ function cleanOrigin(value: string) {
   return value.replace(/\/+$/, "");
 }
 
-function authRedirectUrl(appDomain: string) {
+function authRedirectUrl(appDomain: string, nextPath: string = routes.hall) {
   const fallbackOrigin = typeof window === "undefined" ? "" : window.location.origin;
   const origin = cleanOrigin(appDomain || fallbackOrigin);
+  const url = new URL(routes.authCallback, origin);
+  url.searchParams.set("next", nextPath);
 
-  return `${origin}${routes.authCallback}`;
+  return url.toString();
 }
 
 function cooldownKey(email: string) {
@@ -42,7 +44,7 @@ function isRateLimitError(error: unknown) {
   return lower.includes("security") || lower.includes("rate") || lower.includes("limit");
 }
 
-export function AuthForm() {
+export function AuthForm({ nextPath = routes.hall }: { nextPath?: string } = {}) {
   const env = getPublicEnv();
   const ready = hasSupabasePublicEnv(env);
   const isLocalAuth = env.appEnv === "local";
@@ -89,7 +91,7 @@ export function AuthForm() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: authRedirectUrl(env.appDomain),
+          emailRedirectTo: authRedirectUrl(env.appDomain, nextPath),
           shouldCreateUser: false
         }
       });
@@ -146,7 +148,7 @@ export function AuthForm() {
         });
 
         if (devLoginResponse.ok) {
-          window.location.assign(routes.hall);
+          window.location.assign(nextPath);
           return;
         }
       }
@@ -163,7 +165,7 @@ export function AuthForm() {
         return;
       }
 
-      window.location.assign(routes.hall);
+      window.location.assign(nextPath);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Не удалось проверить код.");
     } finally {

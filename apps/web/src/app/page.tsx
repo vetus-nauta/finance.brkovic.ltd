@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/AuthForm";
 import { getPublicEnv, hasSupabasePublicEnv } from "@/lib/env";
 import { routes } from "@/lib/routes";
@@ -18,7 +19,16 @@ async function getUserEmail() {
   }
 }
 
-export default async function HomePage() {
+type HomePageProps = {
+  searchParams: Promise<{ invite?: string }>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const query = await searchParams;
+  if (query.invite) {
+    redirect(`${routes.invite}/${encodeURIComponent(query.invite)}`);
+  }
+
   const env = getPublicEnv();
   const email = await getUserEmail();
 

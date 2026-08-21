@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 112" role="img" aria-labelledby="title desc">
+  <title id="title">FinDesk logo white</title>
+  <desc id="desc">FinDesk wordmark with a ledger-shaped F icon for dark surfaces.</desc>
+  <rect x="12" y="12" width="88" height="88" rx="21" fill="#2F80FF"/>
+  <path d="M39 34c0-3.3 2.7-6 6-6h34c3.3 0 6 2.7 6 6v2c0 3.3-2.7 6-6 6H57v10h20c3.3 0 6 2.7 6 6v1c0 3.3-2.7 6-6 6H57v17c0 3.3-2.7 6-6 6h-6c-3.3 0-6-2.7-6-6V34z" fill="#FFFFFF"/>
+  <rect x="63" y="72" width="21" height="6" rx="3" fill="#D7E8FF"/>
+  <text x="122" y="67" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="760" letter-spacing="0">FinDesk</text>
+  <text x="125" y="88" fill="#B9C4D4" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="0">operational finance workspace</text>
+</svg>

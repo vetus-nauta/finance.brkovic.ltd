@@ -21,6 +21,7 @@ import { QuickNoteComposer } from "./QuickNoteComposer";
 import { OperationalEntryDraftController } from "./OperationalEntryDraftController";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
 import { calculateQuickNoteTotal } from "@/lib/quick-note-totals";
+import { routes } from "@/lib/routes";
 import { smithCategoryLabel, smithCategoryOptions } from "@/lib/smith-categories";
 import type { ApprovalEventSummary } from "@/lib/workspace-data";
 import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
@@ -411,6 +412,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             {roleLabels[workspace.role] ?? workspace.role} · {workspace.currency} ·{" "}
             {workspace.status === "active" ? "активно" : workspace.status}
           </p>
+          <Link className="workspace-switch-link" href={routes.hall}>
+            Сменить пространство
+          </Link>
         </div>
         <div className="workspace-metrics" aria-label="Состояние пространства">
           {workspace.accountBalances.map((account) => (

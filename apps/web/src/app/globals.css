@@ -126,14 +126,16 @@ button {
 
 .brand-mark {
   align-items: center;
-  background: var(--accent);
-  border-radius: 8px;
-  color: #fff;
   display: inline-flex;
   flex: 0 0 36px;
-  font-weight: 800;
   height: 36px;
   justify-content: center;
+}
+
+.brand-mark img {
+  display: block;
+  height: 36px;
+  width: 36px;
 }
 
 .brand strong,
@@ -267,6 +269,7 @@ button {
 }
 
 .grid {
+  align-items: start;
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -301,6 +304,87 @@ button {
   display: grid;
   gap: 10px;
   justify-items: start;
+}
+
+.invite-details {
+  width: 100%;
+}
+
+.invite-details summary {
+  align-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 800;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.invite-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.invite-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.invite-form span,
+.invite-result span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.invite-form input,
+.invite-form select,
+.invite-result input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.invite-result {
+  background: #eef8f7;
+  border: 1px solid #9bd8d2;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  width: 100%;
+}
+
+.invite-result small,
+.hall-status {
+  color: var(--muted);
+}
+
+.hall-status {
+  background: #eef8f7;
+  border: 1px solid #9bd8d2;
+  border-radius: 8px;
+  font-weight: 700;
+  margin: -4px 0 12px;
+  max-width: 720px;
+  padding: 10px 12px;
+}
+
+.invite-accept-panel {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.invite-auth-panel {
+  box-shadow: none;
 }
 
 .muted-card {

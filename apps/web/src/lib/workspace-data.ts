@@ -11,6 +11,7 @@ export type WorkspaceSummary = {
   status: string;
   role: WorkspaceRole | string;
   accessScope: string;
+  canManageMembers?: boolean;
 };
 
 type MembershipRow = {
@@ -742,7 +743,7 @@ export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
   const workspaceById = new Map((workspaces ?? []).map((workspace) => [workspace.id, workspace]));
 
   return (memberships ?? [])
-    .map((membership) => {
+    .map((membership): WorkspaceSummary | null => {
       const workspace = workspaceById.get(membership.workspace_id);
 
       if (!workspace) {
@@ -756,7 +757,8 @@ export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
         currency: workspace.currency_code,
         status: workspace.status,
         role: membership.role_code,
-        accessScope: membership.access_scope
+        accessScope: membership.access_scope,
+        canManageMembers: membership.role_code === "owner" || membership.role_code === "admin"
       };
     })
     .filter((workspace): workspace is WorkspaceSummary => workspace !== null);
