@@ -120,14 +120,6 @@ export default async function HallPage({ searchParams }: HallPageProps) {
             </article>
             ))}
             <article className="panel workspace-card muted-card">
-            <p className="eyebrow">Сотрудник</p>
-            <h2>Под отчет</h2>
-            <p>Отдельный простой режим сотрудника без общей финансовой картины.</p>
-            <button type="button" disabled>
-              После API-команд
-            </button>
-            </article>
-            <article className="panel workspace-card muted-card">
             <p className="eyebrow">Новый учет</p>
             <h2>Создать пространство</h2>
             <p>Создание пойдет через server command, membership и audit log.</p>

@@ -468,6 +468,112 @@ button {
   padding: 16px;
 }
 
+.team-mode-panel {
+  align-content: start;
+}
+
+.team-command-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.team-command-card,
+.team-ledger-card {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.team-command-card h3,
+.team-ledger-card h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.team-command-card label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.team-command-card label span,
+.team-command-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-command-card input,
+.team-command-card select,
+.team-invite-result input {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.team-command-card button,
+.team-accountable-row button {
+  border-radius: 8px;
+  min-height: 38px;
+}
+
+.team-accountable-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  overflow: hidden;
+}
+
+.team-accountable-row {
+  align-items: center;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 1fr) 130px 130px 130px 150px auto;
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.team-accountable-row:last-child {
+  border-bottom: 0;
+}
+
+.team-accountable-row > * {
+  min-width: 0;
+}
+
+.team-accountable-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.team-accountable-row strong,
+.team-accountable-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-accountable-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-accountable-row b {
+  text-align: right;
+}
+
 .notes-mode-panel {
   align-content: start;
   gap: 0;
@@ -2166,6 +2272,7 @@ button {
   .grid,
   .workspace-shell,
   .workspace-main,
+  .team-command-grid,
   .notes-apple-workspace,
   .operational-workspace {
     grid-template-columns: 1fr;
@@ -2271,6 +2378,15 @@ button {
 
   .operational-workspace {
     min-height: 0;
+  }
+
+  .team-accountable-row {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .team-accountable-row b {
+    text-align: left;
   }
 
   .ledger-panel {

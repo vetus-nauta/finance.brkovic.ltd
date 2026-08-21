@@ -305,6 +305,102 @@ type ReportSourceTransactionRow = {
   status: string;
 };
 
+type WorkspaceMemberRow = {
+  user_id: string;
+  role_code: string;
+  access_scope: string;
+  status: string;
+  invited_at: string | null;
+  accepted_at: string | null;
+};
+
+type InvitationRow = {
+  email: string;
+  role_code: string;
+  status: string;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  expires_at: string;
+  created_at: string;
+};
+
+type CashAdvanceRow = {
+  id: string;
+  issued_to: string;
+  account_id: string | null;
+  amount: number | string;
+  currency_code: string;
+  status: string;
+  issued_at: string | null;
+  accepted_at: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type ExpenseReportRow = {
+  id: string;
+  cash_advance_id: string | null;
+  submitted_by: string;
+  status: string;
+  total_amount: number | string;
+  currency_code: string;
+  submitted_at: string | null;
+  created_at: string;
+};
+
+type ExpenseItemRow = {
+  expense_report_id: string;
+  amount: number | string;
+  status: string;
+};
+
+export type WorkspaceMemberSummary = {
+  userId: string;
+  email: string | null;
+  role: string;
+  accessScope: string;
+  status: string;
+  acceptedAt: string | null;
+};
+
+export type WorkspaceInvitationSummary = {
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type AccountableAdvanceSummary = {
+  id: string;
+  issuedTo: string;
+  issuedToEmail: string | null;
+  accountId: string | null;
+  amount: number;
+  spentTotal: number;
+  openAmount: number;
+  status: string;
+  purpose: string;
+  reportCount: number;
+  currency: string;
+  issuedAt: string | null;
+  acceptedAt: string | null;
+  createdAt: string;
+};
+
+export type AccountableReportSummary = {
+  id: string;
+  cashAdvanceId: string | null;
+  submittedBy: string;
+  submittedByEmail: string | null;
+  status: string;
+  totalAmount: number;
+  acceptedItemsTotal: number;
+  currency: string;
+  submittedAt: string | null;
+  createdAt: string;
+};
+
 export type WorkspaceDetails = WorkspaceSummary & {
   accounts: AccountSummary[];
   accountBalances: AccountBalanceSummary[];
@@ -315,6 +411,10 @@ export type WorkspaceDetails = WorkspaceSummary & {
   quickNotes: QuickNoteSummary[];
   reportSnapshots: ReportSnapshotSummary[];
   reportPackages: ReportPackageSummary[];
+  members: WorkspaceMemberSummary[];
+  invitations: WorkspaceInvitationSummary[];
+  accountableAdvances: AccountableAdvanceSummary[];
+  accountableReports: AccountableReportSummary[];
   categorySummary: WorkspaceCategorySummary;
 };
 
@@ -1019,7 +1119,11 @@ export async function getWorkspaceDetails(
     quickNotes,
     reportSnapshots,
     reportPackages,
-    categories
+    categories,
+    members,
+    invitations,
+    cashAdvances,
+    expenseReports
   ] = await Promise.all([
     supabase
       .from("accounts")
@@ -1045,7 +1149,32 @@ export async function getWorkspaceDetails(
       .select("id, code, direction, label, metadata, is_active")
       .eq("workspace_id", workspaceId)
       .eq("is_active", true)
-      .returns<CategoryRow[]>()
+      .returns<CategoryRow[]>(),
+    supabase
+      .from("memberships")
+      .select("user_id, role_code, access_scope, status, invited_at, accepted_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: true })
+      .returns<WorkspaceMemberRow[]>(),
+    supabase
+      .from("invitations")
+      .select("email, role_code, status, accepted_by, accepted_at, expires_at, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .returns<InvitationRow[]>(),
+    supabase
+      .from("cash_advances")
+      .select("id, issued_to, account_id, amount, currency_code, status, issued_at, accepted_at, metadata, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .returns<CashAdvanceRow[]>(),
+    supabase
+      .from("expense_reports")
+      .select("id, cash_advance_id, submitted_by, status, total_amount, currency_code, submitted_at, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .returns<ExpenseReportRow[]>()
   ]);
 
   if (accountsError) {
@@ -1058,6 +1187,22 @@ export async function getWorkspaceDetails(
 
   if (categories.error) {
     throw new Error(categories.error.message);
+  }
+
+  if (members.error) {
+    throw new Error(members.error.message);
+  }
+
+  if (invitations.error) {
+    throw new Error(invitations.error.message);
+  }
+
+  if (cashAdvances.error) {
+    throw new Error(cashAdvances.error.message);
+  }
+
+  if (expenseReports.error) {
+    throw new Error(expenseReports.error.message);
   }
 
   const normalizedAccounts = [...(accounts ?? [])].sort((left, right) => {
@@ -1144,6 +1289,19 @@ export async function getWorkspaceDetails(
 
   const reportPackageIds = includeReportDetails ? reportPackages.map((reportPackage) => reportPackage.id) : [];
   const reportPackageItems = reportPackageIds.length > 0 ? await fetchReportPackageItems(reportPackageIds) : [];
+  const expenseReportIds = (expenseReports.data ?? []).map((report) => report.id);
+  const { data: expenseItems, error: expenseItemsError } =
+    expenseReportIds.length > 0
+      ? await supabase
+          .from("expense_items")
+          .select("expense_report_id, amount, status")
+          .in("expense_report_id", expenseReportIds)
+          .returns<ExpenseItemRow[]>()
+      : { data: [], error: null };
+
+  if (expenseItemsError) {
+    throw new Error(expenseItemsError.message);
+  }
 
   const reportIdsByPackageId = new Map<string, string[]>();
 
@@ -1170,6 +1328,76 @@ export async function getWorkspaceDetails(
   const exportVersionsByEntityId = await getExportVersionsByEntityId(supabase, workspaceId, reportEntityIds);
   const reportSourceTransactionById = new Map(reportSourceTransactions.map((row) => [row.id, row]));
   const reportSourceLedgerByTransactionId = new Map(reportSourceLedgerRows.map((row) => [row.transaction_id, row]));
+  const emailByUserId = new Map<string, string>();
+
+  for (const invitation of invitations.data ?? []) {
+    if (invitation.accepted_by) {
+      emailByUserId.set(invitation.accepted_by, invitation.email);
+    }
+  }
+
+  const expenseItemsByReportId = new Map<string, ExpenseItemRow[]>();
+
+  for (const item of expenseItems ?? []) {
+    const list = expenseItemsByReportId.get(item.expense_report_id) ?? [];
+    list.push(item);
+    expenseItemsByReportId.set(item.expense_report_id, list);
+  }
+
+  const accountableReports = (expenseReports.data ?? []).map((report) => {
+    const items = expenseItemsByReportId.get(report.id) ?? [];
+    const acceptedItemsTotal = items
+      .filter((item) => item.status !== "rejected")
+      .reduce((sum, item) => sum + Number(item.amount), 0);
+
+    return {
+      id: report.id,
+      cashAdvanceId: report.cash_advance_id,
+      submittedBy: report.submitted_by,
+      submittedByEmail: emailByUserId.get(report.submitted_by) ?? null,
+      status: report.status,
+      totalAmount: Number(report.total_amount),
+      acceptedItemsTotal,
+      currency: report.currency_code,
+      submittedAt: report.submitted_at,
+      createdAt: report.created_at
+    };
+  });
+
+  const reportsByAdvanceId = new Map<string, AccountableReportSummary[]>();
+
+  for (const report of accountableReports) {
+    if (!report.cashAdvanceId) {
+      continue;
+    }
+
+    const list = reportsByAdvanceId.get(report.cashAdvanceId) ?? [];
+    list.push(report);
+    reportsByAdvanceId.set(report.cashAdvanceId, list);
+  }
+
+  const accountableAdvances = (cashAdvances.data ?? []).map((advance) => {
+    const linkedReports = reportsByAdvanceId.get(advance.id) ?? [];
+    const spentTotal = linkedReports.reduce((sum, report) => sum + report.acceptedItemsTotal, 0);
+    const amount = Number(advance.amount);
+
+    return {
+      id: advance.id,
+      issuedTo: advance.issued_to,
+      issuedToEmail: emailByUserId.get(advance.issued_to) ?? null,
+      accountId: advance.account_id,
+      amount,
+      spentTotal,
+      openAmount: Math.max(amount - spentTotal, 0),
+      status: advance.status,
+      purpose: typeof advance.metadata?.purpose === "string" ? advance.metadata.purpose : "",
+      reportCount: linkedReports.length,
+      currency: advance.currency_code,
+      issuedAt: advance.issued_at,
+      acceptedAt: advance.accepted_at,
+      createdAt: advance.created_at
+    };
+  });
 
   return {
     id: workspace.id,
@@ -1224,6 +1452,23 @@ export async function getWorkspaceDetails(
         createdAt: reportPackage.created_at
       };
     }),
+    members: (members.data ?? []).map((member) => ({
+      userId: member.user_id,
+      email: emailByUserId.get(member.user_id) ?? null,
+      role: member.role_code,
+      accessScope: member.access_scope,
+      status: member.status,
+      acceptedAt: member.accepted_at
+    })),
+    invitations: (invitations.data ?? []).map((invitation) => ({
+      email: invitation.email,
+      role: invitation.role_code,
+      status: invitation.status,
+      expiresAt: invitation.expires_at,
+      createdAt: invitation.created_at
+    })),
+    accountableAdvances,
+    accountableReports,
     categorySummary: buildCategorySummary(liveLedgerSummaryRows, categories.data ?? [])
   };
 }

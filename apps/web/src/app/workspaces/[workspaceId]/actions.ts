@@ -3,12 +3,26 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isSmithCategoryCode, smithReviewReasonForCategory } from "@/lib/smith-categories";
+import { createAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { workspacePath } from "@/lib/workspace-data";
 
 type WorkspaceForWrite = {
   id: string;
   organization_id: string;
+};
+
+type AccountForWrite = {
+  id: string;
+  currency_code: string;
+};
+
+type CashAdvanceForAccept = {
+  id: string;
+  organization_id: string;
+  workspace_id: string;
+  issued_to: string;
+  status: string;
 };
 
 type QuickNoteForWrite = {
@@ -125,8 +139,22 @@ function redirectToMode(workspaceId: string, mode: string, status: string, extra
   redirect(`${workspacePath(workspaceId)}?${params.toString()}`);
 }
 
+function redirectToTeam(workspaceId: string, status: string): never {
+  redirectToMode(workspaceId, "team", status);
+}
+
 function revalidateWorkspace(workspaceId: string) {
   revalidatePath(workspacePath(workspaceId));
+}
+
+function parseMoneyInput(value: FormDataEntryValue | null) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(",", ".");
+  const amount = Number(normalized);
+
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 async function getWritableWorkspace(workspaceId: string) {
@@ -150,6 +178,147 @@ async function getWritableWorkspace(workspaceId: string) {
   }
 
   return { supabase, userId, workspace };
+}
+
+export async function createAccountableOffer(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const employeeUserId = String(formData.get("employeeUserId") || "").trim();
+  const amount = parseMoneyInput(formData.get("amount"));
+  const purpose = String(formData.get("purpose") || "").trim();
+
+  if (!employeeUserId || amount <= 0) {
+    redirectToTeam(workspaceId, "accountable-missing");
+  }
+
+  const { supabase, userId, workspace } = await getWritableWorkspace(workspaceId);
+
+  if (!userId) {
+    redirectToTeam(workspaceId, "auth");
+  }
+
+  if (!workspace) {
+    redirectToTeam(workspaceId, "workspace");
+  }
+
+  const { data: member, error: memberError } = await supabase
+    .from("memberships")
+    .select("user_id, role_code, access_scope, status")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", employeeUserId)
+    .eq("status", "active")
+    .not("accepted_at", "is", null)
+    .maybeSingle<{ user_id: string; role_code: string; access_scope: string; status: string }>();
+
+  if (memberError || !member || member.access_scope !== "own_reports") {
+    redirectToTeam(workspaceId, "accountable-member");
+  }
+
+  const { data: account, error: accountError } = await supabase
+    .from("accounts")
+    .select("id, currency_code")
+    .eq("workspace_id", workspaceId)
+    .eq("code", accountCode)
+    .eq("is_active", true)
+    .maybeSingle<AccountForWrite>();
+
+  if (accountError) {
+    redirectToTeam(workspaceId, "accountable-create");
+  }
+
+  const { data: insertedAdvance, error } = await supabase
+    .from("cash_advances")
+    .insert({
+      organization_id: workspace.organization_id,
+      workspace_id: workspace.id,
+      issued_to: member.user_id,
+      account_id: account?.id ?? null,
+      amount,
+      currency_code: account?.currency_code ?? "EUR",
+      status: "offered",
+      issued_by: userId,
+      issued_at: new Date().toISOString(),
+      metadata: { purpose }
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !insertedAdvance) {
+    redirectToTeam(workspaceId, "accountable-create");
+  }
+
+  await supabase.from("approval_events").insert({
+    organization_id: workspace.organization_id,
+    workspace_id: workspace.id,
+    entity_type: "cash_advance",
+    entity_id: insertedAdvance.id,
+    event_type: "offered",
+    actor_user_id: userId,
+    note: purpose || null,
+    metadata: { amount, account_code: accountCode }
+  });
+
+  revalidateWorkspace(workspaceId);
+  redirectToTeam(workspaceId, "accountable-created");
+}
+
+export async function acceptAccountableOffer(workspaceId: string, formData: FormData) {
+  const advanceId = String(formData.get("advanceId") || "").trim();
+
+  if (!advanceId) {
+    redirectToTeam(workspaceId, "accountable-missing");
+  }
+
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+
+  if (typeof userId !== "string") {
+    redirectToTeam(workspaceId, "auth");
+  }
+
+  const { data: advance, error: advanceReadError } = await supabase
+    .from("cash_advances")
+    .select("id, organization_id, workspace_id, issued_to, status")
+    .eq("id", advanceId)
+    .eq("workspace_id", workspaceId)
+    .eq("issued_to", userId)
+    .eq("status", "offered")
+    .maybeSingle<CashAdvanceForAccept>();
+
+  if (advanceReadError || !advance) {
+    redirectToTeam(workspaceId, "accountable-not-found");
+  }
+
+  if (!hasSupabaseAdminEnv()) {
+    redirectToTeam(workspaceId, "accountable-config");
+  }
+
+  const admin = createAdminClient();
+  const acceptedAt = new Date().toISOString();
+  const { error: updateError } = await admin
+    .from("cash_advances")
+    .update({ status: "accepted", accepted_at: acceptedAt })
+    .eq("id", advance.id)
+    .eq("workspace_id", workspaceId)
+    .eq("issued_to", userId)
+    .eq("status", "offered");
+
+  if (updateError) {
+    redirectToTeam(workspaceId, "accountable-accept");
+  }
+
+  await admin.from("approval_events").insert({
+    organization_id: advance.organization_id,
+    workspace_id: workspaceId,
+    entity_type: "cash_advance",
+    entity_id: advance.id,
+    event_type: "accepted_by_employee",
+    actor_user_id: userId,
+    metadata: { accepted_at: acceptedAt }
+  });
+
+  revalidateWorkspace(workspaceId);
+  redirectToTeam(workspaceId, "accountable-accepted");
 }
 
 export async function createOperationalEntry(workspaceId: string, formData: FormData) {

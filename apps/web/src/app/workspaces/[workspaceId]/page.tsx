@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Fragment } from "react";
 import {
+  acceptAccountableOffer,
   convertSmithProposalsToEntries,
+  createAccountableOffer,
   createReportExportVersion,
   createReportSnapshot,
   createReportPackage,
@@ -17,6 +19,7 @@ import {
   submitQuickNoteToSmith,
   updateOperationalEntry
 } from "./actions";
+import { createWorkspaceInvitation } from "@/app/hall/actions";
 import { QuickNoteComposer } from "./QuickNoteComposer";
 import { OperationalEntryDraftController } from "./OperationalEntryDraftController";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
@@ -34,6 +37,8 @@ type WorkspacePageProps = {
     account?: string;
     edit?: string;
     entry?: string;
+    inviteEmail?: string;
+    inviteUrl?: string;
     mode?: string;
     newNote?: string;
     note?: string;
@@ -43,7 +48,7 @@ type WorkspacePageProps = {
   }>;
 };
 
-type WorkspaceMode = "ledger" | "notes" | "reports";
+type WorkspaceMode = "ledger" | "notes" | "reports" | "team";
 
 function entryStatusText(status?: string) {
   switch (status) {
@@ -79,7 +84,7 @@ function entryStatusText(status?: string) {
 }
 
 function normalizeMode(mode?: string): WorkspaceMode {
-  return mode === "notes" || mode === "reports" ? mode : "ledger";
+  return mode === "notes" || mode === "reports" || mode === "team" ? mode : "ledger";
 }
 
 function workspaceStatusText(status?: string) {
@@ -107,6 +112,30 @@ function workspaceStatusText(status?: string) {
     case "note-convert":
     case "note-delete":
       return "Не удалось выполнить действие с заметкой.";
+    case "created":
+      return "Приглашение создано. Ссылка показана ниже.";
+    case "email":
+      return "Укажите email сотрудника.";
+    case "role":
+      return "Роль приглашения не распознана.";
+    case "create":
+      return "Не удалось создать приглашение.";
+    case "accountable-created":
+      return "Выдача создана. Сотрудник должен подтвердить получение.";
+    case "accountable-accepted":
+      return "Получение денег подтверждено.";
+    case "accountable-missing":
+      return "Укажите сотрудника и сумму.";
+    case "accountable-member":
+      return "Выберите сотрудника с ограниченным доступом к своему отчету.";
+    case "accountable-not-found":
+      return "Выдача не найдена или уже обработана.";
+    case "accountable-config":
+      return "Серверная команда подтверждения не настроена.";
+    case "accountable-create":
+      return "Не удалось создать выдачу под отчет.";
+    case "accountable-accept":
+      return "Не удалось подтвердить получение денег.";
     case "report-created":
       return "Отчет создан, строки периода закрыты от обычного редактирования.";
     case "report-package-created":
@@ -173,6 +202,9 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "note-ready" ||
     status === "note-converted" ||
     status === "note-deleted" ||
+    status === "created" ||
+    status === "accountable-created" ||
+    status === "accountable-accepted" ||
     status === "report-created" ||
     status === "report-package-created" ||
     status === "report-sent" ||
@@ -210,6 +242,23 @@ function reportStatusText(status: string) {
       return "Принят";
     case "returned_for_revision":
       return "На доработке";
+    default:
+      return status;
+  }
+}
+
+function accountableStatusText(status: string) {
+  switch (status) {
+    case "offered":
+      return "Ожидает подтверждения";
+    case "accepted":
+      return "Принято сотрудником";
+    case "closed":
+      return "Закрыто";
+    case "declined":
+      return "Отклонено";
+    case "void":
+      return "Отменено";
     default:
       return status;
   }
@@ -334,13 +383,17 @@ function proposalSignalText(parserReason: string | null, duplicateStatus: string
 export default async function WorkspacePage({ params, searchParams }: WorkspacePageProps) {
   const { workspaceId } = await params;
   const query = searchParams ? await searchParams : {};
-  const mode = normalizeMode(query.mode);
+  let mode = normalizeMode(query.mode);
   const workspace = await getWorkspaceDetails(workspaceId, query.account, {
     includeReportDetails: mode === "reports"
   });
 
   if (!workspace) {
     notFound();
+  }
+
+  if (workspace.accessScope === "own_reports" && mode === "ledger") {
+    mode = "team";
   }
 
   const entryAction = createOperationalEntry.bind(null, workspace.id);
@@ -350,6 +403,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const submitNoteAction = submitQuickNoteToSmith.bind(null, workspace.id);
   const convertProposalAction = convertSmithProposalsToEntries.bind(null, workspace.id);
   const deleteNoteAction = deleteQuickNote.bind(null, workspace.id);
+  const inviteAction = createWorkspaceInvitation.bind(null, workspace.id);
+  const createAccountableOfferAction = createAccountableOffer.bind(null, workspace.id);
+  const acceptAccountableOfferAction = acceptAccountableOffer.bind(null, workspace.id);
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
   const createReportExportAction = createReportExportVersion.bind(null, workspace.id);
@@ -383,12 +439,20 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const selectedReport = query.report
     ? workspace.reportSnapshots.find((report) => report.id === query.report) ?? null
     : null;
+  const canManageMembers = workspace.role === "owner" || workspace.role === "admin";
+  const canIssueAccountableMoney = workspace.role === "owner" || workspace.role === "admin" || workspace.role === "finance";
+  const employeeMembers = workspace.members.filter((member) => member.accessScope === "own_reports" && member.status === "active");
+  const activeAccount = workspace.accounts.find((account) => account.code === workspace.activeAccountCode) ?? workspace.accounts[0] ?? null;
   const activeNavigationLabel =
     mode === "notes"
       ? "Заметки"
       : mode === "reports"
         ? "Отчеты"
-        : workspace.accounts.find((account) => account.code === workspace.activeAccountCode)?.label ?? "Журнал";
+        : mode === "team"
+          ? workspace.accessScope === "own_reports"
+            ? "Мой отчет"
+            : "Участники"
+          : activeAccount?.label ?? "Журнал";
   let previousQuickNoteMonth = "";
   const selectedEntry = workspace.entries.find((entry) => entry.id === query.edit) ?? null;
   const entryFormAction = selectedEntry ? updateEntryAction : entryAction;
@@ -472,6 +536,13 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             >
               Отчеты
             </Link>
+            <Link
+              className={mode === "team" ? "active" : undefined}
+              aria-current={mode === "team" ? "page" : undefined}
+              href={`${workspaceBasePath}?mode=team&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+            >
+              {workspace.accessScope === "own_reports" ? "Мой отчет" : "Участники"}
+            </Link>
           </nav>
         </details>
         <aside className="side-tabs" aria-label="Разделы рабочего пространства">
@@ -509,6 +580,13 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           >
             Отчеты
           </Link>
+          <Link
+            className={mode === "team" ? "active" : undefined}
+            aria-current={mode === "team" ? "page" : undefined}
+            href={`${workspaceBasePath}?mode=team&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+          >
+            {workspace.accessScope === "own_reports" ? "Мой отчет" : "Участники"}
+          </Link>
         </aside>
         {mode === "ledger" ? (
           <section className="operational-workspace" aria-label="Оперативный журнал и структурная проверка">
@@ -519,6 +597,155 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
               selectedEntryId={selectedEntry?.id}
               workspacePath={workspaceBasePath}
             />
+          </section>
+        ) : null}
+        {mode === "team" ? (
+          <section className="workspace-mode-panel team-mode-panel" aria-label="Участники и подотчетные деньги">
+            <div className="mode-title">
+              <div>
+                <h2>{workspace.accessScope === "own_reports" ? "Мой отчет" : "Участники"}</h2>
+                <p>
+                  {workspace.accessScope === "own_reports"
+                    ? "Здесь сотрудник принимает выданные деньги и готовит свой отчет без доступа к общей финансовой картине."
+                    : "Приглашения, выдачи под отчет и отчеты сотрудников живут внутри этого пространства."}
+                </p>
+              </div>
+              <small>
+                {workspace.accountableAdvances.length} выдач · {workspace.accountableReports.length} отчетов
+              </small>
+            </div>
+            {modeStatusText ? (
+              <p className={isWorkspaceStatusSuccess(query.status) ? "form-note success" : "form-note error"}>
+                {modeStatusText}
+              </p>
+            ) : null}
+            {query.inviteUrl ? (
+              <div className="invite-result team-invite-result">
+                <span>Ссылка для {query.inviteEmail ?? "участника"}</span>
+                <input readOnly value={query.inviteUrl} />
+                <small>Ссылка показывается один раз. После входа участник увидит это пространство в своем холле.</small>
+              </div>
+            ) : null}
+            {workspace.accessScope !== "own_reports" ? (
+              <section className="team-command-grid" aria-label="Команды владельца пространства">
+                {canManageMembers ? (
+                  <form action={inviteAction} className="team-command-card">
+                    <input type="hidden" name="returnTo" value="workspace" />
+                    <h3>Пригласить участника</h3>
+                    <label>
+                      <span>Email</span>
+                      <input name="email" type="email" placeholder="name@example.com" required />
+                    </label>
+                    <label>
+                      <span>Роль</span>
+                      <select name="roleCode" defaultValue="employee">
+                        <option value="employee">Сотрудник</option>
+                        <option value="viewer">Только просмотр</option>
+                        <option value="finance">Финансист</option>
+                        <option value="admin">Администратор</option>
+                      </select>
+                    </label>
+                    <button className="primary-action" type="submit">
+                      Создать ссылку
+                    </button>
+                  </form>
+                ) : null}
+                {canIssueAccountableMoney ? (
+                  <form action={createAccountableOfferAction} className="team-command-card">
+                    <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                    <h3>Выдать под отчет</h3>
+                    <label>
+                      <span>Сотрудник</span>
+                      <select name="employeeUserId" defaultValue="" required>
+                        <option value="">Выберите сотрудника</option>
+                        {employeeMembers.map((member) => (
+                          <option key={member.userId} value={member.userId}>
+                            {member.email ?? roleLabels[member.role] ?? member.role}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Сумма</span>
+                      <input name="amount" inputMode="decimal" placeholder="500" required />
+                    </label>
+                    <label>
+                      <span>Комментарий</span>
+                      <input name="purpose" placeholder="Например: продукты в поход" />
+                    </label>
+                    <button className="primary-action" type="submit" disabled={employeeMembers.length === 0}>
+                      Выдать
+                    </button>
+                    {employeeMembers.length === 0 ? (
+                      <small>Сначала пригласите сотрудника и дождитесь принятия приглашения.</small>
+                    ) : null}
+                  </form>
+                ) : null}
+              </section>
+            ) : null}
+            <section className="team-ledger-card" aria-label="Выданные под отчет деньги">
+              <div className="note-history-head">
+                <h3>{workspace.accessScope === "own_reports" ? "Мои деньги под отчет" : "Выданные суммы"}</h3>
+                <small>{workspace.accountableAdvances.length} строк</small>
+              </div>
+              {workspace.accountableAdvances.length > 0 ? (
+                <div className="team-accountable-list">
+                  {workspace.accountableAdvances.map((advance) => (
+                    <article className="team-accountable-row" key={advance.id}>
+                      <div>
+                        <strong>{advance.issuedToEmail ?? "Сотрудник"}</strong>
+                        <span>{advance.purpose || "Без комментария"}</span>
+                      </div>
+                      <b>{formatMoney(advance.amount, advance.currency)}</b>
+                      <span>{formatMoney(advance.spentTotal, advance.currency)} отчитано</span>
+                      <span>{formatMoney(advance.openAmount, advance.currency)} открыто</span>
+                      <span className="status-pill">{accountableStatusText(advance.status)}</span>
+                      {workspace.accessScope === "own_reports" && advance.status === "offered" ? (
+                        <form action={acceptAccountableOfferAction} className="compact-action-form">
+                          <input type="hidden" name="advanceId" value={advance.id} />
+                          <button type="submit">Принять</button>
+                        </form>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state inline-empty">
+                  <h2>{workspace.accessScope === "own_reports" ? "Денег под отчет пока нет" : "Выдач пока нет"}</h2>
+                  <p>
+                    {workspace.accessScope === "own_reports"
+                      ? "Когда администратор выдаст сумму, здесь появится сообщение для подтверждения."
+                      : "После выдачи сотрудник подтвердит получение, а затем сдаст отчет по этой сумме."}
+                  </p>
+                </div>
+              )}
+            </section>
+            <section className="team-ledger-card" aria-label="Отчеты сотрудников">
+              <div className="note-history-head">
+                <h3>{workspace.accessScope === "own_reports" ? "Мои отправленные отчеты" : "Отчеты сотрудников"}</h3>
+                <small>{workspace.accountableReports.length} строк</small>
+              </div>
+              {workspace.accountableReports.length > 0 ? (
+                <div className="team-accountable-list">
+                  {workspace.accountableReports.map((report) => (
+                    <article className="team-accountable-row" key={report.id}>
+                      <div>
+                        <strong>{report.submittedByEmail ?? "Сотрудник"}</strong>
+                        <span>{formatDateTime(report.createdAt)}</span>
+                      </div>
+                      <b>{formatMoney(report.totalAmount, report.currency)}</b>
+                      <span>{formatMoney(report.acceptedItemsTotal, report.currency)} принято</span>
+                      <span className="status-pill">{reportStatusText(report.status)}</span>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state inline-empty">
+                  <h2>Отчетов пока нет</h2>
+                  <p>Расходы сотрудника будут попадать сюда перед прикреплением к общему отчету.</p>
+                </div>
+              )}
+            </section>
           </section>
         ) : null}
         {mode === "notes" ? (

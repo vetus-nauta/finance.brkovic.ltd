@@ -31,17 +31,32 @@ function hallRedirect(params: Record<string, string>): never {
   redirect(`${routes.hall}?${query.toString()}`);
 }
 
+function inviteRedirect(formData: FormData, params: Record<string, string>): never {
+  if (formData.get("returnTo") === "workspace" && params.workspaceId) {
+    const query = new URLSearchParams({
+      mode: "team",
+      status: params.inviteStatus ?? "",
+      ...(params.inviteEmail ? { inviteEmail: params.inviteEmail } : {}),
+      ...(params.inviteUrl ? { inviteUrl: params.inviteUrl } : {})
+    });
+
+    redirect(`${routes.workspaces}/${encodeURIComponent(params.workspaceId)}?${query.toString()}`);
+  }
+
+  hallRedirect(params);
+}
+
 export async function createWorkspaceInvitation(workspaceId: string, formData: FormData) {
   const email = normalizeEmail(formData.get("email"));
   const roleCode = String(formData.get("roleCode") || "employee").trim();
   const allowedRoles = new Set(["employee", "viewer", "finance", "admin"]);
 
   if (!email || !email.includes("@")) {
-    hallRedirect({ inviteStatus: "email", workspaceId });
+    inviteRedirect(formData, { inviteStatus: "email", workspaceId });
   }
 
   if (!allowedRoles.has(roleCode)) {
-    hallRedirect({ inviteStatus: "role", workspaceId });
+    inviteRedirect(formData, { inviteStatus: "role", workspaceId });
   }
 
   const supabase = await createClient();
@@ -49,7 +64,7 @@ export async function createWorkspaceInvitation(workspaceId: string, formData: F
   const userId = claims?.claims?.sub;
 
   if (typeof userId !== "string") {
-    hallRedirect({ inviteStatus: "auth", workspaceId });
+    inviteRedirect(formData, { inviteStatus: "auth", workspaceId });
   }
 
   const { data: workspace, error: workspaceError } = await supabase
@@ -60,7 +75,7 @@ export async function createWorkspaceInvitation(workspaceId: string, formData: F
     .maybeSingle<WorkspaceForInvite>();
 
   if (workspaceError || !workspace) {
-    hallRedirect({ inviteStatus: "workspace", workspaceId });
+    inviteRedirect(formData, { inviteStatus: "workspace", workspaceId });
   }
 
   const token = randomBytes(32).toString("base64url");
@@ -81,7 +96,7 @@ export async function createWorkspaceInvitation(workspaceId: string, formData: F
     .single<{ id: string }>();
 
   if (error || !invitation) {
-    hallRedirect({ inviteStatus: "create", workspaceId });
+    inviteRedirect(formData, { inviteStatus: "create", workspaceId });
   }
 
   await supabase.from("audit_log").insert({
@@ -96,7 +111,8 @@ export async function createWorkspaceInvitation(workspaceId: string, formData: F
   });
 
   revalidatePath(routes.hall);
-  hallRedirect({
+  revalidatePath(`${routes.workspaces}/${workspace.id}`);
+  inviteRedirect(formData, {
     inviteStatus: "created",
     workspaceId: workspace.id,
     workspaceName: workspace.name,
