@@ -33,6 +33,7 @@
     "smoke:foundation:report-correction": "node scripts/foundation_report_locked_correction_command_smoke.cjs",
     "smoke:foundation:report-send-accept": "node scripts/foundation_report_send_accept_smoke.cjs",
     "smoke:foundation:report-export-version": "node scripts/foundation_report_export_version_smoke.cjs",
+    "audit:foundation:financial-integrity": "node scripts/foundation_workspace_financial_integrity_audit.cjs",
     "bootstrap:foundation:workspace": "node scripts/foundation_bootstrap_workspace.cjs",
     "setup:supabase:auth-email": "node scripts/supabase_configure_auth_smtp_and_otp.cjs",
     "drop:v2:atlas-legacy": "node scripts/v2_atlas_drop_legacy_collections.js",
