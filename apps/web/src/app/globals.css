@@ -1033,6 +1033,15 @@ button {
   border-bottom: 0;
 }
 
+.synced-row.selected-row {
+  background: #eef8f6;
+  box-shadow: inset 3px 0 0 #1b9587;
+}
+
+.synced-row.selected-row > :nth-child(4) {
+  border-left-color: #86cfc5;
+}
+
 .synced-row strong {
   min-width: 0;
   overflow: hidden;
@@ -1187,13 +1196,28 @@ button {
 .entry-bar {
   align-items: end;
   background: var(--panel);
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 180px minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.entry-editor {
+  align-items: end;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
   display: grid;
-  gap: 10px;
-  grid-template-columns: 180px minmax(0, 1fr) auto;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: 12px;
+}
+
+.entry-editor.is-editing {
+  border-color: #86cfc5;
 }
 
 .entry-bar label {
@@ -1213,6 +1237,26 @@ button {
   min-height: 42px;
   padding: 0 12px;
   width: 100%;
+}
+
+.entry-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.entry-actions .ghost-button {
+  min-height: 42px;
+}
+
+.entry-delete-form {
+  align-self: end;
+}
+
+.entry-delete-form button {
+  border-color: #f2c5c5;
+  color: #b42318;
+  min-height: 42px;
 }
 
 .form-note.success {
@@ -1535,11 +1579,34 @@ button {
     top: 0;
   }
 
-  .entry-bar {
+  .entry-editor {
     bottom: max(10px, env(safe-area-inset-bottom));
-    grid-template-columns: 1fr;
     position: sticky;
     z-index: 5;
+  }
+
+  .entry-bar,
+  .entry-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-actions,
+  .entry-delete-form button {
+    width: 100%;
+  }
+
+  .entry-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .entry-actions:has(> :only-child) {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-actions .primary-action,
+  .entry-actions .ghost-button {
+    justify-content: center;
   }
 
   .mode-title,

@@ -383,7 +383,11 @@ export async function getWorkspaceDetails(
       .eq("is_active", true)
       .order("account_type", { ascending: true })
       .returns<AccountRow[]>(),
-    supabase.from("transactions").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId),
+    supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .neq("status", "void"),
     supabase
       .from("ledger_entries")
       .select("id", { count: "exact", head: true })
@@ -420,6 +424,7 @@ export async function getWorkspaceDetails(
       .from("transactions")
       .select("id, status")
       .eq("workspace_id", workspaceId)
+      .neq("status", "void")
       .returns<SummaryTransactionRow[]>(),
     supabase
       .from("ledger_entries")
@@ -486,6 +491,7 @@ export async function getWorkspaceDetails(
       .select("id, row_no, occurred_on, raw_text, status, account_id")
       .eq("workspace_id", workspaceId)
       .eq("account_id", activeAccount.id)
+      .neq("status", "void")
       .order("row_no", { ascending: true, nullsFirst: false })
       .returns<TransactionRow[]>();
 

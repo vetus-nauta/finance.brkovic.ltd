@@ -152,12 +152,15 @@ set local request.jwt.claims = '{"sub":"51111111-1111-4111-8111-111111111111","r
 do $$
 declare
   cash_expense record;
+  cash_expense_update record;
   cash_income record;
   card_expense record;
   no_sign record;
   transaction_count integer;
   ledger_count integer;
   audit_count integer;
+  updated_amount numeric(14,2);
+  voided_card_status text;
   manual_card_income_blocked boolean := false;
 begin
   select * into cash_expense
@@ -270,6 +273,45 @@ begin
     raise exception 'no-sign command returned unexpected result: %', row_to_json(no_sign);
   end if;
 
+  select * into cash_expense_update
+  from public.update_operational_entry(
+    cash_expense.transaction_id,
+    'cash',
+    '2026-08-21',
+    '-300 продукты исправлено',
+    'manual',
+    'ru',
+    '{}'::jsonb
+  );
+
+  if cash_expense_update.row_no <> 1
+    or cash_expense_update.counted is not true
+    or cash_expense_update.ledger_entry_id is null
+    or cash_expense_update.transaction_status <> 'open'
+    or cash_expense_update.review_status <> 'accepted'
+  then
+    raise exception 'cash expense update returned unexpected result: %', row_to_json(cash_expense_update);
+  end if;
+
+  select le.amount into updated_amount
+  from public.ledger_entries le
+  where le.transaction_id = cash_expense.transaction_id;
+
+  if updated_amount <> 300.00 then
+    raise exception 'expected updated ledger amount 300.00, saw %', updated_amount;
+  end if;
+
+  perform *
+  from public.void_operational_entry(card_expense.transaction_id);
+
+  select t.status into voided_card_status
+  from public.transactions t
+  where t.id = card_expense.transaction_id;
+
+  if voided_card_status <> 'void' then
+    raise exception 'expected voided card transaction status, saw %', voided_card_status;
+  end if;
+
   select count(*) into transaction_count
   from public.transactions
   where workspace_id = '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -282,18 +324,23 @@ begin
   from public.approval_events
   where workspace_id = '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     and entity_type = 'transaction'
-    and event_type in ('operational_entry_created', 'operational_entry_needs_review');
+    and event_type in (
+      'operational_entry_created',
+      'operational_entry_needs_review',
+      'operational_entry_updated',
+      'operational_entry_voided'
+    );
 
   if transaction_count <> 4 then
     raise exception 'expected 4 saved transactions after rejected card income, saw %', transaction_count;
   end if;
 
-  if ledger_count <> 3 then
-    raise exception 'expected 3 counted ledger entries, saw %', ledger_count;
+  if ledger_count <> 2 then
+    raise exception 'expected 2 live counted ledger entries after voiding card expense, saw %', ledger_count;
   end if;
 
-  if audit_count <> 4 then
-    raise exception 'expected 4 audit events, saw %', audit_count;
+  if audit_count <> 6 then
+    raise exception 'expected 6 audit events, saw %', audit_count;
   end if;
 end;
 $$;

@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { OperationalEntry } from "@/lib/workspace-data";
 
 type ActiveZone = "journal" | "structure";
 
 type SyncedLedgerTableProps = {
+  accountCode: string;
   entries: OperationalEntry[];
+  selectedEntryId?: string;
+  workspacePath: string;
 };
 
 function formatAmount(amount: number | null, direction: string | null) {
@@ -40,8 +44,12 @@ function zoneClassName(activeZone: ActiveZone, entryCount: number) {
     .join(" ");
 }
 
-export function SyncedLedgerTable({ entries }: SyncedLedgerTableProps) {
+export function SyncedLedgerTable({ accountCode, entries, selectedEntryId, workspacePath }: SyncedLedgerTableProps) {
   const [activeZone, setActiveZone] = useState<ActiveZone>("journal");
+
+  function entryHref(entryId: string) {
+    return `${workspacePath}?account=${encodeURIComponent(accountCode)}&edit=${encodeURIComponent(entryId)}`;
+  }
 
   return (
     <div className="ledger-panel">
@@ -93,23 +101,37 @@ export function SyncedLedgerTable({ entries }: SyncedLedgerTableProps) {
         </div>
         {entries.length > 0 ? (
           entries.map((entry) => (
-            <div className="synced-row" role="row" key={entry.id}>
-              <span onClick={() => setActiveZone("journal")}>{entry.rowNo}</span>
-              <strong onClick={() => setActiveZone("journal")}>{entry.rawText}</strong>
-              <span
+            <div
+              className={entry.id === selectedEntryId ? "synced-row selected-row" : "synced-row"}
+              role="row"
+              key={entry.id}
+            >
+              <Link href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
+                {entry.rowNo}
+              </Link>
+              <Link className="entry-description-link" href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
+                <strong>{entry.rawText}</strong>
+              </Link>
+              <Link
                 className={entry.direction === "income" ? "amount-income" : "amount-expense"}
+                href={entryHref(entry.id)}
                 onClick={() => setActiveZone("journal")}
               >
                 {formatAmount(entry.amount, entry.direction)}
-              </span>
-              <span onClick={() => setActiveZone("structure")}>{entry.rowNo}</span>
-              <span onClick={() => setActiveZone("structure")}>{entry.occurredOn}</span>
-              <span
+              </Link>
+              <Link href={entryHref(entry.id)} onClick={() => setActiveZone("structure")}>
+                {entry.rowNo}
+              </Link>
+              <Link href={entryHref(entry.id)} onClick={() => setActiveZone("structure")}>
+                {entry.occurredOn}
+              </Link>
+              <Link
                 className={entry.reviewStatus === "review" || entry.status === "needs_review" ? "status-pill attention" : "status-pill"}
+                href={entryHref(entry.id)}
                 onClick={() => setActiveZone("structure")}
               >
                 {reviewStatusText(entry.reviewStatus, entry.status)}
-              </span>
+              </Link>
             </div>
           ))
         ) : (

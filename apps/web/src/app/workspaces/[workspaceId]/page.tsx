@@ -4,9 +4,11 @@ import { Fragment } from "react";
 import {
   convertSmithProposalsToEntries,
   createOperationalEntry,
+  deleteOperationalEntry,
   deleteQuickNote,
   saveQuickNoteDraft,
-  submitQuickNoteToSmith
+  submitQuickNoteToSmith,
+  updateOperationalEntry
 } from "./actions";
 import { QuickNoteComposer } from "./QuickNoteComposer";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
@@ -20,6 +22,7 @@ type WorkspacePageProps = {
   }>;
   searchParams?: Promise<{
     account?: string;
+    edit?: string;
     entry?: string;
     mode?: string;
     newNote?: string;
@@ -35,6 +38,10 @@ function entryStatusText(status?: string) {
   switch (status) {
     case "saved":
       return "Запись сохранена.";
+    case "updated":
+      return "Запись обновлена.";
+    case "deleted":
+      return "Запись удалена из рабочей ленты.";
     case "amount":
       return "Начните запись с суммы: например, -350 продукты или +1000 от судовладельца.";
     case "review":
@@ -45,8 +52,14 @@ function entryStatusText(status?: string) {
       return "Заполните дату и запись.";
     case "account":
       return "Счет не найден.";
+    case "entry-not-found":
+      return "Запись не найдена или уже удалена.";
     case "auth":
       return "Сессия не найдена. Войдите заново.";
+    case "update":
+      return "Не удалось обновить запись.";
+    case "delete":
+      return "Не удалось удалить запись.";
     case "save":
       return "Не удалось сохранить запись.";
     default:
@@ -217,6 +230,8 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   }
 
   const entryAction = createOperationalEntry.bind(null, workspace.id);
+  const updateEntryAction = updateOperationalEntry.bind(null, workspace.id);
+  const deleteEntryAction = deleteOperationalEntry.bind(null, workspace.id);
   const saveNoteAction = saveQuickNoteDraft.bind(null, workspace.id);
   const submitNoteAction = submitQuickNoteToSmith.bind(null, workspace.id);
   const convertProposalAction = convertSmithProposalsToEntries.bind(null, workspace.id);
@@ -274,6 +289,8 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   ].filter((section) => section.rows.length > 0);
 
   let previousQuickNoteMonth = "";
+  const selectedEntry = workspace.entries.find((entry) => entry.id === query.edit) ?? null;
+  const entryFormAction = selectedEntry ? updateEntryAction : entryAction;
 
   return (
     <main className="page compact-page">
@@ -376,7 +393,12 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
         </aside>
         {mode === "ledger" ? (
           <section className="operational-workspace" aria-label="Оперативный журнал и структурная проверка">
-            <SyncedLedgerTable entries={workspace.entries} />
+            <SyncedLedgerTable
+              accountCode={workspace.activeAccountCode}
+              entries={workspace.entries}
+              selectedEntryId={selectedEntry?.id}
+              workspacePath={workspaceBasePath}
+            />
           </section>
         ) : null}
         {mode === "notes" ? (
@@ -670,21 +692,51 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
 
       {mode === "ledger" ? (
         <>
-          <form className="entry-bar" action={entryAction}>
-            <input type="hidden" name="account" value={workspace.activeAccountCode} />
-            <label>
-              <span>Дата</span>
-              <input type="date" name="occurredOn" defaultValue={today} required />
-            </label>
-            <label>
-              <span>Запись</span>
-              <input name="rawText" placeholder="-350 продукты" required />
-            </label>
-            <button className="primary-action" type="submit">
-              Сохранить
-            </button>
-          </form>
-          {statusText ? <p className={query.entry === "saved" ? "form-note success" : "form-note error"}>{statusText}</p> : null}
+          <section className={selectedEntry ? "entry-editor is-editing" : "entry-editor"} aria-label="Запись">
+            <form className="entry-bar" action={entryFormAction}>
+              <input type="hidden" name="account" value={workspace.activeAccountCode} />
+              {selectedEntry ? <input type="hidden" name="transactionId" value={selectedEntry.id} /> : null}
+              <label>
+                <span>Дата</span>
+                <input type="date" name="occurredOn" defaultValue={selectedEntry?.occurredOn ?? today} required />
+              </label>
+              <label>
+                <span>{selectedEntry ? `Строка ${selectedEntry.rowNo}` : "Новая запись"}</span>
+                <input
+                  autoFocus
+                  name="rawText"
+                  placeholder="-350 продукты"
+                  defaultValue={selectedEntry?.rawText ?? ""}
+                  required
+                />
+              </label>
+              <div className="entry-actions">
+                {selectedEntry ? (
+                  <Link
+                    className="ghost-button"
+                    href={`${workspaceBasePath}?account=${encodeURIComponent(workspace.activeAccountCode)}`}
+                  >
+                    Новая
+                  </Link>
+                ) : null}
+                <button className="primary-action" type="submit">
+                  {selectedEntry ? "Обновить" : "Сохранить"}
+                </button>
+              </div>
+            </form>
+            {selectedEntry ? (
+              <form className="entry-delete-form" action={deleteEntryAction}>
+                <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                <input type="hidden" name="transactionId" value={selectedEntry.id} />
+                <button type="submit">Удалить</button>
+              </form>
+            ) : null}
+          </section>
+          {statusText ? (
+            <p className={query.entry === "saved" || query.entry === "updated" || query.entry === "deleted" ? "form-note success" : "form-note error"}>
+              {statusText}
+            </p>
+          ) : null}
         </>
       ) : null}
     </main>

@@ -25,6 +25,14 @@ type CreateOperationalEntryResult = {
   review_status: string | null;
 };
 
+type UpdateOperationalEntryResult = CreateOperationalEntryResult;
+
+type VoidOperationalEntryResult = {
+  transaction_id: string;
+  row_no: number;
+  voided: boolean;
+};
+
 type PrepareQuickNoteResult = {
   quick_note_id: string;
   proposal_count: number;
@@ -147,6 +155,102 @@ export async function createOperationalEntry(workspaceId: string, formData: Form
   }
 
   redirectWithStatus(workspaceId, accountCode, result.counted ? "saved" : "review");
+}
+
+export async function updateOperationalEntry(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const transactionId = String(formData.get("transactionId") || "").trim();
+  const occurredOn = String(formData.get("occurredOn") || "").trim();
+  const rawText = String(formData.get("rawText") || "").trim();
+
+  if (!transactionId || !occurredOn || !rawText) {
+    redirectWithStatus(workspaceId, accountCode, "missing");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("update_operational_entry", {
+      p_transaction_id: transactionId,
+      p_account_code: accountCode,
+      p_occurred_on: occurredOn,
+      p_raw_text: rawText,
+      p_source_channel: "manual",
+      p_source_language: "ru",
+      p_metadata: {}
+    })
+    .returns<UpdateOperationalEntryResult[]>();
+
+  if (error) {
+    const message = error.message;
+
+    if (message.includes("auth_required") || message.includes("ledger_write_required")) {
+      redirectWithStatus(workspaceId, accountCode, "auth");
+    }
+
+    if (message.includes("transaction_not_found")) {
+      redirectWithStatus(workspaceId, accountCode, "entry-not-found");
+    }
+
+    if (message.includes("account_not_found")) {
+      redirectWithStatus(workspaceId, accountCode, "account");
+    }
+
+    if (message.includes("manual_card_income_blocked")) {
+      redirectWithStatus(workspaceId, accountCode, "card-income");
+    }
+
+    if (message.includes("amount_must_be_positive")) {
+      redirectWithStatus(workspaceId, accountCode, "amount");
+    }
+
+    redirectWithStatus(workspaceId, accountCode, "update");
+  }
+
+  const result = data?.[0];
+
+  if (!result) {
+    redirectWithStatus(workspaceId, accountCode, "update");
+  }
+
+  redirectWithStatus(workspaceId, accountCode, result.counted ? "updated" : "review");
+}
+
+export async function deleteOperationalEntry(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const transactionId = String(formData.get("transactionId") || "").trim();
+
+  if (!transactionId) {
+    redirectWithStatus(workspaceId, accountCode, "missing");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("void_operational_entry", {
+      p_transaction_id: transactionId
+    })
+    .returns<VoidOperationalEntryResult[]>();
+
+  if (error) {
+    const message = error.message;
+
+    if (message.includes("auth_required") || message.includes("ledger_write_required")) {
+      redirectWithStatus(workspaceId, accountCode, "auth");
+    }
+
+    if (message.includes("transaction_not_found")) {
+      redirectWithStatus(workspaceId, accountCode, "entry-not-found");
+    }
+
+    redirectWithStatus(workspaceId, accountCode, "delete");
+  }
+
+  const result = data?.[0];
+
+  if (!result?.voided) {
+    redirectWithStatus(workspaceId, accountCode, "delete");
+  }
+
+  redirectWithStatus(workspaceId, accountCode, "deleted");
 }
 
 export async function saveQuickNoteDraft(workspaceId: string, formData: FormData) {
