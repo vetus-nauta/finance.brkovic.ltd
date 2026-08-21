@@ -25,6 +25,21 @@ type CashAdvanceForAccept = {
   status: string;
 };
 
+type CashAdvanceForReport = CashAdvanceForAccept & {
+  currency_code: string;
+};
+
+type ExpenseReportForWrite = {
+  id: string;
+  organization_id: string;
+  workspace_id: string;
+  cash_advance_id: string | null;
+  submitted_by: string;
+  status: string;
+  total_amount: number | string;
+  currency_code: string;
+};
+
 type QuickNoteForWrite = {
   id: string;
   status: string;
@@ -200,6 +215,10 @@ export async function createAccountableOffer(workspaceId: string, formData: Form
     redirectToTeam(workspaceId, "workspace");
   }
 
+  if (!hasSupabaseAdminEnv()) {
+    redirectToTeam(workspaceId, "accountable-config");
+  }
+
   const { data: member, error: memberError } = await supabase
     .from("memberships")
     .select("user_id, role_code, access_scope, status")
@@ -246,7 +265,8 @@ export async function createAccountableOffer(workspaceId: string, formData: Form
     redirectToTeam(workspaceId, "accountable-create");
   }
 
-  await supabase.from("approval_events").insert({
+  const admin = createAdminClient();
+  const { error: approvalError } = await admin.from("approval_events").insert({
     organization_id: workspace.organization_id,
     workspace_id: workspace.id,
     entity_type: "cash_advance",
@@ -256,6 +276,11 @@ export async function createAccountableOffer(workspaceId: string, formData: Form
     note: purpose || null,
     metadata: { amount, account_code: accountCode }
   });
+
+  if (approvalError) {
+    await admin.from("cash_advances").delete().eq("id", insertedAdvance.id).eq("workspace_id", workspace.id);
+    redirectToTeam(workspaceId, "accountable-create");
+  }
 
   revalidateWorkspace(workspaceId);
   redirectToTeam(workspaceId, "accountable-created");
@@ -295,15 +320,17 @@ export async function acceptAccountableOffer(workspaceId: string, formData: Form
 
   const admin = createAdminClient();
   const acceptedAt = new Date().toISOString();
-  const { error: updateError } = await admin
+  const { data: acceptedAdvance, error: updateError } = await admin
     .from("cash_advances")
     .update({ status: "accepted", accepted_at: acceptedAt })
     .eq("id", advance.id)
     .eq("workspace_id", workspaceId)
     .eq("issued_to", userId)
-    .eq("status", "offered");
+    .eq("status", "offered")
+    .select("id")
+    .maybeSingle<{ id: string }>();
 
-  if (updateError) {
+  if (updateError || !acceptedAdvance) {
     redirectToTeam(workspaceId, "accountable-accept");
   }
 
@@ -319,6 +346,217 @@ export async function acceptAccountableOffer(workspaceId: string, formData: Form
 
   revalidateWorkspace(workspaceId);
   redirectToTeam(workspaceId, "accountable-accepted");
+}
+
+export async function addAccountableExpenseItem(workspaceId: string, formData: FormData) {
+  const advanceId = String(formData.get("advanceId") || "").trim();
+  const occurredOn = String(formData.get("occurredOn") || "").trim();
+  const rawText = String(formData.get("rawText") || "").trim();
+  const amount = parseMoneyInput(formData.get("amount"));
+
+  if (!advanceId || !occurredOn || !rawText || amount <= 0) {
+    redirectToTeam(workspaceId, "accountable-missing");
+  }
+
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+
+  if (typeof userId !== "string") {
+    redirectToTeam(workspaceId, "auth");
+  }
+
+  const { data: advance, error: advanceError } = await supabase
+    .from("cash_advances")
+    .select("id, organization_id, workspace_id, issued_to, status, currency_code")
+    .eq("id", advanceId)
+    .eq("workspace_id", workspaceId)
+    .eq("issued_to", userId)
+    .eq("status", "accepted")
+    .maybeSingle<CashAdvanceForReport>();
+
+  if (advanceError || !advance) {
+    redirectToTeam(workspaceId, "accountable-not-found");
+  }
+
+  const { data: existingReports, error: reportReadError } = await supabase
+    .from("expense_reports")
+    .select("id, organization_id, workspace_id, cash_advance_id, submitted_by, status, total_amount, currency_code")
+    .eq("workspace_id", workspaceId)
+    .eq("cash_advance_id", advance.id)
+    .eq("submitted_by", userId)
+    .in("status", ["draft", "returned"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .returns<ExpenseReportForWrite[]>();
+
+  if (reportReadError) {
+    redirectToTeam(workspaceId, "accountable-item-create");
+  }
+
+  let report = existingReports?.[0] ?? null;
+
+  if (!report) {
+    const { data: insertedReport, error: reportCreateError } = await supabase
+      .from("expense_reports")
+      .insert({
+        organization_id: advance.organization_id,
+        workspace_id: workspaceId,
+        cash_advance_id: advance.id,
+        submitted_by: userId,
+        status: "draft",
+        total_amount: 0,
+        currency_code: advance.currency_code
+      })
+      .select("id, organization_id, workspace_id, cash_advance_id, submitted_by, status, total_amount, currency_code")
+      .single<ExpenseReportForWrite>();
+
+    if (reportCreateError || !insertedReport) {
+      redirectToTeam(workspaceId, "accountable-item-create");
+    }
+
+    report = insertedReport;
+  }
+
+  const { error: itemCreateError } = await supabase.from("expense_items").insert({
+    organization_id: advance.organization_id,
+    workspace_id: workspaceId,
+    expense_report_id: report.id,
+    occurred_on: occurredOn,
+    raw_text: rawText,
+    amount,
+    currency_code: report.currency_code,
+    status: "draft"
+  });
+
+  if (itemCreateError) {
+    redirectToTeam(workspaceId, "accountable-item-create");
+  }
+
+  const { data: reportItems, error: reportItemsError } = await supabase
+    .from("expense_items")
+    .select("amount")
+    .eq("expense_report_id", report.id)
+    .eq("workspace_id", workspaceId)
+    .neq("status", "rejected")
+    .returns<{ amount: number | string }[]>();
+
+  if (reportItemsError) {
+    redirectToTeam(workspaceId, "accountable-item-create");
+  }
+
+  const nextTotal = (reportItems ?? []).reduce((sum, item) => sum + Number(item.amount), 0);
+  const { data: updatedReport, error: totalUpdateError } = await supabase
+    .from("expense_reports")
+    .update({ total_amount: nextTotal })
+    .eq("id", report.id)
+    .eq("workspace_id", workspaceId)
+    .eq("submitted_by", userId)
+    .in("status", ["draft", "returned"])
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (totalUpdateError || !updatedReport) {
+    redirectToTeam(workspaceId, "accountable-item-create");
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToTeam(workspaceId, "accountable-item-created");
+}
+
+export async function submitAccountableReport(workspaceId: string, formData: FormData) {
+  const reportId = String(formData.get("reportId") || "").trim();
+
+  if (!reportId) {
+    redirectToTeam(workspaceId, "accountable-report-missing");
+  }
+
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+
+  if (typeof userId !== "string") {
+    redirectToTeam(workspaceId, "auth");
+  }
+
+  const submittedAt = new Date().toISOString();
+  const { data: submittedReport, error } = await supabase
+    .from("expense_reports")
+    .update({ status: "submitted", submitted_at: submittedAt })
+    .eq("id", reportId)
+    .eq("workspace_id", workspaceId)
+    .eq("submitted_by", userId)
+    .in("status", ["draft", "returned"])
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (error || !submittedReport) {
+    redirectToTeam(workspaceId, "accountable-report-submit");
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToTeam(workspaceId, "accountable-report-submitted");
+}
+
+export async function reviewAccountableReport(workspaceId: string, formData: FormData) {
+  const reportId = String(formData.get("reportId") || "").trim();
+  const nextStatus = String(formData.get("nextStatus") || "").trim();
+  const note = String(formData.get("note") || "").trim();
+
+  if (!reportId || (nextStatus !== "approved" && nextStatus !== "returned")) {
+    redirectToTeam(workspaceId, "accountable-report-missing");
+  }
+
+  const { supabase, userId, workspace } = await getWritableWorkspace(workspaceId);
+
+  if (!userId) {
+    redirectToTeam(workspaceId, "auth");
+  }
+
+  if (!workspace) {
+    redirectToTeam(workspaceId, "workspace");
+  }
+
+  const reviewedAt = new Date().toISOString();
+  if (!hasSupabaseAdminEnv()) {
+    redirectToTeam(workspaceId, "accountable-config");
+  }
+
+  const { data: reviewedReport, error } = await supabase
+    .from("expense_reports")
+    .update({
+      status: nextStatus,
+      approved_by: nextStatus === "approved" ? userId : null,
+      approved_at: nextStatus === "approved" ? reviewedAt : null,
+      metadata: { review_note: note }
+    })
+    .eq("id", reportId)
+    .eq("workspace_id", workspaceId)
+    .eq("status", "submitted")
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (error || !reviewedReport) {
+    redirectToTeam(workspaceId, "accountable-report-review");
+  }
+
+  const admin = createAdminClient();
+  const { error: approvalError } = await admin.from("approval_events").insert({
+    organization_id: workspace.organization_id,
+    workspace_id: workspace.id,
+    entity_type: "expense_report",
+    entity_id: reportId,
+    event_type: nextStatus === "approved" ? "approved_by_admin" : "returned_to_employee",
+    actor_user_id: userId,
+    note: note || null
+  });
+
+  if (approvalError) {
+    redirectToTeam(workspaceId, "accountable-report-review");
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToTeam(workspaceId, nextStatus === "approved" ? "accountable-report-approved" : "accountable-report-returned");
 }
 
 export async function createOperationalEntry(workspaceId: string, formData: FormData) {

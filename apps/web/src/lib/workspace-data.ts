@@ -349,9 +349,13 @@ type ExpenseReportRow = {
 };
 
 type ExpenseItemRow = {
+  id: string;
   expense_report_id: string;
+  occurred_on: string;
+  raw_text: string;
   amount: number | string;
   status: string;
+  created_at: string;
 };
 
 export type WorkspaceMemberSummary = {
@@ -397,7 +401,17 @@ export type AccountableReportSummary = {
   totalAmount: number;
   acceptedItemsTotal: number;
   currency: string;
+  items: AccountableReportItemSummary[];
   submittedAt: string | null;
+  createdAt: string;
+};
+
+export type AccountableReportItemSummary = {
+  id: string;
+  occurredOn: string;
+  rawText: string;
+  amount: number;
+  status: string;
   createdAt: string;
 };
 
@@ -1294,8 +1308,10 @@ export async function getWorkspaceDetails(
     expenseReportIds.length > 0
       ? await supabase
           .from("expense_items")
-          .select("expense_report_id, amount, status")
+          .select("id, expense_report_id, occurred_on, raw_text, amount, status, created_at")
           .in("expense_report_id", expenseReportIds)
+          .order("occurred_on", { ascending: true })
+          .order("created_at", { ascending: true })
           .returns<ExpenseItemRow[]>()
       : { data: [], error: null };
 
@@ -1346,6 +1362,14 @@ export async function getWorkspaceDetails(
 
   const accountableReports = (expenseReports.data ?? []).map((report) => {
     const items = expenseItemsByReportId.get(report.id) ?? [];
+    const normalizedItems = items.map((item) => ({
+      id: item.id,
+      occurredOn: item.occurred_on,
+      rawText: item.raw_text,
+      amount: Number(item.amount),
+      status: item.status,
+      createdAt: item.created_at
+    }));
     const acceptedItemsTotal = items
       .filter((item) => item.status !== "rejected")
       .reduce((sum, item) => sum + Number(item.amount), 0);
@@ -1359,6 +1383,7 @@ export async function getWorkspaceDetails(
       totalAmount: Number(report.total_amount),
       acceptedItemsTotal,
       currency: report.currency_code,
+      items: normalizedItems,
       submittedAt: report.submitted_at,
       createdAt: report.created_at
     };

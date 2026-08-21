@@ -574,6 +574,185 @@ button {
   text-align: right;
 }
 
+.compact-team-metrics {
+  max-width: 520px;
+}
+
+.employee-report-card {
+  gap: 12px;
+}
+
+.team-summary-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.team-summary-grid span {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.team-summary-grid small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-summary-grid strong {
+  font-size: 18px;
+}
+
+.team-report-entry-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 150px 130px minmax(220px, 1fr) auto;
+}
+
+.team-report-entry-form label,
+.team-return-report-form {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.team-report-entry-form label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-report-entry-form input,
+.team-return-report-form input {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.team-expense-item-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  overflow: hidden;
+}
+
+.team-expense-item-row {
+  align-items: center;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 40px 110px minmax(0, 1fr) 120px;
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+.team-expense-item-row:last-child {
+  border-bottom: 0;
+}
+
+.team-expense-item-row span {
+  color: #087469;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.team-expense-item-row time {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-expense-item-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-expense-item-row b {
+  text-align: right;
+}
+
+.team-submit-report-form {
+  justify-self: end;
+}
+
+.team-report-review-card {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.team-report-review-card:last-child {
+  border-bottom: 0;
+}
+
+.team-report-review-head {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 1fr) 130px auto;
+  min-width: 0;
+}
+
+.team-report-review-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.team-report-review-head strong,
+.team-report-review-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-report-review-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-report-review-head b {
+  text-align: right;
+}
+
+.compact-expense-item-list {
+  background: var(--panel-soft);
+}
+
+.team-review-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.team-return-report-form {
+  grid-template-columns: minmax(180px, 260px) auto;
+}
+
+.team-return-report-form button {
+  border-color: #ffd59e;
+  color: #9a5a00;
+  min-height: 40px;
+}
+
 .notes-mode-panel {
   align-content: start;
   gap: 0;
@@ -2387,6 +2566,33 @@ button {
 
   .team-accountable-row b {
     text-align: left;
+  }
+
+  .team-summary-grid,
+  .team-report-entry-form,
+  .team-report-review-head,
+  .team-return-report-form {
+    grid-template-columns: 1fr;
+  }
+
+  .team-expense-item-row {
+    grid-template-columns: 34px 88px minmax(0, 1fr);
+  }
+
+  .team-expense-item-row b {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+
+  .team-review-actions,
+  .team-submit-report-form {
+    justify-self: stretch;
+  }
+
+  .team-review-actions .compact-action-form,
+  .team-review-actions button,
+  .team-submit-report-form button {
+    width: 100%;
   }
 
   .ledger-panel {

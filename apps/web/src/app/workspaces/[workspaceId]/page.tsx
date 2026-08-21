@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import {
   acceptAccountableOffer,
+  addAccountableExpenseItem,
   convertSmithProposalsToEntries,
   createAccountableOffer,
   createReportExportVersion,
@@ -13,9 +14,11 @@ import {
   deleteOperationalEntry,
   deleteQuickNote,
   returnReportSnapshotForRevision,
+  reviewAccountableReport,
   saveQuickNoteDraft,
   setReportPackageDeliveryStatus,
   setReportSnapshotDeliveryStatus,
+  submitAccountableReport,
   submitQuickNoteToSmith,
   updateOperationalEntry
 } from "./actions";
@@ -136,6 +139,22 @@ function workspaceStatusText(status?: string) {
       return "Не удалось создать выдачу под отчет.";
     case "accountable-accept":
       return "Не удалось подтвердить получение денег.";
+    case "accountable-item-created":
+      return "Строка добавлена в отчет сотрудника.";
+    case "accountable-report-submitted":
+      return "Отчет отправлен администратору.";
+    case "accountable-report-approved":
+      return "Отчет сотрудника принят.";
+    case "accountable-report-returned":
+      return "Отчет сотрудника возвращен на доработку.";
+    case "accountable-report-missing":
+      return "Отчет сотрудника не найден.";
+    case "accountable-item-create":
+      return "Не удалось добавить строку в отчет.";
+    case "accountable-report-submit":
+      return "Не удалось отправить отчет.";
+    case "accountable-report-review":
+      return "Не удалось изменить статус отчета сотрудника.";
     case "report-created":
       return "Отчет создан, строки периода закрыты от обычного редактирования.";
     case "report-package-created":
@@ -205,6 +224,10 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "created" ||
     status === "accountable-created" ||
     status === "accountable-accepted" ||
+    status === "accountable-item-created" ||
+    status === "accountable-report-submitted" ||
+    status === "accountable-report-approved" ||
+    status === "accountable-report-returned" ||
     status === "report-created" ||
     status === "report-package-created" ||
     status === "report-sent" ||
@@ -236,6 +259,16 @@ function reportStatusText(status: string) {
       return "Черновик";
     case "created":
       return "Создан";
+    case "submitted":
+      return "Отправлен";
+    case "approved":
+      return "Принят";
+    case "returned":
+      return "На доработке";
+    case "closed":
+      return "Закрыт";
+    case "void":
+      return "Отменен";
     case "sent":
       return "Отправлен";
     case "accepted":
@@ -406,6 +439,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const inviteAction = createWorkspaceInvitation.bind(null, workspace.id);
   const createAccountableOfferAction = createAccountableOffer.bind(null, workspace.id);
   const acceptAccountableOfferAction = acceptAccountableOffer.bind(null, workspace.id);
+  const addAccountableExpenseItemAction = addAccountableExpenseItem.bind(null, workspace.id);
+  const submitAccountableReportAction = submitAccountableReport.bind(null, workspace.id);
+  const reviewAccountableReportAction = reviewAccountableReport.bind(null, workspace.id);
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
   const createReportExportAction = createReportExportVersion.bind(null, workspace.id);
@@ -441,7 +477,30 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
     : null;
   const canManageMembers = workspace.role === "owner" || workspace.role === "admin";
   const canIssueAccountableMoney = workspace.role === "owner" || workspace.role === "admin" || workspace.role === "finance";
+  const isEmployeeScope = workspace.accessScope === "own_reports";
+  const canUseGeneralWorkspace = !isEmployeeScope;
   const employeeMembers = workspace.members.filter((member) => member.accessScope === "own_reports" && member.status === "active");
+  const acceptedEmployeeAdvances = workspace.accountableAdvances.filter((advance) => advance.status === "accepted");
+  const activeEmployeeAdvance =
+    acceptedEmployeeAdvances[0] ??
+    workspace.accountableAdvances.find((advance) => advance.status === "offered") ??
+    workspace.accountableAdvances[0] ??
+    null;
+  const activeEmployeeReport =
+    activeEmployeeAdvance
+      ? workspace.accountableReports.find(
+          (report) =>
+            report.cashAdvanceId === activeEmployeeAdvance.id &&
+            (report.status === "draft" || report.status === "returned" || report.status === "submitted")
+        ) ?? null
+      : null;
+  const employeeReportItems = activeEmployeeReport?.items ?? [];
+  const employeeIssuedTotal = acceptedEmployeeAdvances.reduce((sum, advance) => sum + advance.amount, 0);
+  const employeeReportedTotal = workspace.accountableReports
+    .filter((report) => report.status !== "void")
+    .reduce((sum, report) => sum + report.acceptedItemsTotal, 0);
+  const employeeBalance = employeeIssuedTotal - employeeReportedTotal;
+  const pendingAccountableReports = workspace.accountableReports.filter((report) => report.status === "submitted");
   const activeAccount = workspace.accounts.find((account) => account.code === workspace.activeAccountCode) ?? workspace.accounts[0] ?? null;
   const activeNavigationLabel =
     mode === "notes"
@@ -480,22 +539,39 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             Сменить пространство
           </Link>
         </div>
-        <div className="workspace-metrics" aria-label="Состояние пространства">
-          {workspace.accountBalances.map((account) => (
-            <span className="money-metric" key={account.accountCode}>
-              <small>{account.label}</small>
-              <strong>{formatMoney(account.balance, workspace.currency)}</strong>
+        {canUseGeneralWorkspace ? (
+          <div className="workspace-metrics" aria-label="Состояние пространства">
+            {workspace.accountBalances.map((account) => (
+              <span className="money-metric" key={account.accountCode}>
+                <small>{account.label}</small>
+                <strong>{formatMoney(account.balance, workspace.currency)}</strong>
+              </span>
+            ))}
+            <span>
+              <small>Записей</small>
+              <strong>{workspace.transactionCount}</strong>
             </span>
-          ))}
-          <span>
-            <small>Записей</small>
-            <strong>{workspace.transactionCount}</strong>
-          </span>
-          <span>
-            <small>На проверке</small>
-            <strong>{workspace.reviewCount}</strong>
-          </span>
-        </div>
+            <span>
+              <small>На проверке</small>
+              <strong>{workspace.reviewCount}</strong>
+            </span>
+          </div>
+        ) : (
+          <div className="workspace-metrics compact-team-metrics" aria-label="Состояние моего отчета">
+            <span>
+              <small>Выдано</small>
+              <strong>{formatMoney(employeeIssuedTotal, workspace.currency)}</strong>
+            </span>
+            <span>
+              <small>В отчете</small>
+              <strong>{formatMoney(employeeReportedTotal, workspace.currency)}</strong>
+            </span>
+            <span>
+              <small>{employeeBalance >= 0 ? "Остаток" : "Перерасход"}</small>
+              <strong>{formatMoney(Math.abs(employeeBalance), workspace.currency)}</strong>
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="workspace-shell">
@@ -505,37 +581,41 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             <strong>{activeNavigationLabel}</strong>
           </summary>
           <nav className="mobile-section-menu-panel" aria-label="Мобильная навигация пространства">
-            {workspace.accounts.length > 0 ? (
-              workspace.accounts.map((account) => (
-                <Link
-                  className={mode === "ledger" && workspace.activeAccountCode === account.code ? "active" : undefined}
-                  aria-current={mode === "ledger" && workspace.activeAccountCode === account.code ? "page" : undefined}
-                  href={`${workspaceBasePath}?account=${encodeURIComponent(account.code)}`}
-                  key={account.id}
-                >
-                  {account.label}
-                </Link>
-              ))
-            ) : (
+            {canUseGeneralWorkspace ? (
               <>
-                <span className="active">Кеш</span>
-                <span>Карта</span>
+                {workspace.accounts.length > 0 ? (
+                  workspace.accounts.map((account) => (
+                    <Link
+                      className={mode === "ledger" && workspace.activeAccountCode === account.code ? "active" : undefined}
+                      aria-current={mode === "ledger" && workspace.activeAccountCode === account.code ? "page" : undefined}
+                      href={`${workspaceBasePath}?account=${encodeURIComponent(account.code)}`}
+                      key={account.id}
+                    >
+                      {account.label}
+                    </Link>
+                  ))
+                ) : (
+                  <>
+                    <span className="active">Кеш</span>
+                    <span>Карта</span>
+                  </>
+                )}
+                <Link
+                  className={mode === "notes" ? "active" : undefined}
+                  aria-current={mode === "notes" ? "page" : undefined}
+                  href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+                >
+                  Заметки
+                </Link>
+                <Link
+                  className={mode === "reports" ? "active" : undefined}
+                  aria-current={mode === "reports" ? "page" : undefined}
+                  href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+                >
+                  Отчеты
+                </Link>
               </>
-            )}
-            <Link
-              className={mode === "notes" ? "active" : undefined}
-              aria-current={mode === "notes" ? "page" : undefined}
-              href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}
-            >
-              Заметки
-            </Link>
-            <Link
-              className={mode === "reports" ? "active" : undefined}
-              aria-current={mode === "reports" ? "page" : undefined}
-              href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}`}
-            >
-              Отчеты
-            </Link>
+            ) : null}
             <Link
               className={mode === "team" ? "active" : undefined}
               aria-current={mode === "team" ? "page" : undefined}
@@ -546,40 +626,44 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           </nav>
         </details>
         <aside className="side-tabs" aria-label="Разделы рабочего пространства">
-          {workspace.accounts.length > 0 ? (
-            workspace.accounts.map((account) => (
-              <Link
-                className={mode === "ledger" && workspace.activeAccountCode === account.code ? "active" : undefined}
-                aria-current={mode === "ledger" && workspace.activeAccountCode === account.code ? "page" : undefined}
-                href={`${workspaceBasePath}?account=${encodeURIComponent(account.code)}`}
-                key={account.id}
-              >
-                {account.label}
-              </Link>
-            ))
-          ) : (
+          {canUseGeneralWorkspace ? (
             <>
-              <span className="active">
-                Кеш
-              </span>
-              <span>Карта</span>
+              {workspace.accounts.length > 0 ? (
+                workspace.accounts.map((account) => (
+                  <Link
+                    className={mode === "ledger" && workspace.activeAccountCode === account.code ? "active" : undefined}
+                    aria-current={mode === "ledger" && workspace.activeAccountCode === account.code ? "page" : undefined}
+                    href={`${workspaceBasePath}?account=${encodeURIComponent(account.code)}`}
+                    key={account.id}
+                  >
+                    {account.label}
+                  </Link>
+                ))
+              ) : (
+                <>
+                  <span className="active">
+                    Кеш
+                  </span>
+                  <span>Карта</span>
+                </>
+              )}
+              <span className="side-tabs-divider" aria-hidden="true" />
+              <Link
+                className={mode === "notes" ? "active" : undefined}
+                aria-current={mode === "notes" ? "page" : undefined}
+                href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+              >
+                Заметки
+              </Link>
+              <Link
+                className={mode === "reports" ? "active" : undefined}
+                aria-current={mode === "reports" ? "page" : undefined}
+                href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}`}
+              >
+                Отчеты
+              </Link>
             </>
-          )}
-          <span className="side-tabs-divider" aria-hidden="true" />
-          <Link
-            className={mode === "notes" ? "active" : undefined}
-            aria-current={mode === "notes" ? "page" : undefined}
-            href={`${workspaceBasePath}?mode=notes&account=${encodeURIComponent(workspace.activeAccountCode)}`}
-          >
-            Заметки
-          </Link>
-          <Link
-            className={mode === "reports" ? "active" : undefined}
-            aria-current={mode === "reports" ? "page" : undefined}
-            href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}`}
-          >
-            Отчеты
-          </Link>
+          ) : null}
           <Link
             className={mode === "team" ? "active" : undefined}
             aria-current={mode === "team" ? "page" : undefined}
@@ -612,6 +696,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
               </div>
               <small>
                 {workspace.accountableAdvances.length} выдач · {workspace.accountableReports.length} отчетов
+                {canUseGeneralWorkspace ? ` · ждут ${pendingAccountableReports.length}` : ""}
               </small>
             </div>
             {modeStatusText ? (
@@ -683,6 +768,89 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 ) : null}
               </section>
             ) : null}
+            {isEmployeeScope ? (
+              <section className="team-ledger-card employee-report-card" aria-label="Мой отчет по выданным деньгам">
+                <div className="note-history-head">
+                  <div>
+                    <h3>Рабочий отчет</h3>
+                    <small>
+                      {activeEmployeeAdvance
+                        ? `${accountableStatusText(activeEmployeeAdvance.status)} · ${activeEmployeeAdvance.purpose || "без комментария"}`
+                        : "Ожидает выдачи от администратора"}
+                    </small>
+                  </div>
+                  {activeEmployeeReport ? <span className="status-pill">{reportStatusText(activeEmployeeReport.status)}</span> : null}
+                </div>
+                <div className="team-summary-grid" aria-label="Сводка моего отчета">
+                  <span>
+                    <small>Выдано</small>
+                    <strong>{formatMoney(employeeIssuedTotal, workspace.currency)}</strong>
+                  </span>
+                  <span>
+                    <small>В отчете</small>
+                    <strong>{formatMoney(employeeReportedTotal, workspace.currency)}</strong>
+                  </span>
+                  <span>
+                    <small>{employeeBalance >= 0 ? "Остаток" : "Перерасход"}</small>
+                    <strong>{formatMoney(Math.abs(employeeBalance), workspace.currency)}</strong>
+                  </span>
+                </div>
+                {activeEmployeeAdvance?.status === "accepted" &&
+                (!activeEmployeeReport || activeEmployeeReport.status === "draft" || activeEmployeeReport.status === "returned") ? (
+                  <form action={addAccountableExpenseItemAction} className="team-report-entry-form">
+                    <input type="hidden" name="advanceId" value={activeEmployeeAdvance.id} />
+                    <label>
+                      <span>Дата</span>
+                      <input type="date" name="occurredOn" defaultValue={today} required />
+                    </label>
+                    <label>
+                      <span>Сумма</span>
+                      <input name="amount" inputMode="decimal" placeholder="80" required />
+                    </label>
+                    <label className="wide-field">
+                      <span>Запись</span>
+                      <input name="rawText" placeholder="-80 продукты" required />
+                    </label>
+                    <button className="primary-action" type="submit">
+                      Добавить строку
+                    </button>
+                  </form>
+                ) : null}
+                {activeEmployeeAdvance?.status === "offered" ? (
+                  <p className="form-note">Сначала подтвердите получение денег в блоке ниже.</p>
+                ) : null}
+                {employeeReportItems.length > 0 ? (
+                  <div className="team-expense-item-list" aria-label="Строки моего отчета">
+                    {employeeReportItems.map((item, index) => (
+                      <div className="team-expense-item-row" key={item.id}>
+                        <span>{index + 1}</span>
+                        <time dateTime={item.occurredOn}>{formatDateOnly(item.occurredOn)}</time>
+                        <strong>{item.rawText}</strong>
+                        <b>{formatMoney(item.amount, workspace.currency)}</b>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state inline-empty">
+                    <h2>Строк отчета пока нет</h2>
+                    <p>После принятия денег добавляйте сюда расходы простыми строками.</p>
+                  </div>
+                )}
+                {activeEmployeeReport &&
+                (activeEmployeeReport.status === "draft" || activeEmployeeReport.status === "returned") &&
+                employeeReportItems.length > 0 ? (
+                  <form action={submitAccountableReportAction} className="team-submit-report-form">
+                    <input type="hidden" name="reportId" value={activeEmployeeReport.id} />
+                    <button className="primary-action" type="submit">
+                      Отправить администратору
+                    </button>
+                  </form>
+                ) : null}
+                {activeEmployeeReport?.status === "submitted" ? (
+                  <p className="form-note success">Отчет отправлен. Администратор примет его или вернет на доработку.</p>
+                ) : null}
+              </section>
+            ) : null}
             <section className="team-ledger-card" aria-label="Выданные под отчет деньги">
               <div className="note-history-head">
                 <h3>{workspace.accessScope === "own_reports" ? "Мои деньги под отчет" : "Выданные суммы"}</h3>
@@ -722,20 +890,50 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             </section>
             <section className="team-ledger-card" aria-label="Отчеты сотрудников">
               <div className="note-history-head">
-                <h3>{workspace.accessScope === "own_reports" ? "Мои отправленные отчеты" : "Отчеты сотрудников"}</h3>
+                <h3>{workspace.accessScope === "own_reports" ? "Мои отчеты" : "Отчеты сотрудников"}</h3>
                 <small>{workspace.accountableReports.length} строк</small>
               </div>
               {workspace.accountableReports.length > 0 ? (
                 <div className="team-accountable-list">
                   {workspace.accountableReports.map((report) => (
-                    <article className="team-accountable-row" key={report.id}>
-                      <div>
-                        <strong>{report.submittedByEmail ?? "Сотрудник"}</strong>
-                        <span>{formatDateTime(report.createdAt)}</span>
+                    <article className="team-report-review-card" key={report.id}>
+                      <div className="team-report-review-head">
+                        <div>
+                          <strong>{report.submittedByEmail ?? "Сотрудник"}</strong>
+                          <span>
+                            {formatDateTime(report.submittedAt ?? report.createdAt)} · {report.items.length} строк
+                          </span>
+                        </div>
+                        <b>{formatMoney(report.totalAmount, report.currency)}</b>
+                        <span className="status-pill">{reportStatusText(report.status)}</span>
                       </div>
-                      <b>{formatMoney(report.totalAmount, report.currency)}</b>
-                      <span>{formatMoney(report.acceptedItemsTotal, report.currency)} принято</span>
-                      <span className="status-pill">{reportStatusText(report.status)}</span>
+                      {report.items.length > 0 ? (
+                        <div className="team-expense-item-list compact-expense-item-list" aria-label="Строки отчета сотрудника">
+                          {report.items.map((item, index) => (
+                            <div className="team-expense-item-row" key={item.id}>
+                              <span>{index + 1}</span>
+                              <time dateTime={item.occurredOn}>{formatDateOnly(item.occurredOn)}</time>
+                              <strong>{item.rawText}</strong>
+                              <b>{formatMoney(item.amount, report.currency)}</b>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {canIssueAccountableMoney && report.status === "submitted" ? (
+                        <div className="team-review-actions" aria-label="Решение по отчету сотрудника">
+                          <form action={reviewAccountableReportAction} className="compact-action-form">
+                            <input type="hidden" name="reportId" value={report.id} />
+                            <input type="hidden" name="nextStatus" value="approved" />
+                            <button type="submit">Принять отчет</button>
+                          </form>
+                          <form action={reviewAccountableReportAction} className="team-return-report-form">
+                            <input type="hidden" name="reportId" value={report.id} />
+                            <input type="hidden" name="nextStatus" value="returned" />
+                            <input name="note" placeholder="Что исправить" />
+                            <button type="submit">На доработку</button>
+                          </form>
+                        </div>
+                      ) : null}
                     </article>
                   ))}
                 </div>
