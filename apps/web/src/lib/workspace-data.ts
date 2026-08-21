@@ -84,6 +84,7 @@ export type ReportSnapshotSummary = {
   periodStart: string;
   periodEnd: string;
   status: string;
+  sourceTransactionIds: string[];
   entryCount: number;
   reviewCount: number;
   incomeTotal: number;
@@ -91,6 +92,7 @@ export type ReportSnapshotSummary = {
   netTotal: number;
   accounts: ReportAccountSummary[];
   categories: ReportCategorySummary[];
+  entries: ReportSourceEntry[];
   createdAt: string;
 };
 
@@ -109,6 +111,19 @@ export type ReportCategorySummary = {
   total: number;
   entryCount: number;
   reviewCount: number;
+};
+
+export type ReportSourceEntry = {
+  id: string;
+  rowNo: number;
+  occurredOn: string;
+  rawText: string;
+  status: string;
+  amount: number | null;
+  direction: "income" | "expense" | "neutral" | null;
+  categoryCode: string;
+  categoryLabel: string;
+  reviewStatus: string | null;
 };
 
 type TransactionRow = {
@@ -197,6 +212,14 @@ type SmithEntryProposalRow = {
   parser_reason: string | null;
   duplicate_status: string;
   duplicate_reason: string | null;
+  status: string;
+};
+
+type ReportSourceTransactionRow = {
+  id: string;
+  row_no: number | null;
+  occurred_on: string;
+  raw_text: string;
   status: string;
 };
 
@@ -643,6 +666,74 @@ export async function getWorkspaceDetails(
     proposalsByNoteId.set(proposal.quick_note_id, list);
   }
 
+  const categoryById = new Map((categories.data ?? []).map((category) => [category.id, category]));
+  const categoryByCode = new Map((categories.data ?? []).map((category) => [category.code, category]));
+  const reportSourceIds = [
+    ...new Set((reportSnapshots.data ?? []).flatMap((report) => report.source_transaction_ids ?? []))
+  ];
+  const { data: reportSourceTransactions, error: reportSourceTransactionsError } =
+    reportSourceIds.length > 0
+      ? await supabase
+          .from("transactions")
+          .select("id, row_no, occurred_on, raw_text, status")
+          .in("id", reportSourceIds)
+          .returns<ReportSourceTransactionRow[]>()
+      : { data: [], error: null };
+  const { data: reportSourceLedgerRows, error: reportSourceLedgerError } =
+    reportSourceIds.length > 0
+      ? await supabase
+          .from("ledger_entries")
+          .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
+          .in("transaction_id", reportSourceIds)
+          .returns<LedgerRow[]>()
+      : { data: [], error: null };
+
+  if (reportSourceTransactionsError) {
+    throw new Error(reportSourceTransactionsError.message);
+  }
+
+  if (reportSourceLedgerError) {
+    throw new Error(reportSourceLedgerError.message);
+  }
+
+  const reportSourceTransactionById = new Map((reportSourceTransactions ?? []).map((row) => [row.id, row]));
+  const reportSourceLedgerByTransactionId = new Map((reportSourceLedgerRows ?? []).map((row) => [row.transaction_id, row]));
+
+  function buildReportSourceEntries(sourceIds: string[]): ReportSourceEntry[] {
+    return sourceIds
+      .map((transactionId) => {
+        const transaction = reportSourceTransactionById.get(transactionId);
+
+        if (!transaction) {
+          return null;
+        }
+
+        const ledger = reportSourceLedgerByTransactionId.get(transactionId);
+        const metadataCategoryCode =
+          typeof ledger?.metadata?.category_code === "string" ? ledger.metadata.category_code : null;
+        const category = ledger?.category_id
+          ? categoryById.get(ledger.category_id) ?? null
+          : metadataCategoryCode
+            ? categoryByCode.get(metadataCategoryCode) ?? null
+            : null;
+        const categoryCode = category?.code ?? metadataCategoryCode ?? "uncategorized";
+
+        return {
+          id: transaction.id,
+          rowNo: transaction.row_no ?? 0,
+          occurredOn: transaction.occurred_on,
+          rawText: transaction.raw_text,
+          status: transaction.status,
+          amount: ledger ? Number(ledger.amount) : null,
+          direction: ledger?.direction ?? null,
+          categoryCode,
+          categoryLabel: category ? categoryLabel(category) : categoryCode === "uncategorized" ? "Без категории" : categoryCode,
+          reviewStatus: ledger?.review_status ?? null
+        };
+      })
+      .filter((entry): entry is ReportSourceEntry => entry !== null);
+  }
+
   return {
     id: workspace.id,
     name: workspace.name,
@@ -671,6 +762,7 @@ export async function getWorkspaceDetails(
       periodStart: report.period_start,
       periodEnd: report.period_end,
       status: report.status,
+      sourceTransactionIds: report.source_transaction_ids ?? [],
       entryCount:
         typeof report.totals?.entry_count === "number"
           ? report.totals.entry_count
@@ -682,6 +774,7 @@ export async function getWorkspaceDetails(
       netTotal: numberFromJson(report.totals?.net_total),
       accounts: reportAccountRows(report.totals),
       categories: reportCategoryRows(report.totals),
+      entries: buildReportSourceEntries(report.source_transaction_ids ?? []),
       createdAt: report.created_at
     })),
     categorySummary: buildCategorySummary(liveLedgerSummaryRows, categories.data ?? [])

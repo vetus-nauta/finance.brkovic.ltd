@@ -912,11 +912,40 @@ button {
   white-space: nowrap;
 }
 
-.report-category-card p {
+.report-source-row-list {
   border-top: 1px solid var(--line);
+  display: grid;
+}
+
+.report-source-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 42px 86px minmax(160px, 1fr) 112px 78px;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.report-source-row:last-child {
+  border-bottom: 0;
+}
+
+.report-source-row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-source-row span {
   color: var(--muted);
-  margin: 0;
-  padding: 10px;
+  font-weight: 900;
+}
+
+.report-source-row b,
+.report-source-row small {
+  text-align: right;
 }
 
 .note-card.active {
@@ -1806,6 +1835,17 @@ button {
   .report-category-card summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .report-source-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    padding: 8px 10px;
+  }
+
+  .report-source-row b,
+  .report-source-row small {
+    text-align: left;
   }
 
   .notes-apple-workspace {

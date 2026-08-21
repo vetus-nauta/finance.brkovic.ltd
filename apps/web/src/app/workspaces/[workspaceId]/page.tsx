@@ -814,9 +814,33 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                             </span>
                             <b>{formatMoney(category.total, workspace.currency)}</b>
                           </summary>
-                          <p>
-                            Раскрытие до отдельных строк будет подключено следующим слоем. Сейчас открыт сохраненный итог категории.
-                          </p>
+                          <div className="report-source-row-list">
+                            {selectedReport.entries
+                              .filter(
+                                (entry) =>
+                                  entry.categoryCode === category.code &&
+                                  (entry.direction ?? category.direction) === category.direction
+                              )
+                              .map((entry) => (
+                                <div className="report-source-row" key={entry.id}>
+                                  <span>{entry.rowNo}</span>
+                                  <time dateTime={entry.occurredOn}>{formatDateOnly(entry.occurredOn)}</time>
+                                  <strong>{entry.rawText}</strong>
+                                  <b
+                                    className={
+                                      entry.direction === "income"
+                                        ? "amount-income"
+                                        : entry.direction === "expense"
+                                          ? "amount-expense"
+                                          : undefined
+                                    }
+                                  >
+                                    {entry.amount === null ? "—" : formatMoney(entry.amount, workspace.currency)}
+                                  </b>
+                                  <small>{entry.reviewStatus === "accepted" ? "Принято" : "Проверка"}</small>
+                                </div>
+                              ))}
+                          </div>
                         </details>
                       ))}
                     </div>
