@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import { routes } from "@/lib/routes";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type InvitationRow = {
@@ -42,6 +42,10 @@ export async function acceptInvitation(token: string) {
 
   if (typeof userId !== "string" || !userEmail) {
     redirect(`${routes.invite}/${encodeURIComponent(normalizedToken)}?inviteStatus=auth`);
+  }
+
+  if (!hasSupabaseAdminEnv()) {
+    redirect(`${routes.invite}/${encodeURIComponent(normalizedToken)}?inviteStatus=config`);
   }
 
   const admin = createAdminClient();

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createHash } from "node:crypto";
 import { AuthForm } from "@/components/AuthForm";
 import { routes } from "@/lib/routes";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { acceptInvitation } from "./actions";
 
@@ -44,6 +44,7 @@ function statusText(status?: string) {
     used: "Это приглашение уже использовано или отменено.",
     expired: "Срок действия приглашения истек.",
     membership: "Не удалось создать участие в пространстве.",
+    config: "Серверная настройка приглашений еще не подключена. Администратор уже видит, что нужно исправить.",
     "not-found": "Приглашение не найдено."
   };
 
@@ -61,6 +62,10 @@ async function getUserEmail() {
 }
 
 async function getPreview(token: string) {
+  if (!hasSupabaseAdminEnv()) {
+    return { data: null, configMissing: true };
+  }
+
   try {
     const admin = createAdminClient();
     const { data } = await admin
@@ -69,18 +74,19 @@ async function getPreview(token: string) {
       .eq("token_hash", tokenHash(token))
       .maybeSingle<InvitationPreview>();
 
-    return data;
+    return { data, configMissing: false };
   } catch {
-    return null;
+    return { data: null, configMissing: true };
   }
 }
 
 export default async function InvitePage({ params, searchParams }: InvitePageProps) {
   const { token } = await params;
   const query = await searchParams;
-  const preview = await getPreview(token);
+  const previewState = await getPreview(token);
+  const preview = previewState.data;
   const email = await getUserEmail();
-  const message = statusText(query.inviteStatus);
+  const message = statusText(query.inviteStatus) ?? (previewState.configMissing ? statusText("config") : null);
   const nextPath = `${routes.invite}/${encodeURIComponent(token)}`;
 
   return (
