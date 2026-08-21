@@ -738,6 +738,13 @@ button {
   justify-content: space-between;
 }
 
+.report-detail-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .note-history-head h3 {
   font-size: 16px;
   line-height: 1.2;

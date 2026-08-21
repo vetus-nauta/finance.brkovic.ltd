@@ -764,7 +764,16 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       {selectedReport.entryCount} строк
                     </small>
                   </div>
-                  <span className="status-pill">{reportStatusText(selectedReport.status)}</span>
+                  <div className="report-detail-actions">
+                    <span className="status-pill">{reportStatusText(selectedReport.status)}</span>
+                    <Link
+                      className="ghost-button"
+                      href={`${workspaceBasePath}/reports/${encodeURIComponent(selectedReport.id)}`}
+                      target="_blank"
+                    >
+                      HTML
+                    </Link>
+                  </div>
                 </div>
                 <div className="report-detail-totals" aria-label="Итоги открытого отчета">
                   <span>
