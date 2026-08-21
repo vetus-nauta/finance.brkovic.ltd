@@ -111,19 +111,48 @@ Passed:
 Vercel CLI:
 
 - `npx vercel --version` returns `59.3.0`.
-- `npx vercel deploy --dry --yes --cwd apps/web --no-color` is blocked by
-  missing local Vercel credentials, not by project code.
+- 2026-08-21: Vercel CLI device login completed for the Vercel team
+  `vetus-nauta`.
+- Vercel project: `finance-brkovic-ltd`.
+- Production branch: `main`.
+- Project root: `apps/web`.
+- Latest checked production commit: `032a003`.
+- Production URL check: `https://finance-brkovic-ltd.vercel.app` returns HTTP
+  200 and renders the foundation auth page.
+
+## 2026-08-21 domain evidence
+
+Domains added to the Vercel project:
+
+```text
+brkovic.app
+www.brkovic.app
+```
+
+DNS changes applied through the cPanel zone for `brkovic.app`:
+
+```text
+brkovic.app A 216.198.79.1
+brkovic.app A 64.29.17.1
+www.brkovic.app CNAME 62224e740c9563d5.vercel-dns-017.com.
+```
+
+Vercel verification:
+
+- `vercel domains verify brkovic.app --scope vetus-nauta`: `ok`
+- `vercel domains verify www.brkovic.app --scope vetus-nauta`: `ok`
+
+DNS backup evidence is stored locally outside Git:
+
+```text
+storage/production-audits/dns-brkovic-app-20260821-121815/
+```
 
 ## Blockers before live production acceptance
 
-- Vercel CLI/API access was not available in the local environment, so this
-  sprint did not trigger a production deployment.
-- Next required human/account step: `vercel login` or a Vercel token for the
-  correct Vercel account/team.
-- A live Vercel deployment URL must be checked after deploy.
 - Supabase Auth OTP email must be verified on the deployed domain.
-- Domain routing for `brkovic.app` must be checked after Vercel project/domain
-  binding.
+- Local workstation/browser DNS may temporarily resolve `brkovic.app` to the old
+  Namecheap hosting IP until resolver cache expires.
 - No real Claudia Z data or employee invitations should be attached until this
   live gate passes.
 

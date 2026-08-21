@@ -215,3 +215,36 @@ Current production gate rule:
 - Legacy PHP/MySQL/Atlas runtime is not the product truth for the new
   foundation app. It remains historical/import reference only until audited
   migration steps are accepted.
+
+## 2026-08-21 brkovic.app Vercel DNS Cutover
+
+Non-secret production routing facts:
+
+- Vercel team: `vetus-nauta`
+- Vercel project: `finance-brkovic-ltd`
+- Git branch: `main`
+- App root: `apps/web`
+- Checked commit: `032a003`
+- Domains added to Vercel: `brkovic.app`, `www.brkovic.app`
+- DNS provider in use: Namecheap Hosting cPanel zone, with nameservers
+  `dns1.namecheaphosting.com` and `dns2.namecheaphosting.com`
+
+Applied DNS records:
+
+```text
+brkovic.app A 216.198.79.1
+brkovic.app A 64.29.17.1
+www.brkovic.app CNAME 62224e740c9563d5.vercel-dns-017.com.
+```
+
+Verified:
+
+- Vercel domain verification for `brkovic.app`: ok
+- Vercel domain verification for `www.brkovic.app`: ok
+- Forced-resolution HTTPS check for `brkovic.app`: HTTP 200 from Vercel
+
+Local backup path outside Git:
+
+```text
+storage/production-audits/dns-brkovic-app-20260821-121815/
+```
