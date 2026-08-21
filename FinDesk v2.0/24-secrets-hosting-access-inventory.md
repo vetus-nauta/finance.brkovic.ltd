@@ -248,3 +248,34 @@ Local backup path outside Git:
 ```text
 storage/production-audits/dns-brkovic-app-20260821-121815/
 ```
+
+## 2026-08-21 brkovic.app Legacy Hosting Root Wipe
+
+After `brkovic.app` was verified on Vercel, the old Namecheap Hosting addon
+domain document root was cleared.
+
+Scope:
+
+```text
+domain: brkovic.app
+cPanel document root: /home/brkovic/brkovic.app
+FTP jailed path: /brkovic.app
+```
+
+Result:
+
+```text
+deleted files: 660
+deleted directories: 9
+errors: 0
+root items after wipe: 0
+```
+
+The domain root directory itself was kept, but all old files and folders inside
+it were removed. No `finance.brkovic.ltd` runtime files were touched.
+
+Local audit path outside Git:
+
+```text
+storage/production-audits/brkovic-app-hosting-wipe-20260821-131725/
+```
