@@ -333,8 +333,10 @@ function proposalSignalText(parserReason: string | null, duplicateStatus: string
 export default async function WorkspacePage({ params, searchParams }: WorkspacePageProps) {
   const { workspaceId } = await params;
   const query = searchParams ? await searchParams : {};
-  const workspace = await getWorkspaceDetails(workspaceId, query.account);
   const mode = normalizeMode(query.mode);
+  const workspace = await getWorkspaceDetails(workspaceId, query.account, {
+    includeReportDetails: mode === "reports"
+  });
 
   if (!workspace) {
     notFound();
@@ -398,6 +400,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
     selectedEntry?.id ?? "new"
   ].join(":");
   const entryDraftSuccess = query.entry === "saved" || query.entry === "updated" || query.entry === "deleted";
+  const totalBalance = workspace.accountBalances.reduce((sum, account) => sum + account.balance, 0);
 
   return (
     <main className="page compact-page">
@@ -411,6 +414,18 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
           </p>
         </div>
         <div className="workspace-metrics" aria-label="Состояние пространства">
+          {workspace.accountBalances.map((account) => (
+            <span className="money-metric" key={account.accountCode}>
+              <small>{account.label}</small>
+              <strong>{formatMoney(account.balance, workspace.currency)}</strong>
+            </span>
+          ))}
+          {workspace.accountBalances.length > 1 ? (
+            <span className="money-metric">
+              <small>Всего</small>
+              <strong>{formatMoney(totalBalance, workspace.currency)}</strong>
+            </span>
+          ) : null}
           <span>
             <small>Записей</small>
             <strong>{workspace.transactionCount}</strong>

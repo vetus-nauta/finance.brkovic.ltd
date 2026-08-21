@@ -38,6 +38,15 @@ type AccountRow = {
 
 export type AccountSummary = AccountRow;
 
+export type AccountBalanceSummary = {
+  accountCode: string;
+  label: string;
+  balance: number;
+  incomeTotal: number;
+  expenseTotal: number;
+  entryCount: number;
+};
+
 export type OperationalEntry = {
   id: string;
   rowNo: number;
@@ -170,11 +179,6 @@ type TransactionRow = {
   account_id: string | null;
 };
 
-type SummaryTransactionRow = {
-  id: string;
-  status: string;
-};
-
 type LedgerRow = {
   transaction_id: string;
   account_id: string | null;
@@ -302,6 +306,7 @@ type ReportSourceTransactionRow = {
 
 export type WorkspaceDetails = WorkspaceSummary & {
   accounts: AccountSummary[];
+  accountBalances: AccountBalanceSummary[];
   transactionCount: number;
   reviewCount: number;
   activeAccountCode: string;
@@ -401,6 +406,54 @@ function buildCategorySummary(ledgerRows: LedgerRow[], categories: CategoryRow[]
     moneyMovements: sortRows(rows.filter((row) => row.kind === "money_movement")),
     uncategorized: sortRows(rows.filter((row) => row.kind === "uncategorized"))
   };
+}
+
+function buildAccountBalances(ledgerRows: LedgerRow[], accounts: AccountRow[]): AccountBalanceSummary[] {
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+  const balancesByAccountId = new Map<string, AccountBalanceSummary>();
+
+  for (const account of accounts) {
+    balancesByAccountId.set(account.id, {
+      accountCode: account.code,
+      label: account.label,
+      balance: 0,
+      incomeTotal: 0,
+      expenseTotal: 0,
+      entryCount: 0
+    });
+  }
+
+  for (const row of ledgerRows) {
+    if (!row.account_id) {
+      continue;
+    }
+
+    const account = accountById.get(row.account_id);
+
+    if (!account) {
+      continue;
+    }
+
+    const summary = balancesByAccountId.get(account.id);
+
+    if (!summary) {
+      continue;
+    }
+
+    const amount = Number(row.amount) || 0;
+
+    if (row.direction === "income") {
+      summary.incomeTotal += amount;
+      summary.balance += amount;
+      summary.entryCount += 1;
+    } else if (row.direction === "expense") {
+      summary.expenseTotal += amount;
+      summary.balance -= amount;
+      summary.entryCount += 1;
+    }
+  }
+
+  return accounts.map((account) => balancesByAccountId.get(account.id)).filter((summary): summary is AccountBalanceSummary => Boolean(summary));
 }
 
 function numberFromJson(value: unknown) {
@@ -711,11 +764,13 @@ export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
 
 export async function getWorkspaceDetails(
   workspaceId: string,
-  requestedAccountCode = "cash"
+  requestedAccountCode = "cash",
+  options: { includeReportDetails?: boolean } = {}
 ): Promise<WorkspaceDetails | null> {
   const supabase = await createClient();
   const pageSize = 1000;
   const lookupChunkSize = 200;
+  const includeReportDetails = options.includeReportDetails ?? false;
 
   function chunkValues<T>(values: T[], chunkSize = lookupChunkSize) {
     const chunks: T[][] = [];
@@ -725,33 +780,6 @@ export async function getWorkspaceDetails(
     }
 
     return chunks;
-  }
-
-  async function fetchAllSummaryTransactions() {
-    const rows: SummaryTransactionRow[] = [];
-
-    for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("id, status")
-        .eq("workspace_id", workspaceId)
-        .neq("status", "void")
-        .order("row_no", { ascending: true, nullsFirst: false })
-        .range(from, from + pageSize - 1)
-        .returns<SummaryTransactionRow[]>();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      rows.push(...(data ?? []));
-
-      if (!data || data.length < pageSize) {
-        break;
-      }
-    }
-
-    return rows;
   }
 
   async function fetchAllLedgerRows() {
@@ -779,7 +807,7 @@ export async function getWorkspaceDetails(
     return rows;
   }
 
-  async function fetchAccountTransactions(accountId: string) {
+  async function fetchWorkspaceTransactions() {
     const rows: TransactionRow[] = [];
 
     for (let from = 0; ; from += pageSize) {
@@ -787,7 +815,6 @@ export async function getWorkspaceDetails(
         .from("transactions")
         .select("id, row_no, occurred_on, raw_text, status, account_id")
         .eq("workspace_id", workspaceId)
-        .eq("account_id", accountId)
         .neq("status", "void")
         .order("row_no", { ascending: true, nullsFirst: false })
         .range(from, from + pageSize - 1)
@@ -985,9 +1012,8 @@ export async function getWorkspaceDetails(
 
   const [
     { data: accounts, error: accountsError },
-    transactions,
-    ledgerReviews,
-    transactionReviews,
+    allTransactions,
+    allLedgerRows,
     quickNotes,
     reportSnapshots,
     reportPackages,
@@ -1000,21 +1026,8 @@ export async function getWorkspaceDetails(
       .eq("is_active", true)
       .order("account_type", { ascending: true })
       .returns<AccountRow[]>(),
-    supabase
-      .from("transactions")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId)
-      .neq("status", "void"),
-    supabase
-      .from("ledger_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId)
-      .eq("review_status", "review"),
-    supabase
-      .from("transactions")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId)
-      .eq("status", "needs_review"),
+    fetchWorkspaceTransactions(),
+    fetchAllLedgerRows(),
     supabase
       .from("quick_notes")
       .select("id, body, status, converted_transaction_ids, created_at, updated_at")
@@ -1024,7 +1037,7 @@ export async function getWorkspaceDetails(
       .limit(20)
       .returns<QuickNoteRow[]>(),
     fetchAllReportSnapshots(),
-    fetchAllReportPackages(),
+    includeReportDetails ? fetchAllReportPackages() : Promise.resolve([]),
     supabase
       .from("categories")
       .select("id, code, direction, label, metadata, is_active")
@@ -1035,18 +1048,6 @@ export async function getWorkspaceDetails(
 
   if (accountsError) {
     throw new Error(accountsError.message);
-  }
-
-  if (transactions.error) {
-    throw new Error(transactions.error.message);
-  }
-
-  if (ledgerReviews.error) {
-    throw new Error(ledgerReviews.error.message);
-  }
-
-  if (transactionReviews.error) {
-    throw new Error(transactionReviews.error.message);
   }
 
   if (quickNotes.error) {
@@ -1071,19 +1072,9 @@ export async function getWorkspaceDetails(
     normalizedAccounts[0] ??
     null;
 
-  let transactionRows: TransactionRow[] = [];
-
-  if (activeAccount) {
-    transactionRows = await fetchAccountTransactions(activeAccount.id);
-  }
-
-  const [summaryTransactionRows, ledgerSummaryRows] = await Promise.all([
-    fetchAllSummaryTransactions(),
-    fetchAllLedgerRows()
-  ]);
-
-  const liveTransactionIds = new Set(summaryTransactionRows.filter((row) => row.status !== "void").map((row) => row.id));
-  const liveLedgerSummaryRows = ledgerSummaryRows.filter((row) => liveTransactionIds.has(row.transaction_id));
+  const liveTransactionIds = new Set(allTransactions.map((row) => row.id));
+  const liveLedgerSummaryRows = allLedgerRows.filter((row) => liveTransactionIds.has(row.transaction_id));
+  const transactionRows = activeAccount ? allTransactions.filter((row) => row.account_id === activeAccount.id) : [];
   const activeTransactionIds = new Set(transactionRows.map((row) => row.id));
   const ledgerByTransactionId = new Map(
     liveLedgerSummaryRows
@@ -1149,7 +1140,7 @@ export async function getWorkspaceDetails(
     proposalsByNoteId.set(proposal.quick_note_id, list);
   }
 
-  const reportPackageIds = reportPackages.map((reportPackage) => reportPackage.id);
+  const reportPackageIds = includeReportDetails ? reportPackages.map((reportPackage) => reportPackage.id) : [];
   const reportPackageItems = reportPackageIds.length > 0 ? await fetchReportPackageItems(reportPackageIds) : [];
 
   const reportIdsByPackageId = new Map<string, string[]>();
@@ -1162,9 +1153,11 @@ export async function getWorkspaceDetails(
 
   const categoryById = new Map((categories.data ?? []).map((category) => [category.id, category]));
   const categoryByCode = new Map((categories.data ?? []).map((category) => [category.code, category]));
-  const reportSourceIds = [...new Set(reportSnapshots.flatMap((report) => report.source_transaction_ids ?? []))];
+  const reportSourceIds = includeReportDetails
+    ? [...new Set(reportSnapshots.flatMap((report) => report.source_transaction_ids ?? []))]
+    : [];
   const reportSnapshotIds = reportSnapshots.map((report) => report.id);
-  const reportEntityIds = [...reportSnapshotIds, ...reportPackageIds];
+  const reportEntityIds = includeReportDetails ? [...reportSnapshotIds, ...reportPackageIds] : [];
   const [reportSourceTransactions, reportSourceLedgerRows, reportApprovalEvents] = await Promise.all([
     reportSourceIds.length > 0 ? fetchReportSourceTransactions(reportSourceIds) : [],
     reportSourceIds.length > 0 ? fetchReportSourceLedgerRows(reportSourceIds) : [],
@@ -1185,8 +1178,11 @@ export async function getWorkspaceDetails(
     role: membership.role_code,
     accessScope: membership.access_scope,
     accounts: normalizedAccounts,
-    transactionCount: transactions.count ?? 0,
-    reviewCount: (ledgerReviews.count ?? 0) + (transactionReviews.count ?? 0),
+    accountBalances: buildAccountBalances(liveLedgerSummaryRows, normalizedAccounts),
+    transactionCount: allTransactions.length,
+    reviewCount:
+      liveLedgerSummaryRows.filter((row) => row.review_status === "review").length +
+      allTransactions.filter((row) => row.status === "needs_review").length,
     activeAccountCode: activeAccount?.code ?? requestedAccountCode,
     entries,
     quickNotes: (quickNotes.data ?? []).map((note) => ({

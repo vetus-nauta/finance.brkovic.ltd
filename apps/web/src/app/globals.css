@@ -273,7 +273,7 @@ button {
 }
 
 .section-head {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -1881,7 +1881,7 @@ button {
   box-shadow: var(--shadow);
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   padding: 12px;
 }
 
@@ -1911,7 +1911,9 @@ button {
 .entry-actions {
   align-items: center;
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .entry-actions .ghost-button {
@@ -1943,6 +1945,7 @@ button {
 
 .entry-delete-form {
   align-self: end;
+  justify-self: end;
 }
 
 .entry-delete-form button {
@@ -1961,6 +1964,7 @@ button {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+  max-width: 760px;
 }
 
 .workspace-metrics span {
@@ -1980,6 +1984,10 @@ button {
 .workspace-metrics strong {
   font-size: 20px;
   line-height: 1.1;
+}
+
+.workspace-metrics .money-metric {
+  min-width: 132px;
 }
 
 @media (min-width: 821px) and (max-width: 1260px) {
@@ -2025,7 +2033,7 @@ button {
   }
 
   .entry-bar {
-    grid-template-columns: 180px minmax(0, 1fr) 128px;
+    grid-template-columns: 160px minmax(0, 1fr) minmax(128px, auto);
   }
 }
 
