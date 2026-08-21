@@ -10,7 +10,8 @@ const envPath = path.join(rootDir, ".env.foundation.local");
 const scenario = "three_employee_accountable_2026_08_21";
 const ownerEmail = "vetus.nauta@gmail.com";
 const organizationName = "Vetus Nauta";
-const workspaceName = "Тестовый прогон сотрудников";
+const workspaceName = "Тестовые прогоны";
+const legacyWorkspaceNames = ["Тестовый прогон сотрудников"];
 const occurredOn = "2026-08-21";
 
 function readLocalEnvValue(name) {
@@ -293,11 +294,29 @@ async function main() {
             deleted_at = now(),
             updated_at = now()
         where organization_id = $1
-          and name = $2
+          and (name = $2 or name = any($4::text[]))
           and id <> $3
       `,
-      [organizationId, workspaceName, workspaceId]
+      [organizationId, workspaceName, workspaceId, legacyWorkspaceNames]
     );
+
+    await client.query(
+      `
+        delete from public.expense_report_ledger_links
+        where expense_report_id = any($1::uuid[])
+           or expense_item_id in (select id from public.expense_items where expense_report_id = any($1::uuid[]))
+      `,
+      [employees.map((employee) => employee.reportId)]
+    );
+    await client.query("delete from public.expense_items where expense_report_id = any($1::uuid[])", [
+      employees.map((employee) => employee.reportId)
+    ]);
+    await client.query("delete from public.expense_reports where id = any($1::uuid[])", [
+      employees.map((employee) => employee.reportId)
+    ]);
+    await client.query("delete from public.cash_advances where id = any($1::uuid[])", [
+      employees.map((employee) => employee.advanceId)
+    ]);
 
     const cleanupStatements = [
       "delete from public.document_links where workspace_id = $1",
