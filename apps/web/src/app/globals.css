@@ -1598,21 +1598,80 @@ button {
   box-shadow: inset 3px 0 0 #1b9587;
 }
 
+.report-ledger-row.is-expanded {
+  background: #eaf7f4;
+  border-bottom-color: #b8ded7;
+}
+
 .report-ledger-row:hover,
 .report-ledger-row:focus-within {
   background: #eaf7f4;
 }
 
-.report-ledger-row > a:first-child,
-.report-ledger-row > a:nth-child(4) {
+.report-row-toggle,
+.report-row-title-button,
+.report-row-balance-button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  display: inline-flex;
+  font: inherit;
+  font-weight: inherit;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.report-row-toggle {
+  align-items: center;
+  gap: 5px;
   color: #087469;
   font-weight: 900;
 }
 
-.report-ledger-row > a:nth-child(3) {
+.report-row-title-button {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+}
+
+.report-row-title-button strong,
+.report-row-title-button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-row-balance-button {
+  justify-content: flex-end;
+  width: 100%;
   color: var(--text);
   font-size: 12px;
   font-weight: 900;
+}
+
+.report-row-status-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  min-width: 0;
+}
+
+.report-row-status-cell a {
+  color: #087469;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.report-child-row {
+  background: #fbfefe;
+}
+
+.report-child-row > :first-child,
+.report-child-row > :nth-child(4) {
+  color: #087469;
 }
 
 .synced-head {
@@ -1722,6 +1781,11 @@ button {
 
 .empty-synced-row {
   color: var(--muted);
+}
+
+.ledger-end-anchor {
+  height: 1px;
+  pointer-events: none;
 }
 
 .status-pill {

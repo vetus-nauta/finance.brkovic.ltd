@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { OperationalEntry, ReportSnapshotSummary } from "@/lib/workspace-data";
 
 type ActiveZone = "journal" | "structure";
@@ -66,18 +66,7 @@ function reportSortValue(report: ReportSnapshotSummary) {
   return `${report.periodStart}-${report.periodEnd}-${report.createdAt}`;
 }
 
-function zoneClassName(activeZone: ActiveZone, entryCount: number) {
-  return [
-    "synced-table",
-    entryCount === 0 ? "is-empty" : "",
-    activeZone === "structure" ? "structure-active" : "journal-active"
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntryId, workspacePath }: SyncedLedgerTableProps) {
-  const [activeZone, setActiveZone] = useState<ActiveZone>("journal");
+function buildDisplayRows(entries: OperationalEntry[], reports: ReportSnapshotSummary[]) {
   const sortedReports = [...reports]
     .filter((report) => report.sourceTransactionIds.length > 0)
     .sort((left, right) => reportSortValue(left).localeCompare(reportSortValue(right)));
@@ -90,8 +79,9 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
       }
     }
   }
+
   const emittedReportIds = new Set<string>();
-  const displayRows: Array<
+  const rows: Array<
     | { type: "entry"; entry: OperationalEntry }
     | { type: "report"; report: ReportSnapshotSummary; visibleEntries: OperationalEntry[] }
   > = [];
@@ -100,13 +90,13 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
     const report = reportByEntryId.get(entry.id);
 
     if (!report) {
-      displayRows.push({ type: "entry", entry });
+      rows.push({ type: "entry", entry });
       continue;
     }
 
     if (!emittedReportIds.has(report.id)) {
       emittedReportIds.add(report.id);
-      displayRows.push({
+      rows.push({
         type: "report",
         report,
         visibleEntries: entries.filter((item) => report.sourceTransactionIds.includes(item.id))
@@ -114,12 +104,125 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
     }
   }
 
+  return rows;
+}
+
+function zoneClassName(activeZone: ActiveZone, entryCount: number) {
+  return [
+    "synced-table",
+    entryCount === 0 ? "is-empty" : "",
+    activeZone === "structure" ? "structure-active" : "journal-active"
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntryId, workspacePath }: SyncedLedgerTableProps) {
+  const [activeZone, setActiveZone] = useState<ActiveZone>("journal");
+  const [expandedReportIds, setExpandedReportIds] = useState<Set<string>>(new Set());
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const selectedRowRef = useRef<HTMLDivElement | null>(null);
+  const ledgerEndRef = useRef<HTMLDivElement | null>(null);
+  const didInitialScroll = useRef(false);
+  const displayRows = useMemo(() => buildDisplayRows(entries, reports), [entries, reports]);
+
+  useLayoutEffect(() => {
+    if (didInitialScroll.current || displayRows.length === 0) {
+      return;
+    }
+
+    didInitialScroll.current = true;
+
+    const scrollToInitialPosition = () => {
+      if (selectedEntryId && selectedRowRef.current) {
+        selectedRowRef.current.scrollIntoView({ block: "center" });
+        return;
+      }
+
+      const table = tableRef.current;
+
+      if (table) {
+        table.scrollTo({ top: table.scrollHeight });
+        if (table.scrollTop > 0) {
+          table.dataset.initialScrolled = "1";
+        }
+      }
+
+      ledgerEndRef.current?.scrollIntoView({ block: "end" });
+    };
+
+    scrollToInitialPosition();
+    requestAnimationFrame(scrollToInitialPosition);
+    const timers = [80, 260, 700, 1400, 2600].map((delay) => window.setTimeout(scrollToInitialPosition, delay));
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [displayRows.length, selectedEntryId]);
+
   function entryHref(entryId: string) {
     return `${workspacePath}?account=${encodeURIComponent(accountCode)}&edit=${encodeURIComponent(entryId)}`;
   }
 
   function reportHref(reportId: string) {
     return `${workspacePath}?mode=reports&account=${encodeURIComponent(accountCode)}&report=${encodeURIComponent(reportId)}`;
+  }
+
+  function toggleReport(reportId: string) {
+    setExpandedReportIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(reportId)) {
+        next.delete(reportId);
+      } else {
+        next.add(reportId);
+      }
+
+      return next;
+    });
+  }
+
+  function renderEntryRow(entry: OperationalEntry, extraClassName = "") {
+    return (
+      <div
+        className={[
+          "synced-row",
+          entry.id === selectedEntryId ? "selected-row" : "",
+          extraClassName
+        ].filter(Boolean).join(" ")}
+        role="row"
+        key={entry.id}
+        ref={entry.id === selectedEntryId ? selectedRowRef : undefined}
+      >
+        <Link href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
+          {entry.rowNo}
+        </Link>
+        <Link className="entry-description-link" href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
+          <strong>{entry.rawText}</strong>
+          {extraClassName ? <small>Строка внутри закрытого отчета</small> : null}
+        </Link>
+        <Link
+          className={entry.direction === "income" ? "amount-income" : "amount-expense"}
+          href={entryHref(entry.id)}
+          onClick={() => setActiveZone("journal")}
+        >
+          {formatAmount(entry.amount, entry.direction)}
+        </Link>
+        <Link href={entryHref(entry.id)} onClick={() => setActiveZone("structure")}>
+          {entry.rowNo}
+        </Link>
+        <Link href={entryHref(entry.id)} onClick={() => setActiveZone("structure")}>
+          {entry.occurredOn}
+        </Link>
+        <Link
+          className={entry.reviewStatus === "review" || entry.status === "needs_review" ? "status-pill attention" : "status-pill"}
+          href={entryHref(entry.id)}
+          onClick={() => setActiveZone("structure")}
+        >
+          {reviewStatusText(entry.reviewStatus, entry.status)}
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -139,9 +242,15 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
         >
           Проверка
         </button>
-        <span>{activeZone === "journal" ? `${displayRows.length} строк` : "та же строка"}</span>
+        <span>{activeZone === "journal" ? `${entries.length} строк` : "та же строка"}</span>
       </div>
-      <div className={zoneClassName(activeZone, displayRows.length)} role="table">
+      <div
+        className={zoneClassName(activeZone, displayRows.length)}
+        data-ledger-scroll="initial"
+        ref={tableRef}
+        role="table"
+        suppressHydrationWarning
+      >
         <div className="synced-row zone-head" role="row">
           <button
             aria-pressed={activeZone === "journal"}
@@ -150,7 +259,7 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
             type="button"
           >
             <span className="zone-title-main">Оперативный журнал</span>
-            <small>{displayRows.length} строк</small>
+            <small>{entries.length} строк</small>
           </button>
           <button
             aria-pressed={activeZone === "structure"}
@@ -174,6 +283,7 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
           displayRows.map((row) => {
             if (row.type === "report") {
               const report = row.report;
+              const expanded = expandedReportIds.has(report.id);
               const rowNumbers = row.visibleEntries.map((entry) => entry.rowNo).sort((left, right) => left - right);
               const rowRange =
                 rowNumbers.length > 1
@@ -186,69 +296,86 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
                   : `Остаток ${formatAmount(report.endingCash, "income").replace("+", "")}`;
 
               return (
-                <div className="synced-row report-ledger-row" role="row" key={`report:${report.id}`}>
-                  <Link href={reportHref(report.id)} onClick={() => setActiveZone("journal")}>
-                    {rowRange}
-                  </Link>
-                  <Link className="entry-description-link" href={reportHref(report.id)} onClick={() => setActiveZone("journal")}>
-                    <strong>{report.title}</strong>
-                    <small>
-                      {formatPeriod(report.periodStart, report.periodEnd)} · {report.entryCount} строк
-                      {hiddenCount > 0 ? ` · еще ${hiddenCount} вне счета` : ""}
-                    </small>
-                  </Link>
-                  <Link href={reportHref(report.id)} onClick={() => setActiveZone("journal")}>
-                    {balanceLabel}
-                  </Link>
-                  <Link href={reportHref(report.id)} onClick={() => setActiveZone("structure")}>
-                    {rowRange}
-                  </Link>
-                  <Link href={reportHref(report.id)} onClick={() => setActiveZone("structure")}>
-                    {formatPeriod(report.periodStart, report.periodEnd)}
-                  </Link>
-                  <Link className="status-pill" href={reportHref(report.id)} onClick={() => setActiveZone("structure")}>
-                    {reportStatusText(report.status)}
-                  </Link>
-                </div>
+                <Fragment key={`report:${report.id}`}>
+                  <div
+                    className={expanded ? "synced-row report-ledger-row is-expanded" : "synced-row report-ledger-row"}
+                    role="row"
+                  >
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-toggle"
+                      onClick={() => {
+                        setActiveZone("journal");
+                        toggleReport(report.id);
+                      }}
+                      title={expanded ? "Свернуть строки отчета" : "Раскрыть строки отчета"}
+                      type="button"
+                    >
+                      <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                      {rowRange}
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="entry-description-link report-row-title-button"
+                      onClick={() => {
+                        setActiveZone("journal");
+                        toggleReport(report.id);
+                      }}
+                      type="button"
+                    >
+                      <strong>{report.title}</strong>
+                      <small>
+                        {formatPeriod(report.periodStart, report.periodEnd)} · {report.entryCount} строк
+                        {hiddenCount > 0 ? ` · еще ${hiddenCount} вне счета` : ""}
+                      </small>
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-balance-button"
+                      onClick={() => {
+                        setActiveZone("journal");
+                        toggleReport(report.id);
+                      }}
+                      type="button"
+                    >
+                      {balanceLabel}
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-toggle"
+                      onClick={() => {
+                        setActiveZone("structure");
+                        toggleReport(report.id);
+                      }}
+                      title={expanded ? "Свернуть строки отчета" : "Раскрыть строки отчета"}
+                      type="button"
+                    >
+                      <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                      {rowRange}
+                    </button>
+                    <button
+                      aria-expanded={expanded}
+                      className="report-row-title-button"
+                      onClick={() => {
+                        setActiveZone("structure");
+                        toggleReport(report.id);
+                      }}
+                      type="button"
+                    >
+                      {formatPeriod(report.periodStart, report.periodEnd)}
+                    </button>
+                    <span className="report-row-status-cell">
+                      <span className="status-pill">{reportStatusText(report.status)}</span>
+                      <Link href={reportHref(report.id)}>Открыть</Link>
+                    </span>
+                  </div>
+                  {expanded ? row.visibleEntries.map((entry) => renderEntryRow(entry, "report-child-row")) : null}
+                </Fragment>
               );
             }
 
             const entry = row.entry;
-
-            return (
-              <div
-                className={entry.id === selectedEntryId ? "synced-row selected-row" : "synced-row"}
-                role="row"
-                key={entry.id}
-              >
-                <Link href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
-                  {entry.rowNo}
-                </Link>
-                <Link className="entry-description-link" href={entryHref(entry.id)} onClick={() => setActiveZone("journal")}>
-                  <strong>{entry.rawText}</strong>
-                </Link>
-                <Link
-                  className={entry.direction === "income" ? "amount-income" : "amount-expense"}
-                  href={entryHref(entry.id)}
-                  onClick={() => setActiveZone("journal")}
-                >
-                  {formatAmount(entry.amount, entry.direction)}
-                </Link>
-                <Link href={entryHref(entry.id)} onClick={() => setActiveZone("structure")}>
-                  {entry.rowNo}
-                </Link>
-                <Link href={entryHref(entry.id)} onClick={() => setActiveZone("structure")}>
-                  {entry.occurredOn}
-                </Link>
-                <Link
-                  className={entry.reviewStatus === "review" || entry.status === "needs_review" ? "status-pill attention" : "status-pill"}
-                  href={entryHref(entry.id)}
-                  onClick={() => setActiveZone("structure")}
-                >
-                  {reviewStatusText(entry.reviewStatus, entry.status)}
-                </Link>
-              </div>
-            );
+            return renderEntryRow(entry);
           })
         ) : (
           <div className="synced-row empty-synced-row" role="row">
@@ -262,6 +389,7 @@ export function SyncedLedgerTable({ accountCode, entries, reports, selectedEntry
             <span onClick={() => setActiveZone("structure")} />
           </div>
         )}
+        <div className="ledger-end-anchor" ref={ledgerEndRef} aria-hidden="true" />
       </div>
     </div>
   );
