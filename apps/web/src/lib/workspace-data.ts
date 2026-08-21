@@ -706,6 +706,88 @@ export async function getWorkspaceDetails(
   requestedAccountCode = "cash"
 ): Promise<WorkspaceDetails | null> {
   const supabase = await createClient();
+  const pageSize = 1000;
+
+  async function fetchAllSummaryTransactions() {
+    const rows: SummaryTransactionRow[] = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id, status")
+        .eq("workspace_id", workspaceId)
+        .neq("status", "void")
+        .order("row_no", { ascending: true, nullsFirst: false })
+        .range(from, from + pageSize - 1)
+        .returns<SummaryTransactionRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  async function fetchAllLedgerRows() {
+    const rows: LedgerRow[] = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("ledger_entries")
+        .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
+        .eq("workspace_id", workspaceId)
+        .range(from, from + pageSize - 1)
+        .returns<LedgerRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  async function fetchAccountTransactions(accountId: string) {
+    const rows: TransactionRow[] = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id, row_no, occurred_on, raw_text, status, account_id")
+        .eq("workspace_id", workspaceId)
+        .eq("account_id", accountId)
+        .neq("status", "void")
+        .order("row_no", { ascending: true, nullsFirst: false })
+        .range(from, from + pageSize - 1)
+        .returns<TransactionRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
 
@@ -753,9 +835,7 @@ export async function getWorkspaceDetails(
     quickNotes,
     reportSnapshots,
     reportPackages,
-    categories,
-    summaryTransactions,
-    ledgerSummary
+    categories
   ] = await Promise.all([
     supabase
       .from("accounts")
@@ -808,18 +888,7 @@ export async function getWorkspaceDetails(
       .select("id, code, direction, label, metadata, is_active")
       .eq("workspace_id", workspaceId)
       .eq("is_active", true)
-      .returns<CategoryRow[]>(),
-    supabase
-      .from("transactions")
-      .select("id, status")
-      .eq("workspace_id", workspaceId)
-      .neq("status", "void")
-      .returns<SummaryTransactionRow[]>(),
-    supabase
-      .from("ledger_entries")
-      .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
-      .eq("workspace_id", workspaceId)
-      .returns<LedgerRow[]>()
+      .returns<CategoryRow[]>()
   ]);
 
   if (accountsError) {
@@ -854,14 +923,6 @@ export async function getWorkspaceDetails(
     throw new Error(categories.error.message);
   }
 
-  if (summaryTransactions.error) {
-    throw new Error(summaryTransactions.error.message);
-  }
-
-  if (ledgerSummary.error) {
-    throw new Error(ledgerSummary.error.message);
-  }
-
   const normalizedAccounts = [...(accounts ?? [])].sort((left, right) => {
     const order = new Map([
       ["cash", 0],
@@ -879,26 +940,16 @@ export async function getWorkspaceDetails(
   let transactionRows: TransactionRow[] = [];
 
   if (activeAccount) {
-    const { data, error: entriesError } = await supabase
-      .from("transactions")
-      .select("id, row_no, occurred_on, raw_text, status, account_id")
-      .eq("workspace_id", workspaceId)
-      .eq("account_id", activeAccount.id)
-      .neq("status", "void")
-      .order("row_no", { ascending: true, nullsFirst: false })
-      .returns<TransactionRow[]>();
-
-    if (entriesError) {
-      throw new Error(entriesError.message);
-    }
-
-    transactionRows = data ?? [];
+    transactionRows = await fetchAccountTransactions(activeAccount.id);
   }
 
-  const liveTransactionIds = new Set(
-    (summaryTransactions.data ?? []).filter((row) => row.status !== "void").map((row) => row.id)
-  );
-  const liveLedgerSummaryRows = (ledgerSummary.data ?? []).filter((row) => liveTransactionIds.has(row.transaction_id));
+  const [summaryTransactionRows, ledgerSummaryRows] = await Promise.all([
+    fetchAllSummaryTransactions(),
+    fetchAllLedgerRows()
+  ]);
+
+  const liveTransactionIds = new Set(summaryTransactionRows.filter((row) => row.status !== "void").map((row) => row.id));
+  const liveLedgerSummaryRows = ledgerSummaryRows.filter((row) => liveTransactionIds.has(row.transaction_id));
   const activeTransactionIds = new Set(transactionRows.map((row) => row.id));
   const ledgerByTransactionId = new Map(
     liveLedgerSummaryRows
