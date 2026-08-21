@@ -835,6 +835,12 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                         >
                           HTML
                         </Link>
+                        <Link
+                          className="ghost-button"
+                          href={`${workspaceBasePath}/report-packages/${encodeURIComponent(reportPackage.id)}/excel`}
+                        >
+                          Excel
+                        </Link>
                       </div>
                     </article>
                   ))}
@@ -933,6 +939,12 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       target="_blank"
                     >
                       HTML
+                    </Link>
+                    <Link
+                      className="ghost-button"
+                      href={`${workspaceBasePath}/reports/${encodeURIComponent(selectedReport.id)}/excel`}
+                    >
+                      Excel
                     </Link>
                   </div>
                 </div>

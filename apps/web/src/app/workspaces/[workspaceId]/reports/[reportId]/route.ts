@@ -208,16 +208,21 @@ export async function GET(_request: Request, { params }: ReportRouteProps) {
         gap: 8px;
         justify-content: flex-end;
       }
+      .toolbar a,
       .toolbar button {
+        align-items: center;
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 8px;
         color: var(--ink);
         cursor: pointer;
+        display: inline-flex;
         font: inherit;
         font-weight: 900;
+        justify-content: center;
         min-height: 38px;
         padding: 0 12px;
+        text-decoration: none;
       }
       .toolbar button.primary {
         background: var(--blue);
@@ -339,6 +344,7 @@ export async function GET(_request: Request, { params }: ReportRouteProps) {
       <nav class="toolbar" aria-label="Действия с отчетом">
         <button type="button" onclick="document.querySelectorAll('details').forEach((node) => { node.open = true; });">Раскрыть</button>
         <button type="button" onclick="document.querySelectorAll('details').forEach((node) => { node.open = false; });">Свернуть</button>
+        <a href="/workspaces/${encodeURIComponent(workspaceId)}/reports/${encodeURIComponent(report.id)}/excel">Excel</a>
         <button class="primary" type="button" onclick="window.print();">Печать / PDF</button>
       </nav>
       <header>
