@@ -63,6 +63,18 @@ type CreateReportPackageResult = {
   included_count: number;
 };
 
+type SetReportSnapshotDeliveryStatusResult = {
+  report_snapshot_id: string;
+  previous_status: string;
+  status: string;
+};
+
+type SetReportPackageDeliveryStatusResult = {
+  report_package_id: string;
+  previous_status: string;
+  status: string;
+};
+
 type ReturnReportSnapshotForRevisionResult = {
   report_snapshot_id: string;
   period_closure_id: string | null;
@@ -634,6 +646,99 @@ export async function createReportPackage(workspaceId: string, formData: FormDat
     account: accountCode,
     package: data[0].report_package_id,
     reports: String(data[0].included_count)
+  });
+}
+
+function normalizeDeliveryStatus(value: string) {
+  const status = value.trim().toLowerCase();
+  return status === "sent" || status === "accepted" ? status : "";
+}
+
+export async function setReportSnapshotDeliveryStatus(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const reportId = String(formData.get("reportId") || "").trim();
+  const nextStatus = normalizeDeliveryStatus(String(formData.get("nextStatus") || ""));
+  const note = String(formData.get("note") || "").trim();
+
+  if (!reportId || !nextStatus) {
+    redirectToMode(workspaceId, "reports", "report-missing", { account: accountCode });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("set_report_snapshot_delivery_status", {
+      p_report_snapshot_id: reportId,
+      p_next_status: nextStatus,
+      p_note: note || null
+    })
+    .returns<SetReportSnapshotDeliveryStatusResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("auth_required") || message.includes("reports_manage_required")) {
+      redirectToMode(workspaceId, "reports", "report-auth", { account: accountCode, report: reportId });
+    }
+
+    if (message.includes("report_snapshot_required") || message.includes("report_snapshot_not_found")) {
+      redirectToMode(workspaceId, "reports", "report-missing", { account: accountCode });
+    }
+
+    if (message.includes("invalid_report_status_transition") || message.includes("unsupported_report_status")) {
+      redirectToMode(workspaceId, "reports", "report-status-transition", { account: accountCode, report: reportId });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-status", { account: accountCode, report: reportId });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", nextStatus === "sent" ? "report-sent" : "report-accepted", {
+    account: accountCode,
+    report: data[0].report_snapshot_id
+  });
+}
+
+export async function setReportPackageDeliveryStatus(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const packageId = String(formData.get("packageId") || "").trim();
+  const nextStatus = normalizeDeliveryStatus(String(formData.get("nextStatus") || ""));
+  const note = String(formData.get("note") || "").trim();
+
+  if (!packageId || !nextStatus) {
+    redirectToMode(workspaceId, "reports", "report-package-empty", { account: accountCode });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("set_report_package_delivery_status", {
+      p_report_package_id: packageId,
+      p_next_status: nextStatus,
+      p_note: note || null
+    })
+    .returns<SetReportPackageDeliveryStatusResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("auth_required") || message.includes("reports_manage_required")) {
+      redirectToMode(workspaceId, "reports", "report-auth", { account: accountCode });
+    }
+
+    if (message.includes("report_package_required") || message.includes("report_package_not_found")) {
+      redirectToMode(workspaceId, "reports", "report-package-empty", { account: accountCode });
+    }
+
+    if (message.includes("invalid_report_package_status_transition") || message.includes("unsupported_report_status")) {
+      redirectToMode(workspaceId, "reports", "report-package-status-transition", { account: accountCode, package: packageId });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-package-status", { account: accountCode, package: packageId });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", nextStatus === "sent" ? "report-package-sent" : "report-package-accepted", {
+    account: accountCode,
+    package: data[0].report_package_id
   });
 }
 

@@ -692,6 +692,12 @@ button {
   min-height: 0;
 }
 
+.report-package-builder {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+}
+
 .report-package-head {
   align-items: end;
   background: var(--panel);
@@ -830,6 +836,30 @@ button {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
+}
+
+.compact-action-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.compact-action-form button {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.compact-action-form button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .report-revision-form {

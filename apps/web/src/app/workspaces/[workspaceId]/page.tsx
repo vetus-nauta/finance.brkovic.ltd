@@ -11,6 +11,8 @@ import {
   deleteQuickNote,
   returnReportSnapshotForRevision,
   saveQuickNoteDraft,
+  setReportPackageDeliveryStatus,
+  setReportSnapshotDeliveryStatus,
   submitQuickNoteToSmith,
   updateOperationalEntry
 } from "./actions";
@@ -105,6 +107,14 @@ function workspaceStatusText(status?: string) {
       return "Отчет создан, строки периода закрыты от обычного редактирования.";
     case "report-package-created":
       return "Пакет отчетов создан.";
+    case "report-sent":
+      return "Отчет отмечен как отправленный.";
+    case "report-accepted":
+      return "Отчет отмечен как принятый.";
+    case "report-package-sent":
+      return "Пакет отчетов отмечен как отправленный.";
+    case "report-package-accepted":
+      return "Пакет отчетов отмечен как принятый.";
     case "report-returned":
       return "Отчет отмечен как возвращенный на доработку.";
     case "report-correction-created":
@@ -121,6 +131,9 @@ function workspaceStatusText(status?: string) {
       return "Исходная строка не найдена или не закрыта отчетом.";
     case "report-package-empty":
       return "Выберите один или несколько сохраненных отчетов.";
+    case "report-status-transition":
+    case "report-package-status-transition":
+      return "Этот переход статуса сейчас недоступен.";
     case "report-auth":
       return "Нет прав на создание отчета и закрытие периода.";
     case "report-create":
@@ -128,6 +141,10 @@ function workspaceStatusText(status?: string) {
       return "Не удалось создать отчет.";
     case "report-revision":
       return "Не удалось вернуть отчет на доработку.";
+    case "report-status":
+      return "Не удалось изменить статус отчета.";
+    case "report-package-status":
+      return "Не удалось изменить статус пакета.";
     case "report-correction":
       return "Не удалось создать корректировку.";
     case "auth":
@@ -148,6 +165,10 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "note-deleted" ||
     status === "report-created" ||
     status === "report-package-created" ||
+    status === "report-sent" ||
+    status === "report-accepted" ||
+    status === "report-package-sent" ||
+    status === "report-package-accepted" ||
     status === "report-returned" ||
     status === "report-correction-created"
   );
@@ -278,6 +299,8 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
   const returnReportAction = returnReportSnapshotForRevision.bind(null, workspace.id);
   const createReportCorrectionAction = createReportLockedCorrection.bind(null, workspace.id);
+  const setReportStatusAction = setReportSnapshotDeliveryStatus.bind(null, workspace.id);
+  const setReportPackageStatusAction = setReportPackageDeliveryStatus.bind(null, workspace.id);
   const today = new Date().toISOString().slice(0, 10);
   const statusText = entryStatusText(query.entry);
   const modeStatusText = workspaceStatusText(query.status);
@@ -738,15 +761,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </div>
               )}
             </div>
-            <form className="report-package-panel" action={createReportPackageAction}>
-              <input type="hidden" name="account" value={workspace.activeAccountCode} />
-              <div className="report-package-head">
-                <label>
-                  <span>Пакет для отправки</span>
-                  <input name="title" placeholder="Например: Отчет шефу за август" />
-                </label>
-                <button type="submit">Собрать пакет</button>
-              </div>
+            <section className="report-package-panel" aria-label="Пакеты отчетов">
               {workspace.reportPackages.length > 0 ? (
                 <section className="report-package-list" aria-label="Сохраненные пакеты отчетов">
                   <div className="note-history-head">
@@ -763,6 +778,22 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       </div>
                       <div className="report-detail-actions">
                         <span className="status-pill">{reportStatusText(reportPackage.status)}</span>
+                        {reportPackage.status === "created" ? (
+                          <form className="compact-action-form" action={setReportPackageStatusAction}>
+                            <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                            <input type="hidden" name="packageId" value={reportPackage.id} />
+                            <input type="hidden" name="nextStatus" value="sent" />
+                            <button type="submit">Отправить</button>
+                          </form>
+                        ) : null}
+                        {reportPackage.status === "sent" ? (
+                          <form className="compact-action-form" action={setReportPackageStatusAction}>
+                            <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                            <input type="hidden" name="packageId" value={reportPackage.id} />
+                            <input type="hidden" name="nextStatus" value="accepted" />
+                            <button type="submit">Принять</button>
+                          </form>
+                        ) : null}
                         <Link
                           className="ghost-button"
                           href={`${workspaceBasePath}/report-packages/${encodeURIComponent(reportPackage.id)}`}
@@ -775,7 +806,16 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                   ))}
                 </section>
               ) : null}
-              <div className="report-list">
+              <form className="report-package-builder" action={createReportPackageAction}>
+                <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                <div className="report-package-head">
+                  <label>
+                    <span>Пакет для отправки</span>
+                    <input name="title" placeholder="Например: Отчет шефу за август" />
+                  </label>
+                  <button type="submit">Собрать пакет</button>
+                </div>
+                <div className="report-list">
                 {workspace.reportSnapshots.length > 0 ? (
                   workspace.reportSnapshots.map((report) => (
                     <article className="report-card" key={report.id}>
@@ -822,8 +862,9 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                     <p>Выберите период выше и создайте первый сохраненный отчет.</p>
                   </div>
                 )}
-              </div>
-            </form>
+                </div>
+              </form>
+            </section>
             {selectedReport ? (
               <section className="report-detail-panel" aria-label="Открытый отчет">
                 <div className="note-history-head">
@@ -836,6 +877,22 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                   </div>
                   <div className="report-detail-actions">
                     <span className="status-pill">{reportStatusText(selectedReport.status)}</span>
+                    {selectedReport.status === "created" || selectedReport.status === "returned_for_revision" ? (
+                      <form className="compact-action-form" action={setReportStatusAction}>
+                        <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                        <input type="hidden" name="reportId" value={selectedReport.id} />
+                        <input type="hidden" name="nextStatus" value="sent" />
+                        <button type="submit">Отправить</button>
+                      </form>
+                    ) : null}
+                    {selectedReport.status === "sent" ? (
+                      <form className="compact-action-form" action={setReportStatusAction}>
+                        <input type="hidden" name="account" value={workspace.activeAccountCode} />
+                        <input type="hidden" name="reportId" value={selectedReport.id} />
+                        <input type="hidden" name="nextStatus" value="accepted" />
+                        <button type="submit">Принять</button>
+                      </form>
+                    ) : null}
                     <Link
                       className="ghost-button"
                       href={`${workspaceBasePath}/reports/${encodeURIComponent(selectedReport.id)}`}
