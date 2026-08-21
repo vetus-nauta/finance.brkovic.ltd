@@ -261,6 +261,11 @@ export type WorkspaceReportDocument = WorkspaceSummary & {
   report: ReportSnapshotSummary;
 };
 
+export type WorkspaceReportPackageDocument = WorkspaceSummary & {
+  reportPackage: ReportPackageSummary;
+  reports: ReportSnapshotSummary[];
+};
+
 export const roleLabels: Record<string, string> = {
   owner: "Владелец",
   admin: "Админ",
@@ -990,5 +995,197 @@ export async function getWorkspaceReportSnapshot(
     role: membership.role_code,
     accessScope: membership.access_scope,
     report: buildReportSnapshotSummary(report, entries)
+  };
+}
+
+export async function getWorkspaceReportPackage(
+  workspaceId: string,
+  packageId: string
+): Promise<WorkspaceReportPackageDocument | null> {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+
+  if (typeof userId !== "string") {
+    return null;
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("memberships")
+    .select("workspace_id, role_code, access_scope")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .not("accepted_at", "is", null)
+    .maybeSingle<MembershipRow>();
+
+  if (membershipError) {
+    throw new Error(membershipError.message);
+  }
+
+  if (!membership) {
+    return null;
+  }
+
+  const [
+    { data: workspace, error: workspaceError },
+    { data: reportPackage, error: reportPackageError },
+    { data: packageItems, error: packageItemsError },
+    { data: categories, error: categoriesError }
+  ] = await Promise.all([
+    supabase
+      .from("workspaces")
+      .select("id, name, workspace_type, currency_code, status")
+      .eq("id", workspaceId)
+      .eq("status", "active")
+      .maybeSingle<WorkspaceRow>(),
+    supabase
+      .from("report_packages")
+      .select("id, title, status, created_at")
+      .eq("workspace_id", workspaceId)
+      .eq("id", packageId)
+      .neq("status", "void")
+      .maybeSingle<ReportPackageRow>(),
+    supabase
+      .from("report_package_items")
+      .select("report_package_id, report_snapshot_id, position")
+      .eq("workspace_id", workspaceId)
+      .eq("report_package_id", packageId)
+      .order("position", { ascending: true })
+      .returns<ReportPackageItemRow[]>(),
+    supabase
+      .from("categories")
+      .select("id, code, direction, label, metadata, is_active")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true)
+      .returns<CategoryRow[]>()
+  ]);
+
+  if (workspaceError) {
+    throw new Error(workspaceError.message);
+  }
+
+  if (reportPackageError) {
+    throw new Error(reportPackageError.message);
+  }
+
+  if (packageItemsError) {
+    throw new Error(packageItemsError.message);
+  }
+
+  if (categoriesError) {
+    throw new Error(categoriesError.message);
+  }
+
+  if (!workspace || !reportPackage) {
+    return null;
+  }
+
+  const reportIds = (packageItems ?? []).map((item) => item.report_snapshot_id);
+
+  if (reportIds.length === 0) {
+    return {
+      id: workspace.id,
+      name: workspace.name,
+      type: workspace.workspace_type,
+      currency: workspace.currency_code,
+      status: workspace.status,
+      role: membership.role_code,
+      accessScope: membership.access_scope,
+      reportPackage: {
+        id: reportPackage.id,
+        title: reportPackage.title,
+        status: reportPackage.status,
+        reportIds,
+        reportCount: 0,
+        createdAt: reportPackage.created_at
+      },
+      reports: []
+    };
+  }
+
+  const { data: reports, error: reportsError } = await supabase
+    .from("report_snapshots")
+    .select("id, title, period_start, period_end, status, source_transaction_ids, totals, created_at")
+    .eq("workspace_id", workspaceId)
+    .in("id", reportIds)
+    .neq("status", "void")
+    .returns<ReportSnapshotRow[]>();
+
+  if (reportsError) {
+    throw new Error(reportsError.message);
+  }
+
+  const sourceIds = [...new Set((reports ?? []).flatMap((report) => report.source_transaction_ids ?? []))];
+  const [{ data: transactions, error: transactionsError }, { data: ledgerRows, error: ledgerError }] =
+    sourceIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("transactions")
+            .select("id, row_no, occurred_on, raw_text, status")
+            .in("id", sourceIds)
+            .returns<ReportSourceTransactionRow[]>(),
+          supabase
+            .from("ledger_entries")
+            .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
+            .in("transaction_id", sourceIds)
+            .returns<LedgerRow[]>()
+        ])
+      : [
+          { data: [], error: null },
+          { data: [], error: null }
+        ];
+
+  if (transactionsError) {
+    throw new Error(transactionsError.message);
+  }
+
+  if (ledgerError) {
+    throw new Error(ledgerError.message);
+  }
+
+  const categoryById = new Map((categories ?? []).map((category) => [category.id, category]));
+  const categoryByCode = new Map((categories ?? []).map((category) => [category.code, category]));
+  const transactionById = new Map((transactions ?? []).map((row) => [row.id, row]));
+  const ledgerByTransactionId = new Map((ledgerRows ?? []).map((row) => [row.transaction_id, row]));
+  const reportById = new Map((reports ?? []).map((report) => [report.id, report]));
+  const orderedReports = reportIds
+    .map((reportId) => {
+      const report = reportById.get(reportId);
+
+      if (!report) {
+        return null;
+      }
+
+      return buildReportSnapshotSummary(
+        report,
+        buildReportSourceEntries(
+          report.source_transaction_ids ?? [],
+          transactionById,
+          ledgerByTransactionId,
+          categoryById,
+          categoryByCode
+        )
+      );
+    })
+    .filter((report): report is ReportSnapshotSummary => report !== null);
+
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    type: workspace.workspace_type,
+    currency: workspace.currency_code,
+    status: workspace.status,
+    role: membership.role_code,
+    accessScope: membership.access_scope,
+    reportPackage: {
+      id: reportPackage.id,
+      title: reportPackage.title,
+      status: reportPackage.status,
+      reportIds,
+      reportCount: reportIds.length,
+      createdAt: reportPackage.created_at
+    },
+    reports: orderedReports
   };
 }

@@ -741,7 +741,16 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                           {formatDateTime(reportPackage.createdAt)} · {reportPackage.reportCount} отчетов
                         </small>
                       </div>
-                      <span className="status-pill">{reportStatusText(reportPackage.status)}</span>
+                      <div className="report-detail-actions">
+                        <span className="status-pill">{reportStatusText(reportPackage.status)}</span>
+                        <Link
+                          className="ghost-button"
+                          href={`${workspaceBasePath}/report-packages/${encodeURIComponent(reportPackage.id)}`}
+                          target="_blank"
+                        >
+                          HTML
+                        </Link>
+                      </div>
                     </article>
                   ))}
                 </section>
