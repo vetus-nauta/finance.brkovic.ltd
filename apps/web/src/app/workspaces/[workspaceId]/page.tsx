@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import {
   convertSmithProposalsToEntries,
+  createReportSnapshot,
   createOperationalEntry,
   deleteOperationalEntry,
   deleteQuickNote,
@@ -96,6 +97,16 @@ function workspaceStatusText(status?: string) {
     case "note-convert":
     case "note-delete":
       return "Не удалось выполнить действие с заметкой.";
+    case "report-created":
+      return "Отчет создан, строки периода закрыты от обычного редактирования.";
+    case "report-period":
+      return "Выберите корректный период отчета.";
+    case "report-empty":
+      return "В выбранном периоде нет открытых строк для отчета.";
+    case "report-auth":
+      return "Нет прав на создание отчета и закрытие периода.";
+    case "report-create":
+      return "Не удалось создать отчет.";
     case "auth":
       return "Сессия не найдена. Войдите заново.";
     case "workspace":
@@ -111,7 +122,8 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "note-submitted" ||
     status === "note-ready" ||
     status === "note-converted" ||
-    status === "note-deleted"
+    status === "note-deleted" ||
+    status === "report-created"
   );
 }
 
@@ -236,6 +248,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const submitNoteAction = submitQuickNoteToSmith.bind(null, workspace.id);
   const convertProposalAction = convertSmithProposalsToEntries.bind(null, workspace.id);
   const deleteNoteAction = deleteQuickNote.bind(null, workspace.id);
+  const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const today = new Date().toISOString().slice(0, 10);
   const statusText = entryStatusText(query.entry);
   const modeStatusText = workspaceStatusText(query.status);
@@ -616,10 +629,38 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
             <div className="mode-title">
               <div>
                 <h2>Отчеты</h2>
-                <p>Сводка читает категории из оперативной ленты. Факт и учетные блоки не смешиваются.</p>
+                <p>Отчет создается из открытых строк оперативной ленты и сохраняет источник каждой строки.</p>
               </div>
               <small>{workspace.reportSnapshots.length} отчетов</small>
             </div>
+            {modeStatusText ? (
+              <p className={isWorkspaceStatusSuccess(query.status) ? "form-note success" : "form-note error"}>
+                {modeStatusText}
+              </p>
+            ) : null}
+            <form className="report-create-panel" action={createReportAction} aria-label="Создать отчет за период">
+              <input type="hidden" name="account" value={workspace.activeAccountCode} />
+              <label>
+                <span>С</span>
+                <input type="date" name="periodStart" defaultValue={workspace.entries[0]?.occurredOn ?? today} required />
+              </label>
+              <label>
+                <span>По</span>
+                <input
+                  type="date"
+                  name="periodEnd"
+                  defaultValue={workspace.entries[workspace.entries.length - 1]?.occurredOn ?? today}
+                  required
+                />
+              </label>
+              <label className="report-title-field">
+                <span>Название</span>
+                <input name="title" placeholder="Отчет за период" />
+              </label>
+              <button className="primary-action" type="submit">
+                Создать отчет
+              </button>
+            </form>
             <div className="category-summary" aria-label="Сводка по категориям">
               {summarySections.length > 0 ? (
                 summarySections.map((section) => (
@@ -673,8 +714,26 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                     <div>
                       <h3>{report.title}</h3>
                       <p>
-                        {report.periodStart} — {report.periodEnd}
+                        {formatDateOnly(report.periodStart)} — {formatDateOnly(report.periodEnd)} · {report.entryCount} строк
                       </p>
+                    </div>
+                    <div className="report-card-metrics" aria-label="Итоги отчета">
+                      <span>
+                        <small>Приход</small>
+                        <strong className="amount-income">{formatMoney(report.incomeTotal, workspace.currency)}</strong>
+                      </span>
+                      <span>
+                        <small>Расход</small>
+                        <strong className="amount-expense">{formatMoney(report.expenseTotal, workspace.currency)}</strong>
+                      </span>
+                      <span>
+                        <small>Итог</small>
+                        <strong>{formatMoney(report.netTotal, workspace.currency)}</strong>
+                      </span>
+                      <span>
+                        <small>Проверка</small>
+                        <strong>{report.reviewCount}</strong>
+                      </span>
                     </div>
                     <span className="status-pill">{reportStatusText(report.status)}</span>
                   </article>
@@ -682,7 +741,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
               ) : (
                 <div className="empty-state inline-empty">
                   <h2>Отчетов пока нет</h2>
-                  <p>Создание отчета будет включено отдельной командой, чтобы не смешивать просмотр с журналом-истиной.</p>
+                  <p>Выберите период выше и создайте первый сохраненный отчет.</p>
                 </div>
               )}
             </div>

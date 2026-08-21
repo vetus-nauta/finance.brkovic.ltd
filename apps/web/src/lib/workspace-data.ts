@@ -84,6 +84,11 @@ export type ReportSnapshotSummary = {
   periodStart: string;
   periodEnd: string;
   status: string;
+  entryCount: number;
+  reviewCount: number;
+  incomeTotal: number;
+  expenseTotal: number;
+  netTotal: number;
   createdAt: string;
 };
 
@@ -152,6 +157,8 @@ type ReportSnapshotRow = {
   period_start: string;
   period_end: string;
   status: string;
+  source_transaction_ids: string[];
+  totals: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -408,7 +415,7 @@ export async function getWorkspaceDetails(
       .returns<QuickNoteRow[]>(),
     supabase
       .from("report_snapshots")
-      .select("id, title, period_start, period_end, status, created_at")
+      .select("id, title, period_start, period_end, status, source_transaction_ids, totals, created_at")
       .eq("workspace_id", workspaceId)
       .neq("status", "void")
       .order("period_end", { ascending: false })
@@ -608,6 +615,15 @@ export async function getWorkspaceDetails(
       periodStart: report.period_start,
       periodEnd: report.period_end,
       status: report.status,
+      entryCount:
+        typeof report.totals?.entry_count === "number"
+          ? report.totals.entry_count
+          : report.source_transaction_ids?.length ?? 0,
+      reviewCount: typeof report.totals?.review_count === "number" ? report.totals.review_count : 0,
+      incomeTotal: typeof report.totals?.income_total === "number" ? report.totals.income_total : Number(report.totals?.income_total ?? 0),
+      expenseTotal:
+        typeof report.totals?.expense_total === "number" ? report.totals.expense_total : Number(report.totals?.expense_total ?? 0),
+      netTotal: typeof report.totals?.net_total === "number" ? report.totals.net_total : Number(report.totals?.net_total ?? 0),
       createdAt: report.created_at
     })),
     categorySummary: buildCategorySummary(liveLedgerSummaryRows, categories.data ?? [])

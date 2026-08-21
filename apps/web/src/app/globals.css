@@ -654,6 +654,38 @@ button {
   gap: 12px;
 }
 
+.report-create-panel {
+  align-items: end;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 150px 150px minmax(180px, 1fr) auto;
+  padding: 12px;
+}
+
+.report-create-panel label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.report-create-panel label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-create-panel input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
 .category-summary-section {
   display: grid;
   gap: 8px;
@@ -761,6 +793,29 @@ button {
   gap: 10px;
   justify-content: space-between;
   padding: 12px;
+}
+
+.report-card-metrics {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, max-content);
+}
+
+.report-card-metrics span {
+  display: grid;
+  gap: 2px;
+  min-width: 76px;
+}
+
+.report-card-metrics small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.report-card-metrics strong {
+  font-size: 13px;
 }
 
 .note-card.active {
@@ -1611,6 +1666,7 @@ button {
 
   .mode-title,
   .mode-actions,
+  .report-create-panel,
   .notes-apple-head,
   .note-card > div,
   .note-card a > div,
@@ -1625,6 +1681,11 @@ button {
 
   .notes-intake-grid {
     grid-template-columns: 1fr;
+  }
+
+  .report-card-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .notes-apple-workspace {

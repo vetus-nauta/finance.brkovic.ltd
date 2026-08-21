@@ -48,6 +48,16 @@ type ConvertSmithProposalResult = {
   rejected_count: number;
 };
 
+type CreateReportSnapshotResult = {
+  report_snapshot_id: string;
+  period_closure_id: string;
+  included_count: number;
+  review_count: number;
+  income_total: number;
+  expense_total: number;
+  net_total: number;
+};
+
 type SupabaseRpcClient = {
   rpc: (
     functionName: string,
@@ -514,4 +524,51 @@ export async function deleteQuickNote(workspaceId: string, formData: FormData) {
 
   revalidateWorkspace(workspaceId);
   redirectToMode(workspaceId, "notes", "note-deleted", { account: accountCode });
+}
+
+export async function createReportSnapshot(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const periodStart = String(formData.get("periodStart") || "").trim();
+  const periodEnd = String(formData.get("periodEnd") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+
+  if (!periodStart || !periodEnd) {
+    redirectToMode(workspaceId, "reports", "report-period", { account: accountCode });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("create_period_report_snapshot", {
+      p_workspace_id: workspaceId,
+      p_period_start: periodStart,
+      p_period_end: periodEnd,
+      p_title: title || null
+    })
+    .returns<CreateReportSnapshotResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (message.includes("auth_required") || message.includes("reports_manage_required") || message.includes("period_close_required")) {
+      redirectToMode(workspaceId, "reports", "report-auth", { account: accountCode });
+    }
+
+    if (message.includes("invalid_period")) {
+      redirectToMode(workspaceId, "reports", "report-period", { account: accountCode });
+    }
+
+    if (message.includes("no_report_entries")) {
+      redirectToMode(workspaceId, "reports", "report-empty", { account: accountCode });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-create", { account: accountCode });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", "report-created", {
+    account: accountCode,
+    report: data[0].report_snapshot_id,
+    lines: String(data[0].included_count),
+    review: String(data[0].review_count)
+  });
 }
