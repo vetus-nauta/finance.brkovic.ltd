@@ -895,25 +895,16 @@ export async function getWorkspaceDetails(
     transactionRows = data ?? [];
   }
 
-  const transactionIds = transactionRows.map((row) => row.id);
-  const { data: ledgerRows, error: ledgerError } =
-    transactionIds.length > 0
-      ? await supabase
-          .from("ledger_entries")
-          .select("transaction_id, account_id, category_id, direction, amount, review_status, metadata")
-          .in("transaction_id", transactionIds)
-          .returns<LedgerRow[]>()
-      : { data: [], error: null };
-
-  if (ledgerError) {
-    throw new Error(ledgerError.message);
-  }
-
-  const ledgerByTransactionId = new Map((ledgerRows ?? []).map((row) => [row.transaction_id, row]));
   const liveTransactionIds = new Set(
     (summaryTransactions.data ?? []).filter((row) => row.status !== "void").map((row) => row.id)
   );
   const liveLedgerSummaryRows = (ledgerSummary.data ?? []).filter((row) => liveTransactionIds.has(row.transaction_id));
+  const activeTransactionIds = new Set(transactionRows.map((row) => row.id));
+  const ledgerByTransactionId = new Map(
+    liveLedgerSummaryRows
+      .filter((row) => activeTransactionIds.has(row.transaction_id))
+      .map((row) => [row.transaction_id, row])
+  );
   const entries = transactionRows
     .map((row) => {
       const ledger = ledgerByTransactionId.get(row.id);
