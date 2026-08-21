@@ -35,6 +35,7 @@
     "smoke:foundation:report-export-version": "node scripts/foundation_report_export_version_smoke.cjs",
     "audit:foundation:financial-integrity": "node scripts/foundation_workspace_financial_integrity_audit.cjs",
     "bootstrap:foundation:workspace": "node scripts/foundation_bootstrap_workspace.cjs",
+    "seed:foundation:accountable-three": "node scripts/foundation_seed_three_employee_accountable_scenario.cjs",
     "setup:supabase:auth-email": "node scripts/supabase_configure_auth_smtp_and_otp.cjs",
     "drop:v2:atlas-legacy": "node scripts/v2_atlas_drop_legacy_collections.js",
     "smoke:v2:atlas-runtime": "node scripts/v2_atlas_runtime_smoke.js",

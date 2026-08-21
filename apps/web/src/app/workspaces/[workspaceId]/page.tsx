@@ -511,6 +511,13 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
     .filter((report) => report.status !== "void")
     .reduce((sum, report) => sum + report.acceptedItemsTotal, 0);
   const employeeBalance = employeeIssuedTotal - employeeReportedTotal;
+  const cashBalance = workspace.accountBalances.find((account) => account.accountCode === "cash")?.balance ?? 0;
+  const employeeCashOnHand = acceptedEmployeeAdvances.reduce((sum, advance) => sum + advance.openAmount, 0);
+  const employeeOverspendToReimburse = acceptedEmployeeAdvances.reduce(
+    (sum, advance) => sum + Math.max(advance.spentTotal - advance.amount, 0),
+    0
+  );
+  const adminCashOnHand = cashBalance - employeeCashOnHand;
   const pendingAccountableReports = workspace.accountableReports.filter((report) => report.status === "submitted");
   const activeAccount = workspace.accounts.find((account) => account.code === workspace.activeAccountCode) ?? workspace.accounts[0] ?? null;
   const activeNavigationLabel =
@@ -558,6 +565,20 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 <strong>{formatMoney(account.balance, workspace.currency)}</strong>
               </span>
             ))}
+            <span className="money-metric physical-money-metric">
+              <small>У админа</small>
+              <strong>{formatMoney(adminCashOnHand, workspace.currency)}</strong>
+            </span>
+            <span className="money-metric physical-money-metric">
+              <small>У сотрудников</small>
+              <strong>{formatMoney(employeeCashOnHand, workspace.currency)}</strong>
+            </span>
+            {employeeOverspendToReimburse > 0 ? (
+              <span className="money-metric physical-money-metric attention-money-metric">
+                <small>Возместить</small>
+                <strong>{formatMoney(employeeOverspendToReimburse, workspace.currency)}</strong>
+              </span>
+            ) : null}
             <span>
               <small>Записей</small>
               <strong>{workspace.transactionCount}</strong>
