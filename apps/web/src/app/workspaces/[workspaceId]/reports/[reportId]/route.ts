@@ -24,6 +24,16 @@ function formatDateOnly(value: string) {
   }).format(new Date(value));
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 function formatMoney(value: number, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
     currency,
@@ -58,6 +68,23 @@ function reportStatusText(status: string) {
       return "На доработке";
     default:
       return status;
+  }
+}
+
+function approvalEventText(eventType: string) {
+  switch (eventType) {
+    case "report_snapshot_created":
+      return "Отчет создан";
+    case "report_snapshot_sent":
+      return "Отчет отправлен";
+    case "report_snapshot_accepted":
+      return "Отчет принят";
+    case "report_snapshot_returned_for_revision":
+      return "Возвращен на доработку";
+    case "report_locked_correction_created":
+      return "Создана корректировка";
+    default:
+      return eventType;
   }
 }
 
@@ -125,6 +152,17 @@ export async function GET(_request: Request, { params }: ReportRouteProps) {
           <td>${account.entryCount}</td>
           <td class="money income">${formatMoney(account.incomeTotal, document.currency)}</td>
           <td class="money expense">${formatMoney(account.expenseTotal, document.currency)}</td>
+        </tr>
+      `
+    )
+    .join("");
+  const eventRows = report.events
+    .map(
+      (event) => `
+        <tr>
+          <td>${formatDateTime(event.createdAt)}</td>
+          <td>${escapeHtml(approvalEventText(event.eventType))}</td>
+          <td>${event.note ? escapeHtml(event.note) : "—"}</td>
         </tr>
       `
     )
@@ -280,6 +318,7 @@ export async function GET(_request: Request, { params }: ReportRouteProps) {
         display: grid;
         gap: 2px;
       }
+      .event-table td:first-child { width: 180px; white-space: nowrap; }
       @media print {
         body { background: #fff; padding: 0; }
         main { max-width: none; }
@@ -316,6 +355,23 @@ export async function GET(_request: Request, { params }: ReportRouteProps) {
         <div class="total"><small>Итог</small><strong>${formatMoney(report.netTotal, document.currency)}</strong></div>
         <div class="total"><small>Проверка</small><strong>${report.reviewCount}</strong></div>
       </div>
+      ${
+        eventRows
+          ? `<section>
+              <h2>История</h2>
+              <table class="event-table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Действие</th>
+                    <th>Заметка</th>
+                  </tr>
+                </thead>
+                <tbody>${eventRows}</tbody>
+              </table>
+            </section>`
+          : ""
+      }
       <section>
         <h2>Счета</h2>
         <table>

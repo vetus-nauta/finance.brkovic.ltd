@@ -20,6 +20,7 @@ import { QuickNoteComposer } from "./QuickNoteComposer";
 import { SyncedLedgerTable } from "./SyncedLedgerTable";
 import { calculateQuickNoteTotal } from "@/lib/quick-note-totals";
 import { smithCategoryLabel, smithCategoryOptions } from "@/lib/smith-categories";
+import type { ApprovalEventSummary } from "@/lib/workspace-data";
 import { getWorkspaceDetails, roleLabels, workspacePath } from "@/lib/workspace-data";
 
 type WorkspacePageProps = {
@@ -202,6 +203,33 @@ function reportStatusText(status: string) {
     default:
       return status;
   }
+}
+
+function approvalEventText(eventType: string) {
+  switch (eventType) {
+    case "report_snapshot_created":
+      return "Отчет создан";
+    case "report_snapshot_sent":
+      return "Отчет отправлен";
+    case "report_snapshot_accepted":
+      return "Отчет принят";
+    case "report_snapshot_returned_for_revision":
+      return "Возвращен на доработку";
+    case "report_locked_correction_created":
+      return "Создана корректировка";
+    case "report_package_created":
+      return "Пакет создан";
+    case "report_package_sent":
+      return "Пакет отправлен";
+    case "report_package_accepted":
+      return "Пакет принят";
+    default:
+      return eventType;
+  }
+}
+
+function latestApprovalEvent(events: ApprovalEventSummary[]) {
+  return events.at(-1) ?? null;
 }
 
 function formatDateTime(value: string) {
@@ -775,6 +803,12 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                         <small>
                           {formatDateTime(reportPackage.createdAt)} · {reportPackage.reportCount} отчетов
                         </small>
+                        {latestApprovalEvent(reportPackage.events) ? (
+                          <small>
+                            {approvalEventText(latestApprovalEvent(reportPackage.events)!.eventType)} ·{" "}
+                            {formatDateTime(latestApprovalEvent(reportPackage.events)!.createdAt)}
+                          </small>
+                        ) : null}
                       </div>
                       <div className="report-detail-actions">
                         <span className="status-pill">{reportStatusText(reportPackage.status)}</span>
@@ -951,6 +985,20 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                     </label>
                     <button type="submit">Создать корректировку</button>
                   </form>
+                ) : null}
+                {selectedReport.events.length > 0 ? (
+                  <section className="report-detail-section">
+                    <h4>История</h4>
+                    <div className="approval-event-list" aria-label="История отчета">
+                      {selectedReport.events.map((event) => (
+                        <div className="approval-event-row" key={event.id}>
+                          <time dateTime={event.createdAt}>{formatDateTime(event.createdAt)}</time>
+                          <strong>{approvalEventText(event.eventType)}</strong>
+                          {event.note ? <span>{event.note}</span> : <span>—</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 ) : null}
                 <div className="report-detail-totals" aria-label="Итоги открытого отчета">
                   <span>

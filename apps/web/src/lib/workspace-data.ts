@@ -93,6 +93,7 @@ export type ReportSnapshotSummary = {
   accounts: ReportAccountSummary[];
   categories: ReportCategorySummary[];
   entries: ReportSourceEntry[];
+  events: ApprovalEventSummary[];
   createdAt: string;
 };
 
@@ -102,6 +103,16 @@ export type ReportPackageSummary = {
   status: string;
   reportIds: string[];
   reportCount: number;
+  events: ApprovalEventSummary[];
+  createdAt: string;
+};
+
+export type ApprovalEventSummary = {
+  id: string;
+  entityType: string;
+  entityId: string;
+  eventType: string;
+  note: string | null;
   createdAt: string;
 };
 
@@ -216,6 +227,15 @@ type ReportPackageItemRow = {
   report_package_id: string;
   report_snapshot_id: string;
   position: number;
+};
+
+type ApprovalEventRow = {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  event_type: string;
+  note: string | null;
+  created_at: string;
 };
 
 type SmithEntryProposalRow = {
@@ -428,7 +448,8 @@ function buildReportSourceEntries(
 
 function buildReportSnapshotSummary(
   report: ReportSnapshotRow,
-  entries: ReportSourceEntry[]
+  entries: ReportSourceEntry[],
+  events: ApprovalEventSummary[] = []
 ): ReportSnapshotSummary {
   return {
     id: report.id,
@@ -448,8 +469,32 @@ function buildReportSnapshotSummary(
     accounts: reportAccountRows(report.totals),
     categories: reportCategoryRows(report.totals),
     entries,
+    events,
     createdAt: report.created_at
   };
+}
+
+function buildApprovalEventSummaries(rows: ApprovalEventRow[] | null | undefined): ApprovalEventSummary[] {
+  return (rows ?? []).map((row) => ({
+    id: row.id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    eventType: row.event_type,
+    note: row.note,
+    createdAt: row.created_at
+  }));
+}
+
+function groupApprovalEventsByEntityId(rows: ApprovalEventRow[] | null | undefined) {
+  const eventsByEntityId = new Map<string, ApprovalEventSummary[]>();
+
+  for (const event of buildApprovalEventSummaries(rows)) {
+    const list = eventsByEntityId.get(event.entityId) ?? [];
+    list.push(event);
+    eventsByEntityId.set(event.entityId, list);
+  }
+
+  return eventsByEntityId;
 }
 
 export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -806,6 +851,8 @@ export async function getWorkspaceDetails(
   const reportSourceIds = [
     ...new Set((reportSnapshots.data ?? []).flatMap((report) => report.source_transaction_ids ?? []))
   ];
+  const reportSnapshotIds = (reportSnapshots.data ?? []).map((report) => report.id);
+  const reportEntityIds = [...reportSnapshotIds, ...reportPackageIds];
   const { data: reportSourceTransactions, error: reportSourceTransactionsError } =
     reportSourceIds.length > 0
       ? await supabase
@@ -822,6 +869,16 @@ export async function getWorkspaceDetails(
           .in("transaction_id", reportSourceIds)
           .returns<LedgerRow[]>()
       : { data: [], error: null };
+  const { data: reportApprovalEvents, error: reportApprovalEventsError } =
+    reportEntityIds.length > 0
+      ? await supabase
+          .from("approval_events")
+          .select("id, entity_type, entity_id, event_type, note, created_at")
+          .in("entity_id", reportEntityIds)
+          .in("entity_type", ["report_snapshot", "report_package"])
+          .order("created_at", { ascending: true })
+          .returns<ApprovalEventRow[]>()
+      : { data: [], error: null };
 
   if (reportSourceTransactionsError) {
     throw new Error(reportSourceTransactionsError.message);
@@ -831,6 +888,11 @@ export async function getWorkspaceDetails(
     throw new Error(reportSourceLedgerError.message);
   }
 
+  if (reportApprovalEventsError) {
+    throw new Error(reportApprovalEventsError.message);
+  }
+
+  const approvalEventsByEntityId = groupApprovalEventsByEntityId(reportApprovalEvents);
   const reportSourceTransactionById = new Map((reportSourceTransactions ?? []).map((row) => [row.id, row]));
   const reportSourceLedgerByTransactionId = new Map((reportSourceLedgerRows ?? []).map((row) => [row.transaction_id, row]));
 
@@ -865,7 +927,8 @@ export async function getWorkspaceDetails(
           reportSourceLedgerByTransactionId,
           categoryById,
           categoryByCode
-        )
+        ),
+        approvalEventsByEntityId.get(report.id) ?? []
       )
     ),
     reportPackages: (reportPackages.data ?? []).map((reportPackage) => {
@@ -877,6 +940,7 @@ export async function getWorkspaceDetails(
         status: reportPackage.status,
         reportIds,
         reportCount: reportIds.length,
+        events: approvalEventsByEntityId.get(reportPackage.id) ?? [],
         createdAt: reportPackage.created_at
       };
     }),
@@ -913,8 +977,12 @@ export async function getWorkspaceReportSnapshot(
     return null;
   }
 
-  const [{ data: workspace, error: workspaceError }, { data: report, error: reportError }, { data: categories, error: categoriesError }] =
-    await Promise.all([
+  const [
+    { data: workspace, error: workspaceError },
+    { data: report, error: reportError },
+    { data: categories, error: categoriesError },
+    { data: approvalEvents, error: approvalEventsError }
+  ] = await Promise.all([
       supabase
         .from("workspaces")
         .select("id, name, workspace_type, currency_code, status")
@@ -933,7 +1001,15 @@ export async function getWorkspaceReportSnapshot(
         .select("id, code, direction, label, metadata, is_active")
         .eq("workspace_id", workspaceId)
         .eq("is_active", true)
-        .returns<CategoryRow[]>()
+        .returns<CategoryRow[]>(),
+      supabase
+        .from("approval_events")
+        .select("id, entity_type, entity_id, event_type, note, created_at")
+        .eq("workspace_id", workspaceId)
+        .eq("entity_type", "report_snapshot")
+        .eq("entity_id", reportId)
+        .order("created_at", { ascending: true })
+        .returns<ApprovalEventRow[]>()
     ]);
 
   if (workspaceError) {
@@ -946,6 +1022,10 @@ export async function getWorkspaceReportSnapshot(
 
   if (categoriesError) {
     throw new Error(categoriesError.message);
+  }
+
+  if (approvalEventsError) {
+    throw new Error(approvalEventsError.message);
   }
 
   if (!workspace || !report) {
@@ -994,7 +1074,7 @@ export async function getWorkspaceReportSnapshot(
     status: workspace.status,
     role: membership.role_code,
     accessScope: membership.access_scope,
-    report: buildReportSnapshotSummary(report, entries)
+    report: buildReportSnapshotSummary(report, entries, buildApprovalEventSummaries(approvalEvents))
   };
 }
 
@@ -1031,7 +1111,8 @@ export async function getWorkspaceReportPackage(
     { data: workspace, error: workspaceError },
     { data: reportPackage, error: reportPackageError },
     { data: packageItems, error: packageItemsError },
-    { data: categories, error: categoriesError }
+    { data: categories, error: categoriesError },
+    { data: packageApprovalEvents, error: packageApprovalEventsError }
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -1058,7 +1139,15 @@ export async function getWorkspaceReportPackage(
       .select("id, code, direction, label, metadata, is_active")
       .eq("workspace_id", workspaceId)
       .eq("is_active", true)
-      .returns<CategoryRow[]>()
+      .returns<CategoryRow[]>(),
+    supabase
+      .from("approval_events")
+      .select("id, entity_type, entity_id, event_type, note, created_at")
+      .eq("workspace_id", workspaceId)
+      .eq("entity_type", "report_package")
+      .eq("entity_id", packageId)
+      .order("created_at", { ascending: true })
+      .returns<ApprovalEventRow[]>()
   ]);
 
   if (workspaceError) {
@@ -1075,6 +1164,10 @@ export async function getWorkspaceReportPackage(
 
   if (categoriesError) {
     throw new Error(categoriesError.message);
+  }
+
+  if (packageApprovalEventsError) {
+    throw new Error(packageApprovalEventsError.message);
   }
 
   if (!workspace || !reportPackage) {
@@ -1098,6 +1191,7 @@ export async function getWorkspaceReportPackage(
         status: reportPackage.status,
         reportIds,
         reportCount: 0,
+        events: buildApprovalEventSummaries(packageApprovalEvents),
         createdAt: reportPackage.created_at
       },
       reports: []
@@ -1114,6 +1208,22 @@ export async function getWorkspaceReportPackage(
 
   if (reportsError) {
     throw new Error(reportsError.message);
+  }
+
+  const { data: reportApprovalEvents, error: reportApprovalEventsError } =
+    reportIds.length > 0
+      ? await supabase
+          .from("approval_events")
+          .select("id, entity_type, entity_id, event_type, note, created_at")
+          .eq("workspace_id", workspaceId)
+          .eq("entity_type", "report_snapshot")
+          .in("entity_id", reportIds)
+          .order("created_at", { ascending: true })
+          .returns<ApprovalEventRow[]>()
+      : { data: [], error: null };
+
+  if (reportApprovalEventsError) {
+    throw new Error(reportApprovalEventsError.message);
   }
 
   const sourceIds = [...new Set((reports ?? []).flatMap((report) => report.source_transaction_ids ?? []))];
@@ -1149,6 +1259,7 @@ export async function getWorkspaceReportPackage(
   const transactionById = new Map((transactions ?? []).map((row) => [row.id, row]));
   const ledgerByTransactionId = new Map((ledgerRows ?? []).map((row) => [row.transaction_id, row]));
   const reportById = new Map((reports ?? []).map((report) => [report.id, report]));
+  const approvalEventsByEntityId = groupApprovalEventsByEntityId(reportApprovalEvents);
   const orderedReports = reportIds
     .map((reportId) => {
       const report = reportById.get(reportId);
@@ -1165,7 +1276,8 @@ export async function getWorkspaceReportPackage(
           ledgerByTransactionId,
           categoryById,
           categoryByCode
-        )
+        ),
+        approvalEventsByEntityId.get(report.id) ?? []
       );
     })
     .filter((report): report is ReportSnapshotSummary => report !== null);
@@ -1184,6 +1296,7 @@ export async function getWorkspaceReportPackage(
       status: reportPackage.status,
       reportIds,
       reportCount: reportIds.length,
+      events: buildApprovalEventSummaries(packageApprovalEvents),
       createdAt: reportPackage.created_at
     },
     reports: orderedReports

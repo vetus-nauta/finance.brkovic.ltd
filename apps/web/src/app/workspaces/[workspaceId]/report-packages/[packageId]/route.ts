@@ -24,6 +24,16 @@ function formatDateOnly(value: string) {
   }).format(new Date(value));
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 function formatMoney(value: number, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
     currency,
@@ -58,6 +68,27 @@ function directionText(direction: string) {
       return "Расход";
     default:
       return "Учет";
+  }
+}
+
+function approvalEventText(eventType: string) {
+  switch (eventType) {
+    case "report_snapshot_created":
+      return "Отчет создан";
+    case "report_snapshot_sent":
+      return "Отчет отправлен";
+    case "report_snapshot_accepted":
+      return "Отчет принят";
+    case "report_snapshot_returned_for_revision":
+      return "Возвращен на доработку";
+    case "report_package_created":
+      return "Пакет создан";
+    case "report_package_sent":
+      return "Пакет отправлен";
+    case "report_package_accepted":
+      return "Пакет принят";
+    default:
+      return eventType;
   }
 }
 
@@ -123,6 +154,17 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
           `;
         })
         .join("");
+      const reportEventsHtml = report.events
+        .map(
+          (event) => `
+            <tr>
+              <td>${formatDateTime(event.createdAt)}</td>
+              <td>${escapeHtml(approvalEventText(event.eventType))}</td>
+              <td>${event.note ? escapeHtml(event.note) : "—"}</td>
+            </tr>
+          `
+        )
+        .join("");
 
       return `
         <section>
@@ -138,10 +180,37 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
             <span><small>Расход</small><strong class="expense">${formatMoney(report.expenseTotal, document.currency)}</strong></span>
             <span><small>Проверка</small><strong>${report.reviewCount}</strong></span>
           </div>
+          ${
+            reportEventsHtml
+              ? `<details class="event-block">
+                  <summary>
+                    <span>
+                      <strong>История отчета</strong>
+                      <small>${report.events.length} событий</small>
+                    </span>
+                  </summary>
+                  <table class="event-table">
+                    <thead><tr><th>Дата</th><th>Действие</th><th>Заметка</th></tr></thead>
+                    <tbody>${reportEventsHtml}</tbody>
+                  </table>
+                </details>`
+              : ""
+          }
           ${categoriesHtml || "<p class=\"muted\">Категорий в отчете нет.</p>"}
         </section>
       `;
     })
+    .join("");
+  const packageEventsHtml = document.reportPackage.events
+    .map(
+      (event) => `
+        <tr>
+          <td>${formatDateTime(event.createdAt)}</td>
+          <td>${escapeHtml(approvalEventText(event.eventType))}</td>
+          <td>${event.note ? escapeHtml(event.note) : "—"}</td>
+        </tr>
+      `
+    )
     .join("");
 
   const html = `<!doctype html>
@@ -298,6 +367,20 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
         display: grid;
         gap: 2px;
       }
+      .event-block {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .event-block summary {
+        cursor: pointer;
+        list-style: none;
+        min-height: 42px;
+        padding: 10px 12px;
+      }
+      .event-block summary::-webkit-details-marker { display: none; }
+      .event-block summary span { display: grid; gap: 2px; }
+      .event-table td:first-child { width: 180px; white-space: nowrap; }
       @media print {
         body { background: #fff; padding: 0; }
         main { max-width: none; }
@@ -339,6 +422,17 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
       <div class="totals" aria-label="Проверка пакета">
         <div class="total"><small>Проверка</small><strong>${reviewCount}</strong></div>
       </div>
+      ${
+        packageEventsHtml
+          ? `<section>
+              <h2>История пакета</h2>
+              <table class="event-table">
+                <thead><tr><th>Дата</th><th>Действие</th><th>Заметка</th></tr></thead>
+                <tbody>${packageEventsHtml}</tbody>
+              </table>
+            </section>`
+          : ""
+      }
       ${reportsHtml || "<section><p class=\"muted\">В пакете пока нет отчетов.</p></section>"}
     </main>
   </body>

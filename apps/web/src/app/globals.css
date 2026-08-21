@@ -1100,9 +1100,32 @@ button {
 }
 
 .report-mini-table,
-.report-category-list {
+.report-category-list,
+.approval-event-list {
   display: grid;
   gap: 6px;
+}
+
+.approval-event-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 150px minmax(160px, 0.6fr) minmax(180px, 1fr);
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.approval-event-row time,
+.approval-event-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .report-mini-row {
@@ -2081,10 +2104,12 @@ button {
   }
 
   .report-detail-totals,
+  .approval-event-row,
   .report-mini-row {
     grid-template-columns: 1fr;
   }
 
+  .approval-event-row,
   .report-mini-row {
     align-items: stretch;
     padding: 8px 10px;
