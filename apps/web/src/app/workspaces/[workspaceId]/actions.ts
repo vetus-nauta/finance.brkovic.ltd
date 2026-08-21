@@ -69,6 +69,16 @@ type ReturnReportSnapshotForRevisionResult = {
   status: string;
 };
 
+type CreateReportLockedCorrectionResult = {
+  correction_id: string;
+  original_transaction_id: string;
+  correction_transaction_id: string;
+  correction_row_no: number;
+  counted: boolean;
+  transaction_status: string;
+  review_status: string | null;
+};
+
 type SupabaseRpcClient = {
   rpc: (
     functionName: string,
@@ -662,5 +672,70 @@ export async function returnReportSnapshotForRevision(workspaceId: string, formD
   redirectToMode(workspaceId, "reports", "report-returned", {
     account: accountCode,
     report: data[0].report_snapshot_id
+  });
+}
+
+export async function createReportLockedCorrection(workspaceId: string, formData: FormData) {
+  const accountCode = String(formData.get("account") || "cash").trim() || "cash";
+  const originalTransactionId = String(formData.get("originalTransactionId") || "").trim();
+  const occurredOn = String(formData.get("occurredOn") || "").trim();
+  const rawText = String(formData.get("rawText") || "").trim();
+  const reason = String(formData.get("reason") || "").trim();
+  const reportId = String(formData.get("reportId") || "").trim();
+
+  if (!originalTransactionId || !occurredOn || !rawText || !reason) {
+    redirectToMode(workspaceId, "reports", "report-correction-missing", {
+      account: accountCode,
+      ...(reportId ? { report: reportId } : {})
+    });
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as SupabaseRpcClient)
+    .rpc("create_report_locked_correction", {
+      p_original_transaction_id: originalTransactionId,
+      p_account_code: accountCode,
+      p_occurred_on: occurredOn,
+      p_raw_text: rawText,
+      p_reason: reason
+    })
+    .returns<CreateReportLockedCorrectionResult[]>();
+
+  if (error || !data?.[0]) {
+    const message = error?.message ?? "";
+
+    if (
+      message.includes("auth_required") ||
+      message.includes("ledger_correct_required") ||
+      message.includes("ledger_write_required")
+    ) {
+      redirectToMode(workspaceId, "reports", "report-auth", {
+        account: accountCode,
+        ...(reportId ? { report: reportId } : {})
+      });
+    }
+
+    if (
+      message.includes("original_transaction_required") ||
+      message.includes("original_transaction_not_found") ||
+      message.includes("original_transaction_not_report_locked")
+    ) {
+      redirectToMode(workspaceId, "reports", "report-correction-source", {
+        account: accountCode,
+        ...(reportId ? { report: reportId } : {})
+      });
+    }
+
+    redirectToMode(workspaceId, "reports", "report-correction", {
+      account: accountCode,
+      ...(reportId ? { report: reportId } : {})
+    });
+  }
+
+  revalidateWorkspace(workspaceId);
+  redirectToMode(workspaceId, "reports", "report-correction-created", {
+    account: accountCode,
+    ...(reportId ? { report: reportId } : {}),
+    row: String(data[0].correction_row_no)
   });
 }

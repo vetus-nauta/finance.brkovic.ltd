@@ -873,6 +873,53 @@ button {
   padding: 0 14px;
 }
 
+.report-correction-form {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(120px, 0.7fr) minmax(130px, 0.7fr);
+  padding: 10px;
+}
+
+.report-correction-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.report-correction-form .wide-field {
+  grid-column: span 2;
+}
+
+.report-correction-form span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-correction-form input,
+.report-correction-form select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.report-correction-form button {
+  align-self: end;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
 .note-history-head h3 {
   font-size: 16px;
   line-height: 1.2;
@@ -1961,6 +2008,7 @@ button {
   .report-create-panel,
   .report-package-head,
   .report-revision-form,
+  .report-correction-form,
   .notes-apple-head,
   .note-card > div,
   .note-card a > div,
@@ -1981,7 +2029,12 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .report-correction-form .wide-field {
+    grid-column: auto;
+  }
+
   .report-package-head button,
+  .report-correction-form button,
   .report-card .ghost-button {
     justify-content: center;
     width: 100%;

@@ -5,6 +5,7 @@ import {
   convertSmithProposalsToEntries,
   createReportSnapshot,
   createReportPackage,
+  createReportLockedCorrection,
   createOperationalEntry,
   deleteOperationalEntry,
   deleteQuickNote,
@@ -106,12 +107,18 @@ function workspaceStatusText(status?: string) {
       return "Пакет отчетов создан.";
     case "report-returned":
       return "Отчет отмечен как возвращенный на доработку.";
+    case "report-correction-created":
+      return "Корректировка создана новой строкой в рабочей ленте.";
     case "report-period":
       return "Выберите корректный период отчета.";
     case "report-empty":
       return "В выбранном периоде нет открытых строк для отчета.";
     case "report-missing":
       return "Отчет не найден.";
+    case "report-correction-missing":
+      return "Выберите строку, дату, корректирующую запись и причину.";
+    case "report-correction-source":
+      return "Исходная строка не найдена или не закрыта отчетом.";
     case "report-package-empty":
       return "Выберите один или несколько сохраненных отчетов.";
     case "report-auth":
@@ -121,6 +128,8 @@ function workspaceStatusText(status?: string) {
       return "Не удалось создать отчет.";
     case "report-revision":
       return "Не удалось вернуть отчет на доработку.";
+    case "report-correction":
+      return "Не удалось создать корректировку.";
     case "auth":
       return "Сессия не найдена. Войдите заново.";
     case "workspace":
@@ -139,7 +148,8 @@ function isWorkspaceStatusSuccess(status?: string) {
     status === "note-deleted" ||
     status === "report-created" ||
     status === "report-package-created" ||
-    status === "report-returned"
+    status === "report-returned" ||
+    status === "report-correction-created"
   );
 }
 
@@ -267,6 +277,7 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const createReportAction = createReportSnapshot.bind(null, workspace.id);
   const createReportPackageAction = createReportPackage.bind(null, workspace.id);
   const returnReportAction = returnReportSnapshotForRevision.bind(null, workspace.id);
+  const createReportCorrectionAction = createReportLockedCorrection.bind(null, workspace.id);
   const today = new Date().toISOString().slice(0, 10);
   const statusText = entryStatusText(query.entry);
   const modeStatusText = workspaceStatusText(query.status);
@@ -843,6 +854,45 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       <input name="reason" placeholder="Например: нужна корректировка строки" />
                     </label>
                     <button type="submit">На доработку</button>
+                  </form>
+                ) : null}
+                {selectedReport.status === "returned_for_revision" ? (
+                  <form className="report-correction-form" action={createReportCorrectionAction}>
+                    <input type="hidden" name="reportId" value={selectedReport.id} />
+                    <label>
+                      <span>Исходная строка</span>
+                      <select name="originalTransactionId" required>
+                        <option value="">Выберите строку</option>
+                        {selectedReport.entries.map((entry) => (
+                          <option key={entry.id} value={entry.id}>
+                            {entry.rowNo} · {formatDateOnly(entry.occurredOn)} · {entry.rawText}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Счет</span>
+                      <select name="account" defaultValue={workspace.activeAccountCode}>
+                        {workspace.accounts.map((account) => (
+                          <option key={account.id} value={account.code}>
+                            {account.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Дата</span>
+                      <input type="date" name="occurredOn" defaultValue={today} required />
+                    </label>
+                    <label className="wide-field">
+                      <span>Корректирующая запись</span>
+                      <input name="rawText" placeholder="+20 уточнение расхода" required />
+                    </label>
+                    <label className="wide-field">
+                      <span>Причина</span>
+                      <input name="reason" placeholder="Почему нужна корректировка" required />
+                    </label>
+                    <button type="submit">Создать корректировку</button>
                   </form>
                 ) : null}
                 <div className="report-detail-totals" aria-label="Итоги открытого отчета">
