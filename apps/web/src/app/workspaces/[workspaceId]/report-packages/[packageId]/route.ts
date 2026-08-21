@@ -177,6 +177,28 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
         margin: 0 auto;
         max-width: 1080px;
       }
+      .toolbar {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .toolbar button {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--ink);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 900;
+        min-height: 38px;
+        padding: 0 12px;
+      }
+      .toolbar button.primary {
+        background: #1677f2;
+        border-color: #1677f2;
+        color: #fff;
+      }
       header,
       section,
       .total {
@@ -279,6 +301,7 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
       @media print {
         body { background: #fff; padding: 0; }
         main { max-width: none; }
+        .toolbar { display: none; }
         header, section, .total, .category { break-inside: avoid; }
       }
       @media (max-width: 760px) {
@@ -293,6 +316,11 @@ export async function GET(_request: Request, { params }: ReportPackageRouteProps
   </head>
   <body>
     <main>
+      <nav class="toolbar" aria-label="Действия с пакетом отчетов">
+        <button type="button" onclick="document.querySelectorAll('details').forEach((node) => { node.open = true; });">Раскрыть</button>
+        <button type="button" onclick="document.querySelectorAll('details').forEach((node) => { node.open = false; });">Свернуть</button>
+        <button class="primary" type="button" onclick="window.print();">Печать / PDF</button>
+      </nav>
       <header>
         <div>
           <p class="muted">FinDesk · ${escapeHtml(document.name)} · ${document.reportPackage.reportCount} отчетов</p>
