@@ -818,6 +818,107 @@ button {
   font-size: 13px;
 }
 
+.report-detail-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.report-detail-totals {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+}
+
+.report-detail-totals span {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+}
+
+.report-detail-totals small,
+.report-mini-row span,
+.report-category-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-detail-section {
+  display: grid;
+  gap: 8px;
+}
+
+.report-detail-section h4 {
+  font-size: 15px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.report-mini-table,
+.report-category-list {
+  display: grid;
+  gap: 6px;
+}
+
+.report-mini-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(140px, 1fr) 80px 130px 130px;
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.report-mini-row > :nth-child(n + 2) {
+  text-align: right;
+}
+
+.report-category-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.report-category-card summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.report-category-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-category-card summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.report-category-card summary b {
+  white-space: nowrap;
+}
+
+.report-category-card p {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  margin: 0;
+  padding: 10px;
+}
+
 .note-card.active {
   background: #e8f7f4;
   border-color: #1b9587;
@@ -1686,6 +1787,25 @@ button {
   .report-card-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+
+  .report-detail-totals,
+  .report-mini-row {
+    grid-template-columns: 1fr;
+  }
+
+  .report-mini-row {
+    align-items: stretch;
+    padding: 8px 10px;
+  }
+
+  .report-mini-row > :nth-child(n + 2) {
+    text-align: left;
+  }
+
+  .report-category-card summary {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .notes-apple-workspace {

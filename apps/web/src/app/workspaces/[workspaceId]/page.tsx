@@ -29,6 +29,7 @@ type WorkspacePageProps = {
     newNote?: string;
     note?: string;
     notesView?: string;
+    report?: string;
     status?: string;
   }>;
 };
@@ -272,6 +273,8 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
   const noteHasPendingTransfer = pendingProposals.length > 0 && selectedQuickNote?.status === "submitted_to_smith";
   const showNoteTransfer = mode === "notes" && notesView === "transfer" && noteHasPendingTransfer;
   const noteScreenOpen = mode === "notes" && (composeNewQuickNote || Boolean(query.note) || showNoteTransfer);
+  const selectedReport =
+    workspace.reportSnapshots.find((report) => report.id === query.report) ?? workspace.reportSnapshots[0] ?? null;
   const activeNavigationLabel =
     mode === "notes"
       ? "Заметки"
@@ -736,6 +739,12 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                       </span>
                     </div>
                     <span className="status-pill">{reportStatusText(report.status)}</span>
+                    <Link
+                      className="ghost-button"
+                      href={`${workspaceBasePath}?mode=reports&account=${encodeURIComponent(workspace.activeAccountCode)}&report=${encodeURIComponent(report.id)}`}
+                    >
+                      Открыть
+                    </Link>
                   </article>
                 ))
               ) : (
@@ -745,6 +754,81 @@ export default async function WorkspacePage({ params, searchParams }: WorkspaceP
                 </div>
               )}
             </div>
+            {selectedReport ? (
+              <section className="report-detail-panel" aria-label="Открытый отчет">
+                <div className="note-history-head">
+                  <div>
+                    <h3>{selectedReport.title}</h3>
+                    <small>
+                      {formatDateOnly(selectedReport.periodStart)} — {formatDateOnly(selectedReport.periodEnd)} ·{" "}
+                      {selectedReport.entryCount} строк
+                    </small>
+                  </div>
+                  <span className="status-pill">{reportStatusText(selectedReport.status)}</span>
+                </div>
+                <div className="report-detail-totals" aria-label="Итоги открытого отчета">
+                  <span>
+                    <small>Приход</small>
+                    <strong className="amount-income">{formatMoney(selectedReport.incomeTotal, workspace.currency)}</strong>
+                  </span>
+                  <span>
+                    <small>Расход</small>
+                    <strong className="amount-expense">{formatMoney(selectedReport.expenseTotal, workspace.currency)}</strong>
+                  </span>
+                  <span>
+                    <small>Итог</small>
+                    <strong>{formatMoney(selectedReport.netTotal, workspace.currency)}</strong>
+                  </span>
+                  <span>
+                    <small>Проверка</small>
+                    <strong>{selectedReport.reviewCount}</strong>
+                  </span>
+                </div>
+                {selectedReport.accounts.length > 0 ? (
+                  <section className="report-detail-section">
+                    <h4>Счета</h4>
+                    <div className="report-mini-table">
+                      {selectedReport.accounts.map((account) => (
+                        <div className="report-mini-row" key={account.accountCode}>
+                          <strong>{account.label}</strong>
+                          <span>{account.entryCount} строк</span>
+                          <span className="amount-income">{formatMoney(account.incomeTotal, workspace.currency)}</span>
+                          <span className="amount-expense">{formatMoney(account.expenseTotal, workspace.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+                <section className="report-detail-section">
+                  <h4>Категории</h4>
+                  {selectedReport.categories.length > 0 ? (
+                    <div className="report-category-list">
+                      {selectedReport.categories.map((category) => (
+                        <details className="report-category-card" key={`${category.code}-${category.direction}`}>
+                          <summary>
+                            <span>
+                              <strong>{category.label}</strong>
+                              <small>
+                                {directionText(category.direction)} · {category.entryCount} строк · проверка {category.reviewCount}
+                              </small>
+                            </span>
+                            <b>{formatMoney(category.total, workspace.currency)}</b>
+                          </summary>
+                          <p>
+                            Раскрытие до отдельных строк будет подключено следующим слоем. Сейчас открыт сохраненный итог категории.
+                          </p>
+                        </details>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state inline-empty">
+                      <h2>Категорий нет</h2>
+                      <p>В отчете есть только строки на проверке или без принятой категории.</p>
+                    </div>
+                  )}
+                </section>
+              </section>
+            ) : null}
           </section>
         ) : null}
       </section>

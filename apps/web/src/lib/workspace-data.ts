@@ -89,7 +89,26 @@ export type ReportSnapshotSummary = {
   incomeTotal: number;
   expenseTotal: number;
   netTotal: number;
+  accounts: ReportAccountSummary[];
+  categories: ReportCategorySummary[];
   createdAt: string;
+};
+
+export type ReportAccountSummary = {
+  accountCode: string;
+  label: string;
+  entryCount: number;
+  incomeTotal: number;
+  expenseTotal: number;
+};
+
+export type ReportCategorySummary = {
+  code: string;
+  label: string;
+  direction: "income" | "expense" | "neutral";
+  total: number;
+  entryCount: number;
+  reviewCount: number;
 };
 
 type TransactionRow = {
@@ -272,6 +291,43 @@ function buildCategorySummary(ledgerRows: LedgerRow[], categories: CategoryRow[]
     moneyMovements: sortRows(rows.filter((row) => row.kind === "money_movement")),
     uncategorized: sortRows(rows.filter((row) => row.kind === "uncategorized"))
   };
+}
+
+function numberFromJson(value: unknown) {
+  return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+function reportAccountRows(totals: Record<string, unknown> | null): ReportAccountSummary[] {
+  const rows = Array.isArray(totals?.accounts) ? totals.accounts : [];
+
+  return rows
+    .filter((row): row is Record<string, unknown> => row !== null && typeof row === "object")
+    .map((row) => ({
+      accountCode: String(row.account_code ?? "account"),
+      label: String(row.label ?? row.account_code ?? "Счет"),
+      entryCount: numberFromJson(row.entry_count),
+      incomeTotal: numberFromJson(row.income_total),
+      expenseTotal: numberFromJson(row.expense_total)
+    }));
+}
+
+function reportCategoryRows(totals: Record<string, unknown> | null): ReportCategorySummary[] {
+  const rows = Array.isArray(totals?.categories) ? totals.categories : [];
+
+  return rows
+    .filter((row): row is Record<string, unknown> => row !== null && typeof row === "object")
+    .map((row) => {
+      const direction = row.direction === "income" || row.direction === "expense" ? row.direction : "neutral";
+
+      return {
+        code: String(row.category_code ?? "uncategorized"),
+        label: String(row.label ?? row.category_code ?? "Без категории"),
+        direction,
+        total: numberFromJson(row.total),
+        entryCount: numberFromJson(row.entry_count),
+        reviewCount: numberFromJson(row.review_count)
+      };
+    });
 }
 
 export async function listUserWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -620,10 +676,12 @@ export async function getWorkspaceDetails(
           ? report.totals.entry_count
           : report.source_transaction_ids?.length ?? 0,
       reviewCount: typeof report.totals?.review_count === "number" ? report.totals.review_count : 0,
-      incomeTotal: typeof report.totals?.income_total === "number" ? report.totals.income_total : Number(report.totals?.income_total ?? 0),
+      incomeTotal: numberFromJson(report.totals?.income_total),
       expenseTotal:
-        typeof report.totals?.expense_total === "number" ? report.totals.expense_total : Number(report.totals?.expense_total ?? 0),
-      netTotal: typeof report.totals?.net_total === "number" ? report.totals.net_total : Number(report.totals?.net_total ?? 0),
+        numberFromJson(report.totals?.expense_total),
+      netTotal: numberFromJson(report.totals?.net_total),
+      accounts: reportAccountRows(report.totals),
+      categories: reportCategoryRows(report.totals),
       createdAt: report.created_at
     })),
     categorySummary: buildCategorySummary(liveLedgerSummaryRows, categories.data ?? [])
