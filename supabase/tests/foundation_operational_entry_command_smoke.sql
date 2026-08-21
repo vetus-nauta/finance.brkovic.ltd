@@ -161,6 +161,9 @@ declare
   audit_count integer;
   updated_amount numeric(14,2);
   voided_card_status text;
+  direct_insert_blocked boolean := false;
+  direct_ledger_insert_blocked boolean := false;
+  direct_row_count integer;
   manual_card_income_blocked boolean := false;
 begin
   select * into cash_expense
@@ -341,6 +344,104 @@ begin
 
   if audit_count <> 6 then
     raise exception 'expected 6 audit events, saw %', audit_count;
+  end if;
+
+  begin
+    insert into public.transactions (
+      organization_id,
+      workspace_id,
+      account_id,
+      occurred_on,
+      row_no,
+      raw_text,
+      created_by
+    ) values (
+      '5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      '5ddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      '2026-08-21',
+      99,
+      '-999 direct transaction bypass',
+      '51111111-1111-4111-8111-111111111111'
+    );
+  exception
+    when insufficient_privilege or check_violation then
+      direct_insert_blocked := true;
+    when others then
+      if sqlerrm like '%row-level security%' then
+        direct_insert_blocked := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if direct_insert_blocked is not true then
+    raise exception 'direct transaction insert bypass was unexpectedly accepted';
+  end if;
+
+  update public.transactions
+  set raw_text = '-1 direct transaction update bypass'
+  where id = cash_income.transaction_id;
+  get diagnostics direct_row_count = row_count;
+
+  if direct_row_count <> 0 then
+    raise exception 'direct transaction update bypass affected % rows', direct_row_count;
+  end if;
+
+  delete from public.transactions
+  where id = cash_income.transaction_id;
+  get diagnostics direct_row_count = row_count;
+
+  if direct_row_count <> 0 then
+    raise exception 'direct transaction delete bypass affected % rows', direct_row_count;
+  end if;
+
+  begin
+    insert into public.ledger_entries (
+      organization_id,
+      workspace_id,
+      transaction_id,
+      account_id,
+      direction,
+      amount
+    ) values (
+      '5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      cash_income.transaction_id,
+      '5ddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      'expense',
+      999.00
+    );
+  exception
+    when insufficient_privilege or check_violation then
+      direct_ledger_insert_blocked := true;
+    when others then
+      if sqlerrm like '%row-level security%' then
+        direct_ledger_insert_blocked := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if direct_ledger_insert_blocked is not true then
+    raise exception 'direct ledger insert bypass was unexpectedly accepted';
+  end if;
+
+  update public.ledger_entries
+  set amount = 1.00
+  where transaction_id = cash_income.transaction_id;
+  get diagnostics direct_row_count = row_count;
+
+  if direct_row_count <> 0 then
+    raise exception 'direct ledger update bypass affected % rows', direct_row_count;
+  end if;
+
+  delete from public.ledger_entries
+  where transaction_id = cash_income.transaction_id;
+  get diagnostics direct_row_count = row_count;
+
+  if direct_row_count <> 0 then
+    raise exception 'direct ledger delete bypass affected % rows', direct_row_count;
   end if;
 end;
 $$;
