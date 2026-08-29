@@ -581,8 +581,12 @@ body:has(.hall-page) {
 .hall-hero-art {
   align-self: stretch;
   background:
-    linear-gradient(90deg, var(--hall-bg) 0%, rgba(6, 20, 38, 0) 22%),
+    radial-gradient(ellipse at 58% 50%, rgba(6, 20, 38, 0) 0 42%, rgba(6, 20, 38, 0.28) 62%, var(--hall-bg) 100%),
+    linear-gradient(90deg, var(--hall-bg) 0%, rgba(6, 20, 38, 0) 18%, rgba(6, 20, 38, 0) 76%, var(--hall-bg) 100%),
+    linear-gradient(180deg, var(--hall-bg) 0%, rgba(6, 20, 38, 0) 20%, rgba(6, 20, 38, 0) 78%, var(--hall-bg) 100%),
     url("/assets/hall-new/background/hero_master_crop.jpg") center right / cover no-repeat;
+  -webkit-mask-image: radial-gradient(ellipse at 58% 50%, #000 0 48%, rgba(0, 0, 0, 0.82) 58%, transparent 82%);
+  mask-image: radial-gradient(ellipse at 58% 50%, #000 0 48%, rgba(0, 0, 0, 0.82) 58%, transparent 82%);
   min-height: 250px;
 }
 
