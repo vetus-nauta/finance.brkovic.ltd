@@ -56,6 +56,30 @@ Forbidden in `apps/web`:
 - legacy MySQL credentials
 - Atlas credentials
 
+## Supabase Keepalive
+
+The production app uses Supabase/Postgres as the active source of truth. Atlas is only a legacy
+archive/migration comparison source and must not receive new product logic.
+
+Supabase Free projects can pause when database activity is too low. Vercel Cron calls:
+
+```text
+GET /api/health/supabase
+```
+
+once per day. The endpoint performs a server-side read against `public.workspaces` through the
+Supabase service role client, returns only a health status, and does not mutate financial data.
+
+Vercel production env should include:
+
+```text
+CRON_SECRET=<random long secret>
+```
+
+When `CRON_SECRET` is present, the endpoint accepts only `Authorization: Bearer <CRON_SECRET>`.
+Keep `SUPABASE_SERVICE_ROLE_KEY` server-only in Vercel. It must never be exposed as a
+`NEXT_PUBLIC_*` variable.
+
 ## Email Code UX Contract
 
 FinDesk must keep the existing user-facing auth flow:
