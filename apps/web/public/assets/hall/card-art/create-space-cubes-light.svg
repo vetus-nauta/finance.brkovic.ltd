@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+<g fill="none" stroke="#3D7FFF" stroke-width="1.6" opacity=".8">
+<path d="M210 124l30-17 30 17-30 17zM210 124v35l30 17 30-17v-35"/>
+<path d="M270 78l24-14 24 14-24 14zM270 78v28l24 14 24-14V78" opacity=".7"/>
+<path d="M155 160l20-12 20 12-20 12zM155 160v24l20 12 20-12v-24" opacity=".55"/>
+</g><circle cx="240" cy="160" r="74" fill="#DDEAFF" opacity=".18"/></svg>

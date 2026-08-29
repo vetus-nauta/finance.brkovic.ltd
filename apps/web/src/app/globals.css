@@ -157,6 +157,55 @@ button {
   justify-content: flex-end;
 }
 
+.topbar-left {
+  align-items: center;
+  display: inline-flex;
+  gap: 22px;
+  min-width: 0;
+}
+
+.topbar-section-title {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.icon-button,
+.user-avatar {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 40px;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.icon-button {
+  border-radius: 999px;
+  padding: 0;
+}
+
+.icon-button img {
+  display: block;
+}
+
+.user-avatar {
+  background: #eaf2ff;
+  border: 1px solid #cfe0f7;
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.topbar-hall {
+  border-radius: 18px;
+  max-width: 1320px;
+  padding: 14px 18px;
+}
+
 .page {
   margin: 0 auto;
   max-width: 1180px;
@@ -375,6 +424,249 @@ button {
   margin: -4px 0 12px;
   max-width: 720px;
   padding: 10px 12px;
+}
+
+.hall-page {
+  gap: 28px;
+  max-width: 1320px;
+}
+
+.hall-hero {
+  align-items: stretch;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.92)),
+    var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 410px) auto;
+  min-height: 260px;
+  overflow: hidden;
+  padding: 34px 36px;
+  position: relative;
+}
+
+.hall-hero-copy {
+  align-content: center;
+  display: grid;
+  justify-items: start;
+}
+
+.hall-hero h1 {
+  font-size: clamp(38px, 5vw, 72px);
+  line-height: 0.98;
+  margin: 0 0 16px;
+  max-width: 720px;
+  overflow-wrap: anywhere;
+}
+
+.hall-hero p {
+  color: var(--muted);
+  font-size: 17px;
+  margin: 0;
+  max-width: 680px;
+}
+
+.hall-hero-art {
+  background: url("/assets/hall/backgrounds/hero-light.svg") center / contain no-repeat;
+  min-height: 190px;
+}
+
+.hall-hero-actions {
+  align-items: start;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hall-create-button {
+  justify-content: center;
+  min-width: 216px;
+}
+
+.hall-grid {
+  align-items: stretch;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workspace-card-v2 {
+  --workspace-accent: var(--accent);
+  --workspace-tint: #edf5ff;
+  --workspace-art: url("/assets/hall/card-art/card-wave-owner-light.svg");
+  background:
+    var(--workspace-art) right bottom / 70% auto no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--workspace-tint) 78%, #fff 22%), #fff 62%),
+    var(--panel);
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 20%, var(--line) 80%);
+  border-radius: 20px;
+  box-shadow: 0 22px 48px rgba(16, 24, 40, 0.09);
+  display: grid;
+  gap: 20px;
+  grid-template-rows: auto 1fr auto;
+  min-height: 280px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 28px;
+  position: relative;
+}
+
+.workspace-card-v2::before {
+  background: var(--workspace-accent);
+  content: "";
+  height: 4px;
+  left: 0;
+  opacity: 0.9;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.workspace-card-top,
+.workspace-card-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.workspace-card-top {
+  justify-content: space-between;
+}
+
+.workspace-card-icon {
+  align-items: center;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 22%, var(--line) 78%);
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.08);
+  display: inline-flex;
+  flex: 0 0 58px;
+  height: 58px;
+  justify-content: center;
+  width: 58px;
+}
+
+.workspace-card-icon img,
+.workspace-card-actions img {
+  display: block;
+}
+
+.workspace-role {
+  color: color-mix(in srgb, var(--workspace-accent) 72%, #10213d 28%);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.workspace-card-main {
+  align-content: center;
+  display: grid;
+  justify-items: start;
+  max-width: 94%;
+}
+
+.workspace-card-main h2 {
+  display: -webkit-box;
+  font-size: 28px;
+  line-height: 1.08;
+  margin: 0 0 10px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.workspace-card-main p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.workspace-card-actions {
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-card-actions button,
+.workspace-open-link {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 34%, var(--line) 66%);
+  border-radius: 12px;
+  display: inline-flex;
+  font-weight: 850;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.workspace-card-actions button {
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+.workspace-open-link {
+  background: var(--workspace-accent);
+  color: #fff;
+}
+
+.workspace-open-link img {
+  filter: brightness(0) invert(1);
+}
+
+.workspace-card-actions [aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.workspace-card-new {
+  background:
+    var(--workspace-art) right 18px bottom 16px / 46% auto no-repeat,
+    linear-gradient(180deg, #f8fafd, #fff 68%),
+    var(--panel);
+  border-style: dashed;
+}
+
+.hall-empty-card {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(237, 245, 255, 0.92)),
+    var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 360px);
+  min-height: 290px;
+  overflow: hidden;
+  padding: 34px 36px;
+}
+
+.hall-empty-copy {
+  align-content: center;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.hall-empty-card h2 {
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.05;
+  margin: 0;
+}
+
+.hall-empty-card p:not(.eyebrow) {
+  color: var(--muted);
+  margin: 0;
+  max-width: 620px;
+}
+
+.hall-empty-art {
+  background: url("/assets/hall/card-art/create-space-cubes-light.svg") center / contain no-repeat;
+  min-height: 220px;
 }
 
 .invite-accept-panel {
@@ -2409,6 +2701,24 @@ button {
 }
 
 @media (min-width: 821px) and (max-width: 1260px) {
+  .topbar-hall,
+  .hall-page {
+    max-width: 100%;
+  }
+
+  .hall-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  }
+
+  .hall-hero-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .hall-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .workspace-shell {
     grid-template-columns: 160px minmax(0, 1fr);
   }
@@ -2471,6 +2781,85 @@ button {
 
   .topbar {
     position: static;
+  }
+
+  .topbar-hall {
+    border-radius: 16px;
+    max-width: 100%;
+  }
+
+  .topbar-left {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .topbar-section-title {
+    align-self: center;
+  }
+
+  .hall-page {
+    gap: 18px;
+  }
+
+  .hall-hero {
+    border-radius: 18px;
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 24px;
+  }
+
+  .hall-hero h1 {
+    font-size: clamp(34px, 10.5vw, 44px);
+  }
+
+  .hall-hero p {
+    font-size: 15px;
+  }
+
+  .hall-hero-art {
+    min-height: 170px;
+    order: 3;
+  }
+
+  .hall-hero-actions {
+    justify-content: stretch;
+  }
+
+  .hall-create-button {
+    width: 100%;
+  }
+
+  .hall-grid,
+  .hall-empty-card {
+    grid-template-columns: 1fr;
+  }
+
+  .hall-grid {
+    gap: 14px;
+  }
+
+  .workspace-card-v2 {
+    border-radius: 18px;
+    min-height: 246px;
+    padding: 22px;
+  }
+
+  .workspace-card-main h2 {
+    font-size: 24px;
+  }
+
+  .workspace-card-actions button,
+  .workspace-open-link {
+    flex: 1 1 132px;
+  }
+
+  .hall-empty-card {
+    border-radius: 18px;
+    padding: 24px;
+  }
+
+  .hall-empty-art {
+    min-height: 170px;
   }
 
   .workspace-metrics {
@@ -2931,6 +3320,26 @@ button {
 }
 
 @media (max-width: 460px) {
+  .hall-hero,
+  .hall-empty-card {
+    padding: 20px;
+  }
+
+  .workspace-card-v2 {
+    padding: 20px;
+  }
+
+  .workspace-card-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-card-actions button,
+  .workspace-open-link {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
   .side-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
