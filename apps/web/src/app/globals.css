@@ -201,9 +201,96 @@ button {
 }
 
 .topbar-hall {
-  border-radius: 18px;
-  max-width: 1320px;
-  padding: 14px 18px;
+  background: #07111f;
+  border-color: #31465e;
+  border-radius: 0;
+  box-shadow: none;
+  color: #f6f8fc;
+  margin: 0 auto;
+  max-width: 1440px;
+  min-height: 108px;
+  padding: 0 68px;
+  position: relative;
+  top: auto;
+}
+
+.topbar-hall .brand {
+  gap: 16px;
+}
+
+.topbar-hall .brand-mark,
+.topbar-hall .brand-mark img {
+  height: 48px;
+  width: 48px;
+}
+
+.topbar-hall .brand strong {
+  color: #f6f8fc;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.topbar-hall .brand small {
+  display: none;
+}
+
+.topbar-hall .topbar-left {
+  gap: 76px;
+}
+
+.topbar-hall .topbar-section-title {
+  color: #f6f8fc;
+  font-size: 20px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.topbar-hall .nav {
+  align-items: center;
+  gap: 22px;
+}
+
+.topbar-hall .icon-button,
+.topbar-hall .nav button {
+  background: rgba(13, 28, 45, 0.82);
+  border-color: #31465e;
+  color: #f6f8fc;
+}
+
+.topbar-hall .icon-button {
+  background: transparent;
+  border: 0;
+  opacity: 0.74;
+}
+
+.topbar-hall .nav button:not(.icon-button) {
+  border-radius: 8px;
+  color: #dce5f5;
+  min-height: 52px;
+  padding: 0 28px;
+}
+
+.topbar-hall .user-avatar {
+  background: #1264ff;
+  border: 0;
+  color: #fff;
+  flex-basis: 58px;
+  font-size: 18px;
+  height: 58px;
+  position: relative;
+  width: 58px;
+}
+
+.topbar-hall .user-avatar::after {
+  background: #19c98a;
+  border: 2px solid #07111f;
+  border-radius: 999px;
+  bottom: 2px;
+  content: "";
+  height: 12px;
+  position: absolute;
+  right: 2px;
+  width: 12px;
 }
 
 .page {
@@ -427,57 +514,80 @@ button {
 }
 
 .hall-page {
-  gap: 28px;
-  max-width: 1320px;
+  --hall-bg: #061426;
+  --hall-header-bg: #07111f;
+  --hall-surface: #0d1c2d;
+  --hall-surface-alt: #102237;
+  --hall-border: #31465e;
+  --hall-text: #f6f8fc;
+  --hall-muted: #a8b4c8;
+  background:
+    radial-gradient(circle at 72% 12%, rgba(18, 100, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, #07111f 0, var(--hall-bg) 42%);
+  color: var(--hall-text);
+  gap: 34px;
+  align-content: start;
+  max-width: 1440px;
+  min-height: calc(100dvh - 108px);
+  padding: 64px 68px 28px;
+  position: relative;
+}
+
+body:has(.hall-page) {
+  background: #061426;
+  padding: 0;
 }
 
 .hall-hero {
-  align-items: stretch;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.92)),
-    var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 410px) auto;
-  min-height: 260px;
-  overflow: hidden;
-  padding: 34px 36px;
+  gap: 28px;
+  grid-template-columns: minmax(560px, 0.44fr) minmax(620px, 0.56fr);
+  min-height: 230px;
+  overflow: visible;
+  padding: 0;
   position: relative;
 }
 
 .hall-hero-copy {
-  align-content: center;
+  align-content: start;
   display: grid;
   justify-items: start;
+  padding-top: 5px;
 }
 
 .hall-hero h1 {
-  font-size: clamp(38px, 5vw, 72px);
-  line-height: 0.98;
-  margin: 0 0 16px;
-  max-width: 720px;
+  color: var(--hall-text);
+  font-size: 52px;
+  line-height: 1.08;
+  margin: 0 0 22px;
+  max-width: none;
   overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .hall-hero p {
-  color: var(--muted);
-  font-size: 17px;
+  color: var(--hall-muted);
+  font-size: 19px;
+  line-height: 1.58;
   margin: 0;
-  max-width: 680px;
+  max-width: 520px;
 }
 
 .hall-hero-art {
-  background: url("/assets/hall/backgrounds/hero-light.svg") center / contain no-repeat;
-  min-height: 190px;
+  align-self: stretch;
+  background:
+    linear-gradient(90deg, var(--hall-bg) 0%, rgba(6, 20, 38, 0) 22%),
+    url("/assets/hall-new/background/hero_master_crop.jpg") center right / cover no-repeat;
+  min-height: 250px;
 }
 
 .hall-hero-actions {
-  align-items: start;
-  display: flex;
-  justify-content: flex-end;
+  display: none;
 }
 
 .hall-create-button {
@@ -487,41 +597,56 @@ button {
 
 .hall-grid {
   align-items: stretch;
+  align-content: start;
   display: grid;
-  gap: 24px;
+  gap: 26px 20px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .workspace-card-v2 {
   --workspace-accent: var(--accent);
-  --workspace-tint: #edf5ff;
-  --workspace-art: url("/assets/hall/card-art/card-wave-owner-light.svg");
   background:
-    var(--workspace-art) right bottom / 70% auto no-repeat,
-    linear-gradient(180deg, color-mix(in srgb, var(--workspace-tint) 78%, #fff 22%), #fff 62%),
-    var(--panel);
-  border: 1px solid color-mix(in srgb, var(--workspace-accent) 20%, var(--line) 80%);
-  border-radius: 20px;
-  box-shadow: 0 22px 48px rgba(16, 24, 40, 0.09);
+    radial-gradient(ellipse at 76% 80%, color-mix(in srgb, var(--workspace-accent) 20%, transparent), transparent 38%),
+    linear-gradient(138deg, rgba(255, 255, 255, 0.055), transparent 34%),
+    var(--hall-surface);
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 40%, var(--hall-border) 60%);
+  border-radius: 14px;
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-rows: auto 1fr auto;
-  min-height: 280px;
+  height: 292px;
+  min-height: 292px;
   min-width: 0;
   overflow: hidden;
-  padding: 28px;
+  padding: 38px 30px 30px;
   position: relative;
 }
 
 .workspace-card-v2::before {
   background: var(--workspace-accent);
   content: "";
-  height: 4px;
+  bottom: 0;
+  height: 3px;
   left: 0;
-  opacity: 0.9;
+  opacity: 0.95;
   position: absolute;
   right: 0;
-  top: 0;
+}
+
+.workspace-card-v2::after {
+  background:
+    repeating-radial-gradient(ellipse at 82% 86%, color-mix(in srgb, var(--workspace-accent) 46%, transparent) 0 1px, transparent 1px 5px);
+  bottom: -12px;
+  content: "";
+  height: 118px;
+  opacity: 0.38;
+  position: absolute;
+  right: -22px;
+  transform: rotate(-9deg);
+  width: 250px;
 }
 
 .workspace-card-top,
@@ -537,15 +662,18 @@ button {
 
 .workspace-card-icon {
   align-items: center;
-  background: #fff;
-  border: 1px solid color-mix(in srgb, var(--workspace-accent) 22%, var(--line) 78%);
-  border-radius: 18px;
-  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.08);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--workspace-accent) 22%, transparent), rgba(13, 28, 45, 0.78)),
+    var(--hall-surface-alt);
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 52%, var(--hall-border) 48%);
+  border-radius: 10px;
+  box-shadow: 0 0 28px color-mix(in srgb, var(--workspace-accent) 18%, transparent);
   display: inline-flex;
-  flex: 0 0 58px;
-  height: 58px;
+  flex: 0 0 64px;
+  height: 64px;
   justify-content: center;
-  width: 58px;
+  overflow: hidden;
+  width: 64px;
 }
 
 .workspace-card-icon img,
@@ -553,17 +681,23 @@ button {
   display: block;
 }
 
+.workspace-card-icon img {
+  height: 64px;
+  object-fit: cover;
+  width: 64px;
+}
+
 .workspace-role {
-  color: color-mix(in srgb, var(--workspace-accent) 72%, #10213d 28%);
-  font-size: 13px;
+  color: var(--workspace-accent);
+  font-size: 14px;
   font-weight: 900;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .workspace-card-main {
-  align-content: center;
+  align-content: start;
   display: grid;
   justify-items: start;
   max-width: 94%;
@@ -571,16 +705,18 @@ button {
 
 .workspace-card-main h2 {
   display: -webkit-box;
-  font-size: 28px;
+  color: var(--hall-text);
+  font-size: 27px;
   line-height: 1.08;
-  margin: 0 0 10px;
+  margin: 0 0 18px;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
 .workspace-card-main p {
-  color: var(--muted);
+  color: var(--hall-muted);
+  font-size: 17px;
   margin: 0;
 }
 
@@ -593,24 +729,27 @@ button {
 .workspace-card-actions button,
 .workspace-open-link {
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--workspace-accent) 34%, var(--line) 66%);
-  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--workspace-accent) 34%, var(--hall-border) 66%);
+  border-radius: 8px;
   display: inline-flex;
-  font-weight: 850;
-  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  gap: 16px;
   justify-content: center;
-  min-height: 44px;
-  padding: 0 16px;
+  min-height: 54px;
+  padding: 0 22px;
 }
 
 .workspace-card-actions button {
-  background: rgba(255, 255, 255, 0.88);
-  color: var(--text);
+  background: rgba(6, 20, 38, 0.28);
+  color: var(--hall-text);
 }
 
 .workspace-open-link {
-  background: var(--workspace-accent);
+  background: #1264ff;
+  border-color: #1264ff;
   color: #fff;
+  min-width: 154px;
 }
 
 .workspace-open-link img {
@@ -624,19 +763,25 @@ button {
 
 .workspace-card-new {
   background:
-    var(--workspace-art) right 18px bottom 16px / 46% auto no-repeat,
-    linear-gradient(180deg, #f8fafd, #fff 68%),
-    var(--panel);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent 36%),
+    var(--hall-surface);
   border-style: dashed;
+}
+
+.workspace-card-new::after {
+  background: url("/assets/hall-new/cards/card_new_space_reference.jpg") right bottom / 58% auto no-repeat;
+  inset: auto 0 0 auto;
+  opacity: 0.44;
+  transform: none;
 }
 
 .hall-empty-card {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(237, 245, 255, 0.92)),
-    var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent 36%),
+    var(--hall-surface);
+  border: 1px solid var(--hall-border);
+  border-radius: 14px;
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.28);
   display: grid;
   gap: 22px;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 360px);
@@ -653,19 +798,20 @@ button {
 }
 
 .hall-empty-card h2 {
+  color: var(--hall-text);
   font-size: clamp(30px, 4vw, 48px);
   line-height: 1.05;
   margin: 0;
 }
 
 .hall-empty-card p:not(.eyebrow) {
-  color: var(--muted);
+  color: var(--hall-muted);
   margin: 0;
   max-width: 620px;
 }
 
 .hall-empty-art {
-  background: url("/assets/hall/card-art/create-space-cubes-light.svg") center / contain no-repeat;
+  background: url("/assets/hall-new/cards/card_new_space_reference.jpg") center / contain no-repeat;
   min-height: 220px;
 }
 
@@ -2706,8 +2852,19 @@ button {
     max-width: 100%;
   }
 
+  .topbar-hall,
+  .hall-page {
+    padding-left: 36px;
+    padding-right: 36px;
+  }
+
   .hall-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.78fr);
+  }
+
+  .hall-hero h1 {
+    font-size: 46px;
+    white-space: normal;
   }
 
   .hall-hero-actions {
@@ -2784,8 +2941,10 @@ button {
   }
 
   .topbar-hall {
-    border-radius: 16px;
+    border-radius: 0;
     max-width: 100%;
+    min-height: auto;
+    padding: 18px 20px;
   }
 
   .topbar-left {
@@ -2799,6 +2958,8 @@ button {
 
   .hall-page {
     gap: 18px;
+    min-height: calc(100dvh - 92px);
+    padding: 36px 20px 24px;
   }
 
   .hall-hero {
@@ -2810,6 +2971,7 @@ button {
 
   .hall-hero h1 {
     font-size: clamp(34px, 10.5vw, 44px);
+    white-space: normal;
   }
 
   .hall-hero p {
@@ -2840,6 +3002,7 @@ button {
 
   .workspace-card-v2 {
     border-radius: 18px;
+    height: auto;
     min-height: 246px;
     padding: 22px;
   }

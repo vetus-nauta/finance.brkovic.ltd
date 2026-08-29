@@ -16,8 +16,8 @@ type HallPageProps = {
 
 type WorkspaceTheme = {
   accent: string;
-  tint: string;
-  art: string;
+  icon: string;
+  tone: string;
 };
 
 async function getSessionState() {
@@ -54,13 +54,18 @@ function inviteStatusText(status?: string) {
   return status ? messages[status] ?? null : null;
 }
 
-const workspaceThemes: Record<"owner" | "employee", WorkspaceTheme> = {
-  owner: { accent: "#0b63f6", tint: "#edf5ff", art: "/assets/hall/card-art/card-wave-owner-light.svg" },
-  employee: { accent: "#6f42c1", tint: "#f5f0ff", art: "/assets/hall/card-art/card-wave-employee-light.svg" }
+const workspaceThemes: Record<"ownerBlue" | "ownerGreen" | "employee", WorkspaceTheme> = {
+  ownerBlue: { accent: "#1264ff", icon: "/assets/hall-new/icons/yacht_reference.jpg", tone: "blue" },
+  ownerGreen: { accent: "#19c98a", icon: "/assets/hall-new/icons/analytics_reference.jpg", tone: "green" },
+  employee: { accent: "#8b4dff", icon: "/assets/hall-new/icons/document_reference.jpg", tone: "violet" }
 };
 
-function workspaceTheme(roleTone: "owner" | "employee") {
-  return workspaceThemes[roleTone];
+function workspaceTheme(roleTone: "owner" | "employee", index: number) {
+  if (roleTone === "employee") {
+    return workspaceThemes.employee;
+  }
+
+  return index % 2 === 0 ? workspaceThemes.ownerBlue : workspaceThemes.ownerGreen;
 }
 
 function workspaceKindLabel(type: string) {
@@ -81,26 +86,6 @@ function workspaceKindLabel(type: string) {
   }
 
   return "Пространство";
-}
-
-function workspaceIcon(type: string) {
-  if (type === "yacht") {
-    return "/assets/hall/icons/space-types/yacht.svg";
-  }
-
-  if (type === "home") {
-    return "/assets/hall/icons/space-types/home.svg";
-  }
-
-  if (type === "family") {
-    return "/assets/hall/icons/space-types/family.svg";
-  }
-
-  if (type === "work") {
-    return "/assets/hall/icons/space-types/work.svg";
-  }
-
-  return "/assets/hall/icons/space-types/custom.svg";
 }
 
 function workspaceRoleTone(role: string): "owner" | "employee" {
@@ -154,27 +139,26 @@ export default async function HallPage({ searchParams }: HallPageProps) {
         <>
           {inviteStatus && query.inviteStatus === "accepted" ? <p className="hall-status">{inviteStatus}</p> : null}
           <section className="hall-grid" aria-label="Рабочие пространства">
-            {workspaces.map((workspace) => {
+            {workspaces.map((workspace, index) => {
               const canManage = Boolean(workspace.canManageMembers);
               const roleTone = workspaceRoleTone(workspace.role);
-              const theme = workspaceTheme(roleTone);
+              const theme = workspaceTheme(roleTone, index);
 
               return (
                 <article
-                  className={`workspace-card-v2 workspace-card-${roleTone}`}
+                  className={`workspace-card-v2 workspace-card-${roleTone} workspace-card-${theme.tone}`}
                   key={workspace.id}
                   style={
                     {
                       "--workspace-accent": theme.accent,
-                      "--workspace-tint": theme.tint,
-                      "--workspace-art": `url(${theme.art})`
+                      "--workspace-icon": `url(${theme.icon})`
                     } as CSSProperties
                   }
                 >
                   <div className="workspace-card-top">
                     <span className="workspace-role">{roleLabels[workspace.role] ?? workspace.role}</span>
                     <span className="workspace-card-icon" aria-hidden="true">
-                      <img src={workspaceIcon(workspace.type)} alt="" width={28} height={28} />
+                      <img src={theme.icon} alt="" width={34} height={34} />
                     </span>
                   </div>
                   <div className="workspace-card-main">
@@ -212,20 +196,19 @@ export default async function HallPage({ searchParams }: HallPageProps) {
               style={
                 {
                   "--workspace-accent": "#0b63f6",
-                  "--workspace-tint": "#f8fafd",
-                  "--workspace-art": "url(/assets/hall/card-art/create-space-cubes-light.svg)"
+                  "--workspace-icon": "url(/assets/hall-new/icons/add_space_reference.jpg)"
                 } as CSSProperties
               }
             >
               <div className="workspace-card-top">
-                <span className="workspace-role">Новое пространство</span>
+                <span className="workspace-role">Новый учет</span>
                 <span className="workspace-card-icon" aria-hidden="true">
-                  <img src="/assets/hall/icons/space-types/custom.svg" alt="" width={28} height={28} />
+                  <img src="/assets/hall-new/icons/add_space_reference.jpg" alt="" width={34} height={34} />
                 </span>
               </div>
               <div className="workspace-card-main">
                 <h2>Создать пространство</h2>
-                <p>Яхта, дом, семья или рабочий проект. Настройка будет в отдельном спокойном окне.</p>
+                <p>Новое рабочее пространство с ролями, доступом и отчетами.</p>
               </div>
               <div className="workspace-card-actions">
                 <button className="workspace-open-link" type="button" aria-disabled="true">
@@ -249,6 +232,7 @@ export default async function HallPage({ searchParams }: HallPageProps) {
           <div className="hall-empty-art" aria-hidden="true" />
         </section>
       )}
+      <p className="hall-footer">© 2024 FinDesk. Все права защищены.</p>
     </main>
   );
 }
